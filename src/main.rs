@@ -1,9 +1,7 @@
 use anyhow::{bail, Result};
 use clap::Parser;
 use honeyprompt::cli::{Cli, Commands};
-use honeyprompt::{config, generator, server, store};
-#[allow(unused_imports)]
-use honeyprompt::monitor;
+use honeyprompt::{config, generator, monitor, server, store};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -62,12 +60,10 @@ fn main() -> Result<()> {
         Commands::Monitor(args) => {
             let path = &args.path;
             let config_path = path.join("honeyprompt.toml");
-            let _cfg = config::load_config(&config_path)?;
+            let cfg = config::load_config(&config_path)?;
             let rt = tokio::runtime::Runtime::new()?;
-            // Placeholder: will be wired to monitor::monitor() in Plan 02
-            rt.block_on(async {
-                bail!("monitor not yet implemented — coming in plan 02")
-            })
+            rt.block_on(monitor::monitor(&cfg, path, &args))?;
+            Ok(())
         }
     }
 }
