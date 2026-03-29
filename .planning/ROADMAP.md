@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Generation Pipeline** - Offline init + generate workflow producing deployable honeypot pages, payload catalog, and locked SQLite schema (completed 2026-03-29)
 - [ ] **Phase 2: Server and Detection** - Async HTTP server with callback listener, full event pipeline, and agent fingerprinting
-- [ ] **Phase 3: TUI Monitor** - Flagship live event display with filters, session-based counting, and replay flagging
+- [x] **Phase 3: TUI Monitor** - Flagship live event display with filters, session-based counting, and replay flagging (completed 2026-03-29)
 - [ ] **Phase 4: Report and Landing** - Markdown disclosure report generator and instrumented honeyprompt.sh landing page
 
 ## Phase Details
@@ -60,10 +60,10 @@ Plans:
   1. User can run `honeyprompt monitor` and see a live event table that updates as callbacks arrive
   2. Events are filterable and sortable by tier, time, and source without leaving the TUI
   3. Replay events are visually flagged and excluded from detection counts in the UI
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 03-01-PLAN.md — Monitor module foundation: AppState logic, CLI wiring, unit tests
-- [ ] 03-02-PLAN.md — TUI rendering, event loop, integrated/attach modes, visual checkpoint
+- [x] 03-02-PLAN.md — TUI rendering, event loop, integrated/attach modes, visual checkpoint
 **UI hint**: yes
 
 ### Phase 4: Report and Landing
@@ -85,5 +85,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Generation Pipeline | 3/3 | Complete   | 2026-03-29 |
 | 2. Server and Detection | 1/3 | In Progress|  |
-| 3. TUI Monitor | 1/2 | In Progress|  |
+| 3. TUI Monitor | 2/2 | Complete   | 2026-03-29 |
 | 4. Report and Landing | 0/? | Not started | - |
