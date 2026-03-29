@@ -45,9 +45,9 @@ Plans:
   3. Known indexing crawlers (GPTBot, ClaudeBot, Googlebot) are separated from compliance detections and labeled as "indexed" not "agent complied"
   4. Detection counts are session-based (unique visits), not raw callback row counts
   5. Metadata-only mode stores only path, query, headers, and connection metadata — no request body
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 Plans:
-- [ ] 02-01-PLAN.md — Phase 2 types, fingerprint extraction, crawler catalog (SRV-03, SRV-04, SRV-05)
+- [x] 02-01-PLAN.md — Phase 2 types, fingerprint extraction, crawler catalog (SRV-03, SRV-04, SRV-05)
 - [ ] 02-02-PLAN.md — Event pipeline: broker, async DB writer, session counting (SRV-06, SRV-07)
 - [ ] 02-03-PLAN.md — Axum server, serve CLI command, integration tests (CLI-03, SRV-01)
 **UI hint**: no
@@ -81,6 +81,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Generation Pipeline | 3/3 | Complete   | 2026-03-29 |
-| 2. Server and Detection | 0/3 | Planning complete | - |
+| 2. Server and Detection | 1/3 | In Progress|  |
 | 3. TUI Monitor | 0/? | Not started | - |
 | 4. Report and Landing | 0/? | Not started | - |

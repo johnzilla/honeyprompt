@@ -35,9 +35,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **SRV-01**: Serve mode hosts honeypot page and callback listener on same port
 - [x] **SRV-02**: Callback events are stored in SQLite with replay detection and session grouping
-- [ ] **SRV-03**: Agent fingerprinting extracts UA, IP/ASN, and HTTP headers from callbacks
-- [ ] **SRV-04**: Known-agent lookup enriches captures with provider names (GPTBot → OpenAI, etc.)
-- [ ] **SRV-05**: Known crawler suppression separates indexing traffic from compliance detections
+- [x] **SRV-03**: Agent fingerprinting extracts UA, IP/ASN, and HTTP headers from callbacks
+- [x] **SRV-04**: Known-agent lookup enriches captures with provider names (GPTBot → OpenAI, etc.)
+- [x] **SRV-05**: Known crawler suppression separates indexing traffic from compliance detections
 - [ ] **SRV-06**: Detection counting uses sessions (visits), not raw callback rows
 - [ ] **SRV-07**: Metadata-only mode stores only path/query/headers/connection metadata (no body)
 
@@ -122,9 +122,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROOF-03 | Phase 1 | Complete |
 | SRV-01 | Phase 2 | Pending |
 | SRV-02 | Phase 1 | Complete |
-| SRV-03 | Phase 2 | Pending |
-| SRV-04 | Phase 2 | Pending |
-| SRV-05 | Phase 2 | Pending |
+| SRV-03 | Phase 2 | Complete |
+| SRV-04 | Phase 2 | Complete |
+| SRV-05 | Phase 2 | Complete |
 | SRV-06 | Phase 2 | Pending |
 | SRV-07 | Phase 2 | Pending |
 | TUI-01 | Phase 3 | Pending |
