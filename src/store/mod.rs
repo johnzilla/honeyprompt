@@ -42,6 +42,79 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
     )
 }
 
+/// Insert or update a callback event in the events table using upsert (replay detection).
+///
+/// SRV-07: No body parameter — metadata-only mode enforced by API design.
+///
+/// On first fire: inserts a new row with fire_count=1, is_replay=0.
+/// On subsequent fires (same nonce): increments fire_count and sets is_replay=1.
+///
+/// Returns `(fire_count, is_replay)` so the broker knows if this was a replay.
+/// All values are passed via parameterized query — SQL metacharacters cannot corrupt queries.
+pub fn insert_callback_event(
+    conn: &Connection,
+    nonce: &str,
+    tier: u8,
+    payload_id: &str,
+    embedding_loc: &str,
+    session_id: &str,
+    remote_addr: &str,
+    user_agent: &str,
+    extra_headers: &str,
+) -> rusqlite::Result<(u32, bool)> {
+    let now = chrono_now();
+    conn.execute(
+        "INSERT INTO events (nonce, tier, payload_id, embedding_loc, first_seen_at, last_seen_at, fire_count, is_replay, session_id, remote_addr, user_agent, extra_headers)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?5, 1, 0, ?6, ?7, ?8, ?9)
+         ON CONFLICT(nonce) DO UPDATE SET
+           last_seen_at = ?5,
+           fire_count = fire_count + 1,
+           is_replay = 1",
+        params![nonce, tier, payload_id, embedding_loc, now, session_id, remote_addr, user_agent, extra_headers],
+    )?;
+
+    let (fire_count, is_replay_int): (u32, i64) = conn.query_row(
+        "SELECT fire_count, is_replay FROM events WHERE nonce = ?1",
+        params![nonce],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+
+    Ok((fire_count, is_replay_int != 0))
+}
+
+/// Look up nonce metadata from the nonce_map table.
+///
+/// Returns `Some((tier, payload_id, embedding_loc))` if the nonce exists, `None` otherwise.
+pub fn lookup_nonce(
+    conn: &Connection,
+    nonce: &str,
+) -> rusqlite::Result<Option<(u8, String, String)>> {
+    let result = conn.query_row(
+        "SELECT tier, payload_id, embedding_loc FROM nonce_map WHERE nonce = ?1",
+        params![nonce],
+        |row| Ok((row.get::<_, u8>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
+    );
+    match result {
+        Ok(row) => Ok(Some(row)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+/// Count unique (session_id, tier) detection pairs, excluding known-crawler events.
+///
+/// Per D-08: detection counting is per-session per-tier. Same session + same tier = 1 detection.
+/// Known crawlers (classified as KnownCrawler) are excluded from the detection count.
+pub fn count_detections(conn: &Connection) -> rusqlite::Result<u32> {
+    let count: u32 = conn.query_row(
+        "SELECT COUNT(DISTINCT session_id || '-' || tier) FROM events
+         WHERE extra_headers NOT LIKE '%\"classification\":\"KnownCrawler\"%'",
+        [],
+        |row| row.get(0),
+    )?;
+    Ok(count)
+}
+
 /// Insert a nonce-to-payload mapping into the nonce_map table.
 ///
 /// All values are passed via parameterized query — SQL metacharacters in any
@@ -89,6 +162,148 @@ mod tests {
     fn test_schema_creates() {
         // Verifies that run_migrations completes without error on an in-memory DB.
         let _conn = in_memory_conn();
+    }
+
+    // --- insert_callback_event tests ---
+
+    #[test]
+    fn test_insert_callback_event_new_nonce() {
+        let conn = in_memory_conn();
+        // First insert a nonce in nonce_map
+        insert_nonce(&conn, "nonce001", 1, "t1-html", "html_comment").unwrap();
+        let (fire_count, is_replay) = insert_callback_event(
+            &conn, "nonce001", 1, "t1-html", "html_comment",
+            "sess01", "1.2.3.4", "TestBot/1.0", r#"{"classification":"Unknown","headers":{}}"#,
+        ).unwrap();
+        assert_eq!(fire_count, 1, "new nonce should have fire_count=1");
+        assert!(!is_replay, "new nonce should not be a replay");
+    }
+
+    #[test]
+    fn test_insert_callback_event_replay() {
+        let conn = in_memory_conn();
+        insert_nonce(&conn, "nonce002", 1, "t1-html", "html_comment").unwrap();
+        // First fire
+        insert_callback_event(
+            &conn, "nonce002", 1, "t1-html", "html_comment",
+            "sess02", "1.2.3.4", "TestBot/1.0", r#"{"classification":"Unknown","headers":{}}"#,
+        ).unwrap();
+        // Second fire — same nonce
+        let (fire_count, is_replay) = insert_callback_event(
+            &conn, "nonce002", 1, "t1-html", "html_comment",
+            "sess02", "1.2.3.4", "TestBot/1.0", r#"{"classification":"Unknown","headers":{}}"#,
+        ).unwrap();
+        assert_eq!(fire_count, 2, "second fire should have fire_count=2");
+        assert!(is_replay, "second fire should be a replay");
+    }
+
+    #[test]
+    fn test_insert_callback_event_stores_metadata() {
+        let conn = in_memory_conn();
+        insert_nonce(&conn, "nonce003", 2, "t2-cond", "meta_tag").unwrap();
+        let extra = r#"{"classification":"KnownAgent","headers":{"accept":"text/html"}}"#;
+        insert_callback_event(
+            &conn, "nonce003", 2, "t2-cond", "meta_tag",
+            "sess03", "5.6.7.8", "GPTBot/1.0", extra,
+        ).unwrap();
+        let (session_id, remote_addr, user_agent, extra_headers): (String, String, String, String) = conn
+            .query_row(
+                "SELECT session_id, remote_addr, user_agent, extra_headers FROM events WHERE nonce = ?1",
+                params!["nonce003"],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            ).unwrap();
+        assert_eq!(session_id, "sess03");
+        assert_eq!(remote_addr, "5.6.7.8");
+        assert_eq!(user_agent, "GPTBot/1.0");
+        assert_eq!(extra_headers, extra);
+    }
+
+    #[test]
+    fn test_insert_callback_event_no_body_param() {
+        // SRV-07: This test verifies the function signature has no body parameter.
+        // The function insert_callback_event does NOT accept a body argument.
+        // This is enforced by the type system — the test just confirms it compiles
+        // without a body parameter. The comment below references the enforcement.
+        // "// SRV-07: No body parameter — metadata-only mode enforced by API design."
+        let conn = in_memory_conn();
+        insert_nonce(&conn, "nonce004", 1, "t1-html", "html_comment").unwrap();
+        // Calling without any body parameter — if a body param existed this wouldn't compile
+        let result = insert_callback_event(
+            &conn, "nonce004", 1, "t1-html", "html_comment",
+            "sess04", "9.9.9.9", "NoBodyBot/1.0", "{}",
+        );
+        assert!(result.is_ok());
+    }
+
+    // --- lookup_nonce tests ---
+
+    #[test]
+    fn test_lookup_nonce_existing() {
+        let conn = in_memory_conn();
+        insert_nonce(&conn, "findme", 3, "t3-comp", "json_ld").unwrap();
+        let result = lookup_nonce(&conn, "findme").unwrap();
+        assert!(result.is_some());
+        let (tier, payload_id, embedding_loc) = result.unwrap();
+        assert_eq!(tier, 3u8);
+        assert_eq!(payload_id, "t3-comp");
+        assert_eq!(embedding_loc, "json_ld");
+    }
+
+    #[test]
+    fn test_lookup_nonce_missing() {
+        let conn = in_memory_conn();
+        let result = lookup_nonce(&conn, "nonexistent_nonce").unwrap();
+        assert!(result.is_none());
+    }
+
+    // --- count_detections tests ---
+
+    #[test]
+    fn test_count_detections_excludes_known_crawlers() {
+        let conn = in_memory_conn();
+        // Insert a KnownCrawler event — should NOT count
+        insert_nonce(&conn, "crawler01", 1, "t1-html", "html_comment").unwrap();
+        insert_callback_event(
+            &conn, "crawler01", 1, "t1-html", "html_comment",
+            "sess_crawler", "10.0.0.1", "Googlebot/2.1",
+            r#"{"classification":"KnownCrawler","headers":{}}"#,
+        ).unwrap();
+        // Insert an Unknown event — should count
+        insert_nonce(&conn, "agent01", 1, "t1-html", "html_comment").unwrap();
+        insert_callback_event(
+            &conn, "agent01", 1, "t1-html", "html_comment",
+            "sess_agent", "10.0.0.2", "EvilAgent/1.0",
+            r#"{"classification":"Unknown","headers":{}}"#,
+        ).unwrap();
+        let count = count_detections(&conn).unwrap();
+        assert_eq!(count, 1, "only non-crawler events should be counted");
+    }
+
+    #[test]
+    fn test_count_detections_per_session_per_tier() {
+        let conn = in_memory_conn();
+        // Same session, same tier — should count as 1
+        insert_nonce(&conn, "same01", 1, "t1-html", "html_comment").unwrap();
+        insert_callback_event(
+            &conn, "same01", 1, "t1-html", "html_comment",
+            "sess_same", "1.1.1.1", "Agent/1.0",
+            r#"{"classification":"Unknown","headers":{}}"#,
+        ).unwrap();
+        insert_nonce(&conn, "same02", 1, "t1-other", "meta_tag").unwrap();
+        insert_callback_event(
+            &conn, "same02", 1, "t1-other", "meta_tag",
+            "sess_same", "1.1.1.1", "Agent/1.0",
+            r#"{"classification":"Unknown","headers":{}}"#,
+        ).unwrap();
+        // Different tier, same session — should count as 2
+        insert_nonce(&conn, "tier2a", 2, "t2-cond", "meta_tag").unwrap();
+        insert_callback_event(
+            &conn, "tier2a", 2, "t2-cond", "meta_tag",
+            "sess_same", "1.1.1.1", "Agent/1.0",
+            r#"{"classification":"Unknown","headers":{}}"#,
+        ).unwrap();
+        let count = count_detections(&conn).unwrap();
+        assert_eq!(count, 2, "same session + same tier should count as 1 detection, different tier as another");
     }
 
     #[test]
