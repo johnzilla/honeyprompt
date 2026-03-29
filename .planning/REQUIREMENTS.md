@@ -17,11 +17,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Honeypot Generation
 
-- [ ] **GEN-01**: Generator produces static HTML honeypot page with embedded payloads
-- [ ] **GEN-02**: Every generated page includes a visible human warning (hard-coded, not configurable)
+- [x] **GEN-01**: Generator produces static HTML honeypot page with embedded payloads
+- [x] **GEN-02**: Every generated page includes a visible human warning (hard-coded, not configurable)
 - [x] **GEN-03**: Each payload gets a unique cryptographic nonce embedded in callback URL
-- [ ] **GEN-04**: Generator produces robots.txt with AI-specific user-agent disallow rules
-- [ ] **GEN-05**: Generator produces ai.txt with agent policy declarations
+- [x] **GEN-04**: Generator produces robots.txt with AI-specific user-agent disallow rules
+- [x] **GEN-05**: Generator produces ai.txt with agent policy declarations
 - [x] **GEN-06**: Payloads are distributed across multiple embedding locations per page (HTML comments, meta tags, invisible elements, JSON-LD, semantic prose)
 - [x] **GEN-07**: Only curated payloads are available — no custom payload authoring
 
@@ -110,11 +110,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-03 | Phase 2 | Pending |
 | CLI-04 | Phase 3 | Pending |
 | CLI-05 | Phase 4 | Pending |
-| GEN-01 | Phase 1 | Pending |
-| GEN-02 | Phase 1 | Pending |
+| GEN-01 | Phase 1 | Complete |
+| GEN-02 | Phase 1 | Complete |
 | GEN-03 | Phase 1 | Complete |
-| GEN-04 | Phase 1 | Pending |
-| GEN-05 | Phase 1 | Pending |
+| GEN-04 | Phase 1 | Complete |
+| GEN-05 | Phase 1 | Complete |
 | GEN-06 | Phase 1 | Complete |
 | GEN-07 | Phase 1 | Complete |
 | PROOF-01 | Phase 1 | Complete |
