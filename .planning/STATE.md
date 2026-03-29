@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 Phase: 2
 Plan: Not started
 Status: Phase complete — human-verify checkpoint approved (2026-03-28)
-Last activity: 2026-03-29
+Last activity: 2026-03-29 - Completed quick task 260328-vo4: update README.md
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -83,6 +83,12 @@ Recent decisions affecting current work:
 - Phase 2 planning: Evaluate `axum-client-ip` crate maintenance status before committing (MEDIUM confidence per research)
 - Phase 2 planning: Decide per-visitor nonce injection vs static nonce generation — affects whether ServeDir static serving is sufficient or a dynamic handler is needed for the main page
 - Phase 2 planning: Define known AI provider ASN catalog as a versioned data file with a clear update story
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260328-vo4 | update README.md as needed and keep it updated when each phase is complete | 2026-03-29 | 8c5b722 | [260328-vo4-update-readme-md-as-needed-and-keep-it-u](./quick/260328-vo4-update-readme-md-as-needed-and-keep-it-u/) |
 
 ## Session Continuity
 
