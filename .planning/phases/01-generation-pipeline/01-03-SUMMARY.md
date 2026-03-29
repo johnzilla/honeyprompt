@@ -73,7 +73,7 @@ completed: 2026-03-29
 - **Duration:** ~35 min
 - **Started:** 2026-03-29T02:00:00Z
 - **Completed:** 2026-03-29T02:35:00Z
-- **Tasks:** 2 of 3 auto-tasks complete (Task 3 is human-verify checkpoint)
+- **Tasks:** 3 of 3 complete (Task 3 human-verify checkpoint approved)
 - **Files modified:** 8
 
 ## Accomplishments
@@ -91,7 +91,7 @@ Each task was committed atomically:
 
 1. **Task 1: Templates and generator module** - `27b3d35` (feat)
 2. **Task 2: Wire init and generate commands with integration tests** - `8198334` (feat)
-3. **Task 3: Verify generated honeypot page** - PENDING (checkpoint:human-verify)
+3. **Task 3: Verify generated honeypot page** - APPROVED (checkpoint:human-verify — user confirmed page functional, feedback noted)
 
 ## Files Created/Modified
 
@@ -131,6 +131,16 @@ Each task was committed atomically:
 
 None beyond the auto-fixed escaping bug above.
 
+## Human Verification Feedback
+
+**Checkpoint approved** — user confirmed the generated page is functional.
+
+**Feedback noted (deferred improvement):** The generated honeypot page content is repetitive — the same message text appears repeated across multiple embedding locations. This is because the current payload catalog entries for semantic_prose and other locations use similar instruction text.
+
+**Decision:** Not fixed in this plan. The payload catalog content diversification is a future improvement. The repetitiveness does not affect functional correctness — nonces are unique, all embedding locations are populated, and warning banners are present. The issue should be addressed when the payload catalog is expanded or refined (likely Phase 1 follow-up or Phase 2 planning).
+
+**Deferred item logged:** Diversify payload instruction text across embedding locations so each location presents distinct content to the reader/scanner.
+
 ## User Setup Required
 
 None — no external service configuration required.
@@ -145,3 +155,12 @@ None — no external service configuration required.
 ---
 *Phase: 01-generation-pipeline*
 *Completed: 2026-03-29*
+
+## Self-Check: PASSED
+
+All files verified present. All task commits verified in git log:
+- 27b3d35: templates and generator module
+- 8198334: init/generate commands and integration tests
+- 12554f3: metadata commit (SUMMARY, STATE, ROADMAP)
+
+Task 3 (human-verify checkpoint) approved by user on 2026-03-28. Feedback about repetitive content noted as deferred improvement.
