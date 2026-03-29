@@ -29,7 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Every generated page contains a visible human warning and payloads distributed across multiple embedding locations (HTML comments, meta tags, invisible elements, JSON-LD, semantic prose)
   4. Each payload has a unique cryptographic nonce embedded in its callback URL
   5. The event store schema exists with replay detection fields and session grouping before any network code runs
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 01-01-PLAN.md — Project foundation: Cargo manifest, CLI skeleton, Config, shared types
+- [ ] 01-02-PLAN.md — Payload catalog (Tiers 1-3), nonce generator, SQLite event store schema
+- [ ] 01-03-PLAN.md — Templates, generator pipeline, init/generate commands, integration tests
 
 ### Phase 2: Server and Detection
 **Goal**: Users can serve the honeypot and receive callback events that are stored, enriched with fingerprint data, and separated from known-good crawlers
@@ -72,7 +76,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Generation Pipeline | 0/? | Not started | - |
+| 1. Generation Pipeline | 0/3 | Planning complete | - |
 | 2. Server and Detection | 0/? | Not started | - |
 | 3. TUI Monitor | 0/? | Not started | - |
 | 4. Report and Landing | 0/? | Not started | - |
