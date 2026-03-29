@@ -1,5 +1,24 @@
-use crate::types::AppEvent;
+use crate::types::{AgentClass, AppEvent};
 use std::collections::HashSet;
+use std::io::Stdout;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
+use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::execute;
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use futures::StreamExt;
+use ratatui::backend::CrosstermBackend;
+use ratatui::layout::{Alignment, Constraint, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table};
+use ratatui::Frame;
+use ratatui::Terminal;
+use tokio::sync::{broadcast, mpsc};
+use crate::cli::MonitorArgs;
+use crate::config::Config;
+use crate::types::{NonceMapping, RawCallbackEvent};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TierFilter {
@@ -81,6 +100,12 @@ impl AppState {
         self.events.push(event);
         if !self.at_bottom {
             self.new_events_count += 1;
+        } else {
+            // Auto-scroll to the new event when at_bottom
+            let visible_count = self.visible_events().len();
+            if visible_count > 0 {
+                self.table_state.select(Some(visible_count - 1));
+            }
         }
     }
 
@@ -172,6 +197,741 @@ impl AppState {
 impl Default for AppState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// --- Terminal setup / teardown ---
+
+fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<Stdout>>> {
+    // Install panic hook BEFORE enabling raw mode so terminal is always restored
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(std::io::stdout(), LeaveAlternateScreen);
+        original_hook(panic_info);
+    }));
+    enable_raw_mode()?;
+    let mut stdout = std::io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    Ok(Terminal::new(backend)?)
+}
+
+fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> anyhow::Result<()> {
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+    Ok(())
+}
+
+// --- Helper functions ---
+
+fn format_time(secs: u64) -> String {
+    let h = (secs / 3600) % 24;
+    let m = (secs / 60) % 60;
+    let s = secs % 60;
+    format!("{:02}:{:02}:{:02}", h, m, s)
+}
+
+fn truncate_str(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else if max <= 3 {
+        s[..max].to_string()
+    } else {
+        format!("{}...", &s[..max - 3])
+    }
+}
+
+fn tier_color(tier: u8) -> Color {
+    match tier {
+        1 => Color::Cyan,
+        2 => Color::Green,
+        3 => Color::Yellow,
+        _ => Color::White,
+    }
+}
+
+fn class_label(c: &AgentClass) -> (&'static str, Color) {
+    match c {
+        AgentClass::KnownAgent { .. } => ("agent", Color::Green),
+        AgentClass::KnownCrawler { .. } => ("crawler", Color::Red),
+        AgentClass::Unknown => ("unknown", Color::White),
+    }
+}
+
+// --- Rendering ---
+
+fn render_event_table(frame: &mut Frame, area: Rect, app: &mut AppState) {
+    let visible = app.visible_events();
+
+    let widths = [
+        Constraint::Length(12), // TIME
+        Constraint::Length(4),  // TIER
+        Constraint::Length(12), // CLASS
+        Constraint::Length(16), // SOURCE IP
+        Constraint::Fill(1),    // UA (fills remaining)
+        Constraint::Length(10), // NONCE
+        Constraint::Length(10), // SESS
+        Constraint::Length(5),  // FIRES
+        Constraint::Length(6),  // REPLAY
+    ];
+
+    let header_cells = ["TIME", "TIER", "CLASS", "SOURCE IP", "UA", "NONCE", "SESS", "FIRES", "REPLAY"]
+        .into_iter()
+        .map(|h| Cell::from(h).style(Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED)));
+    let header = Row::new(header_cells).height(1);
+
+    // Empty state rendering
+    if visible.is_empty() {
+        let msg = if app.events.is_empty() {
+            "Waiting for callbacks... Start the honeypot and trigger payloads to see events here."
+        } else {
+            "No events match the current filter. Press Tab to change filter or r to show replays."
+        };
+        let block = Block::default().title("Events").borders(Borders::ALL);
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+        let para = Paragraph::new(msg)
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(Color::DarkGray));
+        // Center vertically
+        let vert_offset = inner.height / 2;
+        let centered_area = Rect {
+            x: inner.x,
+            y: inner.y + vert_offset,
+            width: inner.width,
+            height: 1,
+        };
+        frame.render_widget(para, centered_area);
+        return;
+    }
+
+    let rows: Vec<Row> = visible.iter().map(|ev| {
+        let time_str = format_time(ev.received_at);
+        let tier_str = format!("T{}", ev.tier);
+        let (class_str, class_color) = class_label(&ev.classification);
+        let ip_str = truncate_str(&ev.fingerprint.source_ip.to_string(), 16);
+        let ua_str = truncate_str(&ev.fingerprint.user_agent, 30);
+        let nonce_short = format!("{}...", &ev.nonce[..ev.nonce.len().min(8)]);
+        let sess_short = format!("{}...", &ev.session_id[..ev.session_id.len().min(8)]);
+        let fires_str = ev.fire_count.to_string();
+        let replay_str = if ev.is_replay { " [R] " } else { "     " };
+
+        let cells = vec![
+            Cell::from(time_str),
+            Cell::from(tier_str).style(Style::default().fg(tier_color(ev.tier))),
+            Cell::from(truncate_str(class_str, 12)).style(Style::default().fg(class_color)),
+            Cell::from(ip_str),
+            Cell::from(ua_str),
+            Cell::from(nonce_short),
+            Cell::from(sess_short),
+            Cell::from(fires_str),
+            Cell::from(replay_str),
+        ];
+
+        let row_style = if ev.is_replay {
+            Style::default().add_modifier(Modifier::DIM)
+        } else {
+            Style::default()
+        };
+        Row::new(cells).style(row_style)
+    }).collect();
+
+    let table = Table::new(rows, widths)
+        .header(header)
+        .block(Block::default().title("Events").borders(Borders::ALL))
+        .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+
+    frame.render_stateful_widget(table, area, &mut app.table_state);
+}
+
+fn render(frame: &mut Frame, app: &mut AppState) {
+    // Minimum terminal size guard
+    if frame.area().width < 80 || frame.area().height < 20 {
+        let msg = Paragraph::new("Terminal too small (min 80x20). Resize to continue.")
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(Color::Yellow));
+        frame.render_widget(msg, frame.area());
+        return;
+    }
+
+    let chunks = Layout::vertical([
+        Constraint::Length(3), // stats header
+        Constraint::Length(3), // filter bar
+        Constraint::Fill(1),   // event table
+        Constraint::Length(1), // key hint bar
+    ])
+    .split(frame.area());
+
+    // --- Panel A: Stats header ---
+    let (t1, t2, t3) = app.tier_counts();
+    let replay_count = app.replay_count();
+    let replay_indicator = if app.show_replays {
+        format!("{} replays shown", replay_count)
+    } else {
+        format!("{} replays hidden", replay_count)
+    };
+
+    let stats_spans = vec![
+        Span::styled("Detections: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(
+            app.detection_count().to_string(),
+            Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan),
+        ),
+        Span::styled("  Sessions: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(
+            app.session_count().to_string(),
+            Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan),
+        ),
+        Span::styled("  T1: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(t1.to_string(), Style::default().fg(Color::Cyan)),
+        Span::styled("  T2: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(t2.to_string(), Style::default().fg(Color::Green)),
+        Span::styled("  T3: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(t3.to_string(), Style::default().fg(Color::Yellow)),
+        Span::raw("  "),
+        Span::styled(replay_indicator, Style::default().fg(Color::DarkGray)),
+    ];
+
+    let status_line = app.status_line.clone();
+    let stats_text = vec![
+        Line::from(stats_spans),
+        Line::from(vec![Span::raw(status_line)]),
+    ];
+    let stats_para = Paragraph::new(stats_text)
+        .block(Block::default().title("HoneyPrompt Monitor").borders(Borders::ALL));
+    frame.render_widget(stats_para, chunks[0]);
+
+    // --- Panel B: Filter bar ---
+    let filter_labels = [
+        (TierFilter::All, "All"),
+        (TierFilter::T1, "T1"),
+        (TierFilter::T2, "T2"),
+        (TierFilter::T3, "T3"),
+    ];
+    let sort_labels = [
+        (SortField::Time, "time"),
+        (SortField::Tier, "tier"),
+        (SortField::Source, "source"),
+    ];
+
+    let mut filter_spans: Vec<Span> = vec![Span::raw("Filter: ")];
+    for (i, (f, label)) in filter_labels.iter().enumerate() {
+        if i > 0 {
+            filter_spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+        }
+        if *f == app.filter {
+            filter_spans.push(Span::styled(
+                *label,
+                Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan),
+            ));
+        } else {
+            filter_spans.push(Span::styled(*label, Style::default().fg(Color::DarkGray)));
+        }
+    }
+
+    filter_spans.push(Span::raw("   Sort: "));
+    for (i, (s, label)) in sort_labels.iter().enumerate() {
+        if i > 0 {
+            filter_spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+        }
+        if *s == app.sort {
+            filter_spans.push(Span::styled(
+                *label,
+                Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan),
+            ));
+        } else {
+            filter_spans.push(Span::styled(*label, Style::default().fg(Color::DarkGray)));
+        }
+    }
+
+    if app.new_events_count > 0 && !app.at_bottom {
+        filter_spans.push(Span::styled(
+            format!("  [{} new]", app.new_events_count),
+            Style::default().fg(Color::Yellow),
+        ));
+    }
+
+    let filter_para = Paragraph::new(Line::from(filter_spans))
+        .block(Block::default().borders(Borders::ALL));
+    frame.render_widget(filter_para, chunks[1]);
+
+    // --- Panel C: Event table ---
+    render_event_table(frame, chunks[2], app);
+
+    // --- Panel D: Key hint bar ---
+    match app.mode {
+        UiMode::Command => {
+            let cmd_text = format!(": {}_", app.command_input);
+            let cmd_para = Paragraph::new(cmd_text)
+                .style(Style::default().fg(Color::White));
+            frame.render_widget(cmd_para, chunks[3]);
+        }
+        UiMode::Normal => {
+            // Check if there's a recent error to display
+            let show_error = app.command_error.as_ref().map_or(false, |(_, t)| {
+                t.elapsed() < Duration::from_secs(2)
+            });
+            if show_error {
+                let err_msg = app.command_error.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
+                let err_para = Paragraph::new(err_msg)
+                    .style(Style::default().fg(Color::Red));
+                frame.render_widget(err_para, chunks[3]);
+            } else {
+                let hint = "j/k scroll  Tab filter  s sort  r replays  : cmd  ? help  q quit";
+                let hint_para = Paragraph::new(hint)
+                    .style(Style::default().fg(Color::DarkGray));
+                frame.render_widget(hint_para, chunks[3]);
+            }
+        }
+        UiMode::Help => {
+            let hint = "j/k scroll  Tab filter  s sort  r replays  : cmd  ? help  q quit";
+            let hint_para = Paragraph::new(hint)
+                .style(Style::default().fg(Color::DarkGray));
+            frame.render_widget(hint_para, chunks[3]);
+        }
+    }
+
+    // --- Help overlay ---
+    if app.mode == UiMode::Help {
+        let full_area = frame.area();
+        let overlay_width = full_area.width.min(60);
+        let overlay_height = full_area.height.min(20);
+        let overlay_x = (full_area.width.saturating_sub(overlay_width)) / 2;
+        let overlay_y = (full_area.height.saturating_sub(overlay_height)) / 2;
+        let overlay_area = Rect {
+            x: overlay_x,
+            y: overlay_y,
+            width: overlay_width,
+            height: overlay_height,
+        };
+
+        frame.render_widget(Clear, overlay_area);
+
+        let help_text = vec![
+            Line::from(vec![Span::styled("Key Bindings", Style::default().add_modifier(Modifier::BOLD))]),
+            Line::from(""),
+            Line::from("  j / Down    Scroll down one row"),
+            Line::from("  k / Up      Scroll up one row"),
+            Line::from("  PgDn        Scroll down one page"),
+            Line::from("  PgUp        Scroll up one page"),
+            Line::from("  g           Jump to top"),
+            Line::from("  G           Jump to bottom (latest)"),
+            Line::from("  Tab         Cycle filter: All -> T1 -> T2 -> T3"),
+            Line::from("  s           Cycle sort: time -> tier -> source"),
+            Line::from("  r           Toggle replay visibility"),
+            Line::from("  :           Open command input"),
+            Line::from("  q / Ctrl-C  Quit"),
+            Line::from("  ?           Toggle this help overlay"),
+            Line::from(""),
+            Line::from(vec![Span::styled("Commands (:)", Style::default().add_modifier(Modifier::BOLD))]),
+            Line::from("  quit"),
+            Line::from("  filter all|t1|t2|t3"),
+            Line::from("  sort time|tier|source"),
+            Line::from(""),
+            Line::from(vec![Span::styled(
+                "  Press any key to close",
+                Style::default().fg(Color::DarkGray),
+            )]),
+        ];
+
+        let help_para = Paragraph::new(help_text)
+            .block(Block::default().title("Help").borders(Borders::ALL))
+            .style(Style::default());
+        frame.render_widget(help_para, overlay_area);
+    }
+}
+
+// --- Key handling ---
+
+/// Returns true if the application should quit.
+fn handle_key_event(key: &KeyEvent, app: &mut AppState) -> bool {
+    match app.mode {
+        UiMode::Normal => {
+            // Ctrl+C always quits
+            if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+                return true;
+            }
+            match key.code {
+                KeyCode::Char('q') => return true,
+                KeyCode::Char('j') | KeyCode::Down => {
+                    let visible_count = app.visible_events().len();
+                    if visible_count == 0 {
+                        return false;
+                    }
+                    let current = app.table_state.selected().unwrap_or(0);
+                    let next = (current + 1).min(visible_count - 1);
+                    app.table_state.select(Some(next));
+                    app.at_bottom = next == visible_count - 1;
+                    if app.at_bottom {
+                        app.new_events_count = 0;
+                    }
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    let current = app.table_state.selected().unwrap_or(0);
+                    if current > 0 {
+                        app.table_state.select(Some(current - 1));
+                        app.at_bottom = false;
+                    }
+                }
+                KeyCode::PageDown => {
+                    let visible_count = app.visible_events().len();
+                    if visible_count == 0 {
+                        return false;
+                    }
+                    let page_size: usize = 10; // approximate page size
+                    let current = app.table_state.selected().unwrap_or(0);
+                    let next = (current + page_size).min(visible_count - 1);
+                    app.table_state.select(Some(next));
+                    app.at_bottom = next == visible_count - 1;
+                    if app.at_bottom {
+                        app.new_events_count = 0;
+                    }
+                }
+                KeyCode::PageUp => {
+                    let current = app.table_state.selected().unwrap_or(0);
+                    let page_size: usize = 10;
+                    let prev = current.saturating_sub(page_size);
+                    app.table_state.select(Some(prev));
+                    app.at_bottom = false;
+                }
+                KeyCode::Char('g') => {
+                    app.table_state.select(Some(0));
+                    app.at_bottom = false;
+                }
+                KeyCode::Char('G') => {
+                    let visible_count = app.visible_events().len();
+                    if visible_count > 0 {
+                        app.table_state.select(Some(visible_count - 1));
+                    }
+                    app.at_bottom = true;
+                    app.new_events_count = 0;
+                }
+                KeyCode::Tab => app.cycle_filter(),
+                KeyCode::Char('s') => app.cycle_sort(),
+                KeyCode::Char('r') => app.toggle_replays(),
+                KeyCode::Char(':') => {
+                    app.mode = UiMode::Command;
+                    app.command_input.clear();
+                }
+                KeyCode::Char('?') => {
+                    app.mode = UiMode::Help;
+                }
+                _ => {}
+            }
+        }
+        UiMode::Command => {
+            match key.code {
+                KeyCode::Esc => {
+                    app.mode = UiMode::Normal;
+                }
+                KeyCode::Enter => {
+                    let input = app.command_input.trim().to_lowercase();
+                    app.mode = UiMode::Normal;
+                    match input.as_str() {
+                        "quit" => return true,
+                        "filter all" => {
+                            app.filter = TierFilter::All;
+                            app.table_state.select(Some(0));
+                        }
+                        "filter t1" => {
+                            app.filter = TierFilter::T1;
+                            app.table_state.select(Some(0));
+                        }
+                        "filter t2" => {
+                            app.filter = TierFilter::T2;
+                            app.table_state.select(Some(0));
+                        }
+                        "filter t3" => {
+                            app.filter = TierFilter::T3;
+                            app.table_state.select(Some(0));
+                        }
+                        "sort time" => {
+                            app.sort = SortField::Time;
+                        }
+                        "sort tier" => {
+                            app.sort = SortField::Tier;
+                        }
+                        "sort source" => {
+                            app.sort = SortField::Source;
+                        }
+                        other => {
+                            app.command_error = Some((
+                                format!("Unknown command: {}", other),
+                                std::time::Instant::now(),
+                            ));
+                        }
+                    }
+                }
+                KeyCode::Char(c) => {
+                    app.command_input.push(c);
+                }
+                KeyCode::Backspace => {
+                    app.command_input.pop();
+                }
+                _ => {}
+            }
+        }
+        UiMode::Help => {
+            // Any key dismisses help overlay
+            app.mode = UiMode::Normal;
+        }
+    }
+    false
+}
+
+// --- Async run loops ---
+
+async fn run_loop(
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    mut event_rx: broadcast::Receiver<AppEvent>,
+    app: &mut AppState,
+) -> anyhow::Result<()> {
+    let mut key_stream = EventStream::new();
+    let mut tick = tokio::time::interval(Duration::from_millis(16));
+    loop {
+        tokio::select! {
+            _ = tick.tick() => {
+                terminal.draw(|f| render(f, app))?;
+            }
+            result = event_rx.recv() => {
+                match result {
+                    Ok(ev) => app.push_event(ev),
+                    Err(broadcast::error::RecvError::Lagged(_n)) => {
+                        // Silently drop — acceptable for demo tool
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
+            }
+            Some(Ok(event)) = key_stream.next() => {
+                if let Event::Key(key) = event {
+                    if handle_key_event(&key, app) { break; }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn run_loop_attach(
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    conn: tokio_rusqlite::Connection,
+    app: &mut AppState,
+) -> anyhow::Result<()> {
+    let mut key_stream = EventStream::new();
+    let mut tick = tokio::time::interval(Duration::from_millis(16));
+    let mut poll = tokio::time::interval(Duration::from_millis(250));
+    let mut last_seen_id: i64 = 0;
+
+    loop {
+        tokio::select! {
+            _ = tick.tick() => {
+                terminal.draw(|f| render(f, app))?;
+            }
+            _ = poll.tick() => {
+                // Poll DB for new events since last_seen_id
+                let since_id = last_seen_id;
+                let rows: Result<Vec<(i64, String, u8, String, String, String, String, String, u32, bool, Option<String>, u64)>, _> = conn.call(move |c| {
+                    let mut stmt = c.prepare(
+                        "SELECT id, nonce, tier, payload_id, embedding_loc, session_id, remote_addr, user_agent, fire_count, is_replay, extra_headers, first_seen_at \
+                         FROM events WHERE id > ?1 ORDER BY id ASC"
+                    )?;
+                    let rows: rusqlite::Result<Vec<_>> = stmt.query_map(rusqlite::params![since_id], |row| {
+                        Ok((
+                            row.get::<_, i64>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, u8>(2)?,
+                            row.get::<_, String>(3)?,
+                            row.get::<_, String>(4)?,
+                            row.get::<_, String>(5).unwrap_or_default(),
+                            row.get::<_, String>(6).unwrap_or_default(),
+                            row.get::<_, String>(7).unwrap_or_default(),
+                            row.get::<_, u32>(8)?,
+                            row.get::<_, bool>(9)?,
+                            row.get::<_, Option<String>>(10)?,
+                            row.get::<_, u64>(11).unwrap_or(0),
+                        ))
+                    })?.collect();
+                    rows.map_err(tokio_rusqlite::Error::from)
+                }).await;
+
+                if let Ok(event_rows) = rows {
+                    for (id, nonce, tier, payload_id, embedding_loc, session_id, remote_addr, user_agent, fire_count, is_replay, extra_headers, first_seen_at) in event_rows {
+                        // Parse classification from extra_headers JSON
+                        let classification = parse_classification_from_extra(&extra_headers);
+                        let source_ip: std::net::IpAddr = remote_addr.parse()
+                            .unwrap_or_else(|_| std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+                        let fingerprint = crate::types::AgentFingerprint {
+                            source_ip,
+                            user_agent: user_agent.clone(),
+                            headers: std::collections::HashMap::new(),
+                            received_at: first_seen_at,
+                        };
+                        let ev = AppEvent {
+                            nonce,
+                            tier,
+                            payload_id,
+                            embedding_loc,
+                            fingerprint,
+                            classification,
+                            session_id,
+                            is_replay,
+                            fire_count,
+                            received_at: first_seen_at,
+                        };
+                        app.push_event(ev);
+                        if id > last_seen_id {
+                            last_seen_id = id;
+                        }
+                    }
+                }
+            }
+            Some(Ok(event)) = key_stream.next() => {
+                if let Event::Key(key) = event {
+                    if handle_key_event(&key, app) { break; }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Parse AgentClass from the extra_headers JSON blob stored in the DB.
+fn parse_classification_from_extra(extra_headers: &Option<String>) -> AgentClass {
+    let Some(json_str) = extra_headers else {
+        return AgentClass::Unknown;
+    };
+    // Parse {"classification": "KnownAgent:OpenAI", ...}
+    if let Ok(val) = serde_json::from_str::<serde_json::Value>(json_str) {
+        if let Some(cls) = val.get("classification").and_then(|v| v.as_str()) {
+            if cls.starts_with("KnownCrawler:") {
+                let provider = cls.trim_start_matches("KnownCrawler:").to_string();
+                return AgentClass::KnownCrawler { provider };
+            } else if cls.starts_with("KnownAgent:") {
+                let provider = cls.trim_start_matches("KnownAgent:").to_string();
+                return AgentClass::KnownAgent { provider };
+            }
+        }
+    }
+    AgentClass::Unknown
+}
+
+// --- Public entry point ---
+
+/// Start the honeyprompt monitor (integrated or attach mode).
+pub async fn monitor(config: &Config, project_path: &Path, args: &MonitorArgs) -> anyhow::Result<()> {
+    let mut app = AppState::new();
+
+    if args.attach {
+        // Attach mode: poll existing database
+        let db_path = project_path.join(".honeyprompt").join("events.db");
+        if !db_path.exists() {
+            anyhow::bail!(
+                "Error: database not found at {}. Run `honeyprompt serve` first.",
+                db_path.display()
+            );
+        }
+        let conn = tokio_rusqlite::Connection::open(&db_path).await?;
+        app.status_line = format!("Attached to db: {}", db_path.display());
+
+        let mut terminal = setup_terminal()?;
+        let result = run_loop_attach(&mut terminal, conn, &mut app).await;
+        restore_terminal(&mut terminal)?;
+        result
+    } else {
+        // Integrated mode: start server + TUI together
+        let output_dir = project_path.join("output");
+        let db_path = project_path.join(".honeyprompt").join("events.db");
+
+        // Load callback-map.json and build in-memory nonce lookup
+        let callback_map_path = output_dir.join("callback-map.json");
+        let json_str = std::fs::read_to_string(&callback_map_path)
+            .map_err(|e| anyhow::anyhow!("Failed to read callback-map.json: {}", e))?;
+        let mappings: Vec<NonceMapping> = serde_json::from_str(&json_str)
+            .map_err(|e| anyhow::anyhow!("Failed to parse callback-map.json: {}", e))?;
+
+        let mut nonce_map: std::collections::HashMap<String, crate::server::NonceMeta> =
+            std::collections::HashMap::new();
+        for m in &mappings {
+            nonce_map.insert(
+                m.nonce.clone(),
+                crate::server::NonceMeta {
+                    tier: u8::from(m.tier),
+                    payload_id: m.payload_id.clone(),
+                    embedding_loc: m.embedding_location.to_string(),
+                },
+            );
+        }
+
+        // Load crawler catalog
+        let crawler_catalog = crate::crawler_catalog::CrawlerCatalog::load()?;
+
+        // Open tokio-rusqlite connection and run migrations
+        let conn = tokio_rusqlite::Connection::open(&db_path).await?;
+        conn.call(|c| {
+            crate::store::run_migrations(c).map_err(tokio_rusqlite::Error::from)
+        })
+        .await?;
+
+        // Create event pipeline channels
+        let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(256);
+        let (event_tx, _initial_rx) = tokio::sync::broadcast::channel::<AppEvent>(1024);
+
+        // Subscribe consumers BEFORE spawning broker (so no events are missed)
+        let tui_rx = event_tx.subscribe();
+        let db_rx = event_tx.subscribe();
+
+        // Spawn pipeline tasks (no stdout_logger_task — TUI replaces it)
+        tokio::spawn(crate::broker::broker_task(callback_rx, event_tx));
+        tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone()));
+
+        // Build server AppState and router
+        let server_state = Arc::new(crate::server::AppState {
+            callback_tx,
+            nonce_map,
+            crawler_catalog,
+        });
+        let app_router = crate::server::build_router(server_state, output_dir);
+
+        // Determine bind address
+        let bind_addr = if let Some(port) = args.port {
+            format!("0.0.0.0:{}", port)
+        } else {
+            config.bind_address.clone()
+        };
+
+        // Bind TcpListener
+        let listener = tokio::net::TcpListener::bind(&bind_addr).await
+            .map_err(|e| anyhow::anyhow!("Failed to bind to {}: {}", bind_addr, e))?;
+        let actual_addr = listener.local_addr()?;
+
+        // Shutdown signal channel
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+
+        // Spawn axum server with graceful shutdown
+        tokio::spawn(async move {
+            if let Err(e) = axum::serve(
+                listener,
+                app_router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+            )
+            .with_graceful_shutdown(async {
+                let _ = shutdown_rx.await;
+            })
+            .await
+            {
+                eprintln!("server error: {}", e);
+            }
+        });
+
+        app.status_line = format!("Serving on {}", actual_addr);
+
+        // Setup terminal and run TUI
+        let mut terminal = setup_terminal()?;
+        let result = run_loop(&mut terminal, tui_rx, &mut app).await;
+        restore_terminal(&mut terminal)?;
+        let _ = shutdown_tx.send(());
+        result
     }
 }
 
@@ -400,5 +1160,75 @@ mod tests {
         assert!(state.show_replays);
         state.toggle_replays();
         assert!(!state.show_replays);
+    }
+
+    #[test]
+    fn test_format_time() {
+        // 3661 secs = 1 hour, 1 min, 1 sec
+        assert_eq!(format_time(3661), "01:01:01");
+        // 0 secs
+        assert_eq!(format_time(0), "00:00:00");
+        // 86400 secs = 24 hours, wraps to 00:00:00
+        assert_eq!(format_time(86400), "00:00:00");
+    }
+
+    #[test]
+    fn test_truncate_str_short() {
+        assert_eq!(truncate_str("hello", 10), "hello");
+    }
+
+    #[test]
+    fn test_truncate_str_long() {
+        assert_eq!(truncate_str("hello world", 8), "hello...");
+    }
+
+    #[test]
+    fn test_tier_color() {
+        assert_eq!(tier_color(1), Color::Cyan);
+        assert_eq!(tier_color(2), Color::Green);
+        assert_eq!(tier_color(3), Color::Yellow);
+        assert_eq!(tier_color(4), Color::White);
+    }
+
+    #[test]
+    fn test_class_label() {
+        let (label, color) = class_label(&AgentClass::KnownAgent { provider: "OpenAI".to_string() });
+        assert_eq!(label, "agent");
+        assert_eq!(color, Color::Green);
+
+        let (label, color) = class_label(&AgentClass::KnownCrawler { provider: "Google".to_string() });
+        assert_eq!(label, "crawler");
+        assert_eq!(color, Color::Red);
+
+        let (label, color) = class_label(&AgentClass::Unknown);
+        assert_eq!(label, "unknown");
+        assert_eq!(color, Color::White);
+    }
+
+    #[test]
+    fn test_parse_classification_known_agent() {
+        let extra = Some(r#"{"classification":"KnownAgent:OpenAI","headers":{}}"#.to_string());
+        let cls = parse_classification_from_extra(&extra);
+        assert_eq!(cls, AgentClass::KnownAgent { provider: "OpenAI".to_string() });
+    }
+
+    #[test]
+    fn test_parse_classification_known_crawler() {
+        let extra = Some(r#"{"classification":"KnownCrawler:Google","headers":{}}"#.to_string());
+        let cls = parse_classification_from_extra(&extra);
+        assert_eq!(cls, AgentClass::KnownCrawler { provider: "Google".to_string() });
+    }
+
+    #[test]
+    fn test_parse_classification_unknown() {
+        let extra = Some(r#"{"classification":"Unknown","headers":{}}"#.to_string());
+        let cls = parse_classification_from_extra(&extra);
+        assert_eq!(cls, AgentClass::Unknown);
+    }
+
+    #[test]
+    fn test_parse_classification_none() {
+        let cls = parse_classification_from_extra(&None);
+        assert_eq!(cls, AgentClass::Unknown);
     }
 }
