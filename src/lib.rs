@@ -9,4 +9,5 @@ pub mod nonce;
 pub mod server;
 pub mod store;
 pub mod monitor;
+pub mod report;
 pub mod types;
