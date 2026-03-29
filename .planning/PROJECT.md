@@ -20,12 +20,13 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 - ✓ HTTP callback listener integrated with honeypot server (all-in-one) — Phase 2
 - ✓ Agent fingerprinting from request metadata (IP, UA, headers, ASN) — Phase 2
 - ✓ TUI monitor for live event viewing with filters — Phase 3
+- ✓ CLI workflow for report — Phase 4
+- ✓ Markdown disclosure report generator — Phase 4
+- ✓ Minimal honeyprompt.sh landing page (instrumented with its own canaries) — Phase 4
 
 ### Active
 
-- [ ] CLI workflow for report
-- [ ] Markdown disclosure report generator
-- [ ] Minimal honeyprompt.sh landing page (instrumented with its own canaries)
+- None — all v1 requirements validated
 
 ### Out of Scope
 
@@ -107,4 +108,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after Phase 3 completion*
+*Last updated: 2026-03-29 after Phase 4 completion — all v1 phases complete*
