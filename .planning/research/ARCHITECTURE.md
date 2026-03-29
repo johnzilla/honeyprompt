@@ -1,17 +1,12 @@
-# Architecture Patterns
+# Architecture Research
 
-**Domain:** Rust CLI security tool — honeypot page generation, HTTP callback listening, SQLite event storage, TUI monitoring
-**Researched:** 2026-03-28
-**Overall confidence:** HIGH (verified against official Tokio, Axum, Ratatui docs and community patterns)
+**Domain:** Rust CLI security tool — honeypot page generation, HTTP callback listening, SQLite event storage, TUI monitoring, automated agent testing, CI/CD release pipeline
+**Researched:** 2026-03-29
+**Confidence:** HIGH (verified against official Tokio, Axum, GitHub Actions docs and community patterns)
 
 ---
 
-## Recommended Architecture
-
-HoneyPrompt is a single-binary, multi-mode application. Two major runtime modes exist:
-
-1. **Offline mode** — `init`, `generate`, `report`, `export` subcommands run synchronously, touch only the filesystem and SQLite.
-2. **Server mode** — `serve` subcommand launches an async Tokio runtime hosting the HTTP server, callback receiver, and TUI simultaneously.
+## Standard Architecture (v1.0 — Existing, Unchanged)
 
 ### Top-Level Process Topology (Server Mode)
 
@@ -33,254 +28,579 @@ HoneyPrompt is a single-binary, multi-mode application. Two major runtime modes 
   │                           │                                 │
   │                   ┌───────▼──────┐                         │
   │                   │   SQLite     │                         │
-  │                   │   (via       │                         │
-  │                   │   tokio-     │                         │
-  │                   │   rusqlite)  │                         │
   │                   └──────────────┘                         │
   └─────────────────────────────────────────────────────────────┘
 ```
 
-The Axum server handles two concerns on the same port: serving honeypot pages and receiving callback beacons. The Event Broker is a Tokio task with a `broadcast` channel, allowing the TUI and DB writer to receive every event independently without coordination.
+This topology is unchanged for v2.0. The new `test-agent` subcommand reuses and composes existing modules rather than replacing any of them.
 
 ---
 
-## Component Boundaries
+## v2.0 New Architecture: test-agent Subcommand
 
-| Component | Responsibility | Consumes | Produces |
-|-----------|---------------|----------|---------|
-| **CLI Layer** (`cli/`) | Clap parse, subcommand dispatch, tokio runtime entry | argv | Subcommand enum |
-| **Config / Workspace** (`config/`) | Read/write `honeyprompt.toml`, resolve paths | Filesystem | `Config` struct |
-| **Payload Catalog** (`catalog/`) | Curated prompt-injection payloads keyed by proof level | `Config` | `Payload` structs |
-| **Generator** (`generator/`) | Render honeypot HTML, robots.txt, ai.txt from templates | `Payload`, `Config` | Static files on disk |
-| **Axum Server** (`server/`) | Serve static files + receive GET/POST callback beacons | Filesystem, HTTP | Raw `CallbackEvent` |
-| **Fingerprinter** (`fingerprint/`) | Extract IP, UA, headers, ASN metadata from requests | Axum `Request` parts | `AgentFingerprint` |
-| **Event Broker** (`broker/`) | Fan out callback events to all subscribers | `CallbackEvent` + `AgentFingerprint` | `broadcast::Sender<Event>` |
-| **DB Store** (`store/`) | Persist events to SQLite, query history | `broadcast::Receiver<Event>` | Rows; query results |
-| **TUI Monitor** (`tui/`) | Ratatui live view, filters, event table | `broadcast::Receiver<Event>`, DB queries | Terminal frames |
-| **Reporter** (`report/`) | Generate Markdown disclosure reports | DB queries | `.md` files |
+### What test-agent Does
 
-### Explicit Non-Communications
+`honeyprompt test-agent` is a scripted probe-and-measure subcommand. It:
 
-- The TUI does not talk to the Axum server directly — events arrive via broadcast channel.
-- The Generator does not run during `serve` — it is an offline-only concern.
-- The Fingerprinter is a pure function (request → fingerprint), with no database access.
-- The Payload Catalog is read-only at runtime; it is never mutated by incoming events.
+1. Generates a fresh ephemeral honeypot page (reusing `generator`) with a random nonce set
+2. Starts a **temporary server** bound to a local port (reusing `server::build_router`)
+3. Prints the test URL so a human or CI script can point an agent at it
+4. Waits for callbacks, collecting them up to a timeout
+5. Shuts the server down automatically when timeout expires or all expected callbacks are received
+6. Produces a pass/fail scorecard with exit code 0 (no callbacks = agent ignored injection) or 1 (callbacks received = agent complied with injection)
 
----
+The key difference from `serve` is **auto-termination** — the server is not meant to run indefinitely.
 
-## Data Flow
-
-### Flow 1: Page Generation (offline)
+### test-agent Process Topology
 
 ```
-CLI `generate` → Config → Payload Catalog → Generator
-                                                 │
-                                       Render HTML templates
-                                       (nonce embedded in callback URLs)
-                                                 │
-                                       Write to output dir:
-                                         index.html
-                                         robots.txt
-                                         ai.txt
-                                         callback-map.json  ← nonce → payload metadata
-```
-
-The nonce is a URL-safe random token embedded in the beacon path (e.g., `/cb/v1/<nonce>`). `callback-map.json` is the local ledger mapping nonces to proof levels; the server reads this at startup.
-
-### Flow 2: Callback Reception (server mode)
-
-```
-Agent HTTP request
+  CLI test-agent
        │
-  Axum Router
-  ├── GET /            → serve index.html (static)
-  ├── GET /robots.txt  → serve robots.txt (static)
-  └── GET /cb/v1/:nonce
-          │
-     Fingerprinter ─── extract IP, UA, headers
-          │
-     Nonce Lookup ──── resolve proof level from callback-map.json
-          │
-     CallbackEvent assembled
-          │
-     callback_tx.send(event) ── mpsc into Event Broker
+       ├── generate ephemeral output dir (temp dir, reuse generator module)
+       │
+       ├── open in-memory or ephemeral SQLite DB (reuse store module)
+       │
+       ├── start Tokio runtime
+       │        │
+       │   ┌────▼──────────────────────────────────────────┐
+       │   │               Tokio Runtime                    │
+       │   │                                                │
+       │   │  ┌──────────────┐  callback_tx  ┌──────────┐  │
+       │   │  │  Axum Server │ ────────────► │  Broker  │  │
+       │   │  │  (temp port) │               │  Task    │  │
+       │   │  └──────────────┘               └────┬─────┘  │
+       │   │                                      │         │
+       │   │                             ┌────────▼──────┐  │
+       │   │                             │  DB Writer    │  │
+       │   │                             │  Task         │  │
+       │   │                             └────────┬──────┘  │
+       │   │                                      │         │
+       │   │                             ┌────────▼──────┐  │
+       │   │                             │  Ephemeral    │  │
+       │   │                             │  SQLite DB    │  │
+       │   │                             └───────────────┘  │
+       │   │                                                │
+       │   │  ┌──────────────────────────────────────────┐  │
+       │   │  │   Shutdown Coordinator                   │  │
+       │   │  │   tokio::select! {                       │  │
+       │   │  │     _ = timeout_sleep => shutdown        │  │
+       │   │  │     _ = shutdown_rx =>   shutdown        │  │
+       │   │  │   }                                      │  │
+       │   │  └──────────────────────────────────────────┘  │
+       │   └────────────────────────────────────────────────┘
+       │
+       └── collect events from DB after shutdown
+           └── emit scorecard (stdout or JSON), exit with code
 ```
 
-### Flow 3: Event Broker Fan-Out
+### Minimal Temporary Server Pattern
+
+The monitor module already demonstrates this pattern for its integrated mode: it uses a `tokio::sync::oneshot` channel for shutdown signaling. The test-agent extends this with a **timeout arm** in a `tokio::select!` block.
+
+```rust
+// Conceptual structure — not final code
+
+let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+
+// Spawn the server with graceful shutdown tied to the oneshot receiver
+tokio::spawn(async move {
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(async { let _ = shutdown_rx.await; })
+    .await
+    .ok();
+});
+
+// Shutdown coordinator: fires after timeout OR when caller sends shutdown_tx
+tokio::select! {
+    _ = tokio::time::sleep(timeout_duration) => {
+        // Timeout expired — send shutdown signal
+        let _ = shutdown_tx.send(());
+    }
+    _ = early_exit_rx => {
+        // All expected callbacks received early — can terminate before timeout
+        let _ = shutdown_tx.send(());
+    }
+}
+```
+
+The **early exit** path (optional) uses a second oneshot channel. The event broker task sends on `early_exit_tx` when the expected nonce set is fully covered. This avoids waiting the full timeout when an agent fires all callbacks quickly.
+
+This pattern is verified against:
+- The existing `monitor/mod.rs` integrated mode (lines 910–926 use exactly this oneshot shutdown pattern)
+- The Axum `with_graceful_shutdown` API (stable, confirmed in axum 0.8)
+- Tokio's official shutdown documentation (tokio.rs/tokio/topics/shutdown)
+
+### New module: `test_agent` (or `src/test_agent/mod.rs`)
+
+**Status: NEW** — does not exist yet.
+
+Responsibilities:
+- Orchestrate ephemeral generate → serve → wait → score pipeline
+- Own the `TestAgentArgs` CLI struct
+- Own the scorecard struct and its rendering (text and JSON)
+- Own the timeout/early-exit coordination logic
+
+**Modules it calls (all existing, no changes needed to them):**
+
+| Module | How test-agent uses it | Change required |
+|--------|----------------------|-----------------|
+| `generator` | `generator::generate(&cfg, &conn, &tmp_dir)` | None |
+| `server::build_router` | Construct the Axum router with ephemeral state | None |
+| `server::AppState` | Reuse struct directly | None |
+| `server::NonceMeta` | Reuse struct directly | None |
+| `broker::broker_task` | Spawn as usual | None |
+| `broker::db_writer_task` | Spawn as usual | None |
+| `store::open_or_create_db` | Open ephemeral DB (temp path or in-memory) | None |
+| `store::count_detections` | Query results after shutdown | None |
+| `config::Config` | Provide ephemeral config (bind address, base_url) | None |
+| `crawler_catalog::CrawlerCatalog` | Load as usual | None |
+
+The `test_agent` module **does not** need to call `store::insert_nonce` directly — the generator writes `callback-map.json` and the server reads it. The DB is populated by the normal event pipeline.
+
+### New CLI variant in `src/cli/mod.rs`
+
+**Status: MODIFIED** — add `TestAgent(TestAgentArgs)` to the `Commands` enum and define `TestAgentArgs`.
+
+```rust
+// Addition to Commands enum
+Commands::TestAgent(TestAgentArgs)
+
+// New args struct
+pub struct TestAgentArgs {
+    pub path: PathBuf,          // project dir (or temp dir if --ephemeral)
+    pub listen: Option<u16>,    // port to bind (default: OS-assigned)
+    pub timeout: u64,           // seconds before auto-shutdown (default: 30)
+    pub format: OutputFormat,   // text (default) or json
+}
+
+pub enum OutputFormat { Text, Json }
+```
+
+### New match arm in `src/main.rs`
+
+**Status: MODIFIED** — add one arm to the `match cli.command` block.
+
+```rust
+Commands::TestAgent(args) => {
+    let rt = tokio::runtime::Runtime::new()?;
+    let exit_code = rt.block_on(test_agent::run(&args))?;
+    std::process::exit(exit_code);
+}
+```
+
+The exit code is meaningful: `0` = no agent compliance detected, `1` = agent fired at least one callback. This enables CI usage (`if honeyprompt test-agent ...; then echo "PASS"`)
+
+### Ephemeral Output Directory Strategy
+
+Two options:
+
+**Option A (recommended): User-specified project directory**
+- `test-agent --path .` reuses an initialized project directory
+- Uses the existing `output/` dir and `callback-map.json`
+- User runs `honeyprompt generate` first, then `honeyprompt test-agent`
+- Familiar workflow, no temp dir cleanup concerns
+- **This is the MVP approach**
+
+**Option B: Fully ephemeral (future)**
+- `test-agent --ephemeral` creates a `tempfile::TempDir` automatically
+- Runs `generate` internally then serves it
+- Adds a `tempfile` dep but no other changes needed
+- Deferred — Option A is sufficient for v2.0
+
+### Scorecard Output
+
+The scorecard is emitted after server shutdown, reading from the ephemeral DB.
+
+**Text format (default):**
+```
+honeyprompt test-agent results
+  listened:    30s
+  url:         http://localhost:PORT
+  callbacks:   3
+  tier 1:      1
+  tier 2:      1
+  tier 3:      1
+  verdict:     COMPLIANCE DETECTED (agent followed injection instructions)
+
+exit code: 1
+```
+
+**JSON format (--format json):**
+```json
+{
+  "listened_secs": 30,
+  "url": "http://localhost:PORT",
+  "total_callbacks": 3,
+  "tier_counts": {"1": 1, "2": 1, "3": 1},
+  "verdict": "compliance_detected"
+}
+```
+
+Exit code `0` = `"no_compliance"`, exit code `1` = `"compliance_detected"`.
+
+---
+
+## v2.0 New Architecture: GitHub Actions CI/CD
+
+### Workflow Files
+
+Two separate workflow files. Separation keeps CI fast and release publishing independent.
 
 ```
-Event Broker Task
-  receives on mpsc rx
-  broadcasts on broadcast::Sender<Event>
-        │
-        ├──► DB Writer Task ──► tokio-rusqlite ──► SQLite
-        └──► TUI Task ──────────────────────────► Terminal
+.github/
+└── workflows/
+    ├── ci.yml       # Runs on every push and PR to main
+    └── release.yml  # Runs only on tag push (v*)
 ```
 
-`tokio::sync::broadcast` is chosen over `mpsc` here because both the DB writer and TUI must independently receive every event. Each consumer holds its own `broadcast::Receiver<Event>`.
+### ci.yml Structure
 
-### Flow 4: TUI Event Loop
-
-```
-TUI Task
-  tokio::select! {
-    event = broadcast_rx.recv()  → append to event list, re-render
-    key   = crossterm_rx.recv()  → update filters/focus, re-render
-    tick  = interval.tick()      → re-render (heartbeat)
-  }
-```
-
-The TUI does not hold the SQLite write path. It reads a pre-materialized in-memory buffer of recent events (capped ring buffer, e.g., last 1000) populated from the broadcast channel. Historical queries go through the DB store via explicit async call.
-
-### Flow 5: Report Generation (offline)
+Runs: `cargo fmt --check`, `cargo clippy`, `cargo test` on Linux and macOS.
 
 ```
-CLI `report` → Config → DB Store (query all events for session)
-                                │
-                        Markdown template
-                                │
-                        Write report.md
+Trigger: push to main, pull_request to main
+
+jobs:
+  check:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+          with: { components: rustfmt, clippy }
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --workspace
+```
+
+Key choices:
+- `dtolnay/rust-toolchain` — the current recommended action; `actions-rs` is unmaintained (MEDIUM confidence, multiple community sources agree)
+- `Swatinem/rust-cache@v2` — caches `~/.cargo/registry` and `target/`, dramatically speeds up CI
+- `-D warnings` on clippy — enforces clean lints as a hard gate
+- macOS runner included — confirms macOS compatibility on every push
+
+### release.yml Structure
+
+Triggered by `v*` tag push. Builds cross-platform binaries, uploads to GitHub Release.
+
+```
+Trigger: push of tags matching v*
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,    suffix: "",     archive: tar.gz }
+          - { os: ubuntu-latest,  target: aarch64-unknown-linux-gnu,   suffix: "",     archive: tar.gz }
+          - { os: macos-latest,   target: x86_64-apple-darwin,         suffix: "",     archive: tar.gz }
+          - { os: macos-latest,   target: aarch64-apple-darwin,        suffix: "",     archive: tar.gz }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+          with: { targets: ${{ matrix.target }} }
+      - uses: houseabsolute/actions-rust-cross@v0
+          with:
+            command: build
+            target: ${{ matrix.target }}
+            args: "--release"
+      - name: Package
+        run: |
+          BINARY="target/${{ matrix.target }}/release/honeyprompt${{ matrix.suffix }}"
+          ARCHIVE="honeyprompt-${{ github.ref_name }}-${{ matrix.target }}.${{ matrix.archive }}"
+          tar czf "$ARCHIVE" -C "$(dirname $BINARY)" "$(basename $BINARY)"
+      - uses: actions/upload-artifact@v4
+          with: { name: "${{ matrix.target }}", path: "*.tar.gz" }
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+          with: { path: artifacts/ }
+      - uses: softprops/action-gh-release@v2
+          with:
+            files: artifacts/**/*
+```
+
+Key choices:
+- `houseabsolute/actions-rust-cross@v0` — handles both native and cross-compiled targets; uses Docker (via `cross`) for Linux ARM, native cargo for macOS and Linux x86_64 (MEDIUM confidence, verified as current active project on GitHub Marketplace)
+- `aarch64-unknown-linux-gnu` via cross — Linux ARM is the most common non-trivial cross-compile target; requires Docker on runner, which ubuntu-latest provides
+- `aarch64-apple-darwin` natively on macos-latest — Apple Silicon runner available, no cross-compile tooling needed for this target
+- No Windows target — matches project constraint (Linux and macOS first, Windows is v2+)
+- Two-phase structure (build matrix → release) — artifacts uploaded by matrix jobs, collected and released by a single dependent job; this is the canonical pattern and avoids race conditions
+- `softprops/action-gh-release@v2` — stable, widely used, handles multi-file uploads cleanly (HIGH confidence, official GitHub Marketplace)
+
+### Naming Convention for Binary Archives
+
+```
+honeyprompt-{version}-{target}.tar.gz
+
+Examples:
+  honeyprompt-v2.0.0-x86_64-unknown-linux-gnu.tar.gz
+  honeyprompt-v2.0.0-aarch64-unknown-linux-gnu.tar.gz
+  honeyprompt-v2.0.0-x86_64-apple-darwin.tar.gz
+  honeyprompt-v2.0.0-aarch64-apple-darwin.tar.gz
+```
+
+Including the full target triple in the archive name is the community standard and makes `install.sh` scripts trivially writable.
+
+---
+
+## v2.0 New Architecture: Deployment Configuration
+
+### Containerized Demo at honeyprompt.sh
+
+The live demo requires the `serve` subcommand running persistently. Two deployment options:
+
+**Option A (recommended): Docker + minimal Dockerfile**
+
+```dockerfile
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY honeyprompt /usr/local/bin/honeyprompt
+WORKDIR /data
+EXPOSE 8080
+ENTRYPOINT ["honeyprompt", "serve", "--path", "/data"]
+```
+
+The container expects `/data` to be a pre-initialized project directory (with `honeyprompt.toml`, `output/`, `.honeyprompt/events.db`). Volume mount or bake into image at build time.
+
+**Option B: systemd service on a VPS**
+
+Simpler for a single-machine deployment:
+```
+[Service]
+ExecStart=/usr/local/bin/honeyprompt serve --path /opt/honeyprompt
+Restart=always
+```
+
+For v2.0 MVP, Option B is lower-friction and sufficient. Docker adds value when the deployment needs reproducibility or multi-instance isolation — likely v3+.
+
+### Config for Public Deployment
+
+The existing `honeyprompt.toml` `bind_address` field handles port binding. The public deployment should:
+- Bind to `0.0.0.0:80` (or `8080` behind a reverse proxy like nginx or Caddy)
+- Set `base_url = "https://honeyprompt.sh"` so generated callback URLs point to the real domain
+- SQLite WAL mode (already enabled in `store::run_migrations`) handles concurrent reads without locking
+
+No new configuration fields or modules needed for deployment — it is purely operational configuration.
+
+---
+
+## Component Boundary Summary: New vs Modified vs Unchanged
+
+| Component | Status | Change |
+|-----------|--------|--------|
+| `src/test_agent/mod.rs` | **NEW** | Create: orchestrates ephemeral generate→serve→wait→score pipeline |
+| `src/cli/mod.rs` | **MODIFIED** | Add `TestAgent(TestAgentArgs)` to `Commands` enum; add `TestAgentArgs` struct |
+| `src/main.rs` | **MODIFIED** | Add `Commands::TestAgent` match arm; call `test_agent::run`, propagate exit code |
+| `src/lib.rs` | **MODIFIED** | Expose `pub mod test_agent` |
+| `.github/workflows/ci.yml` | **NEW** | CI workflow: fmt + clippy + test on Linux and macOS |
+| `.github/workflows/release.yml` | **NEW** | Release workflow: cross-compile matrix + GitHub Release |
+| `src/server/mod.rs` | **UNCHANGED** | `build_router` and `AppState` reused as-is |
+| `src/broker/mod.rs` | **UNCHANGED** | `broker_task`, `db_writer_task` reused as-is |
+| `src/store/mod.rs` | **UNCHANGED** | Existing query functions sufficient |
+| `src/generator/mod.rs` | **UNCHANGED** | `generate()` called from `test_agent` |
+| `src/monitor/mod.rs` | **UNCHANGED** | Not involved in test-agent |
+| `src/report/mod.rs` | **UNCHANGED** | Not involved in test-agent |
+| All other modules | **UNCHANGED** | `config`, `catalog`, `fingerprint`, `crawler_catalog`, `nonce`, `types` |
+
+---
+
+## Data Flow: test-agent Subcommand
+
+```
+CLI test-agent [--listen PORT] [--timeout SECS] [--format text|json]
+  │
+  ├─ load config from honeyprompt.toml (path arg)
+  ├─ open ephemeral SQLite DB (same .honeyprompt/events.db or temp)
+  │
+  ├─ spawn event pipeline:
+  │     mpsc(callback_tx) → broker_task → broadcast
+  │                                          ├─► db_writer_task → SQLite
+  │                                          └─► [optional: event counter for early exit]
+  │
+  ├─ build_router(AppState, output_dir) → axum router
+  ├─ bind TcpListener on --listen port (or OS-assigned)
+  ├─ print: "Test URL: http://localhost:{PORT}"
+  │
+  ├─ spawn axum::serve(...).with_graceful_shutdown(oneshot_rx)
+  │
+  ├─ tokio::select! {
+  │     _ = tokio::time::sleep(timeout) => { oneshot_tx.send(()) }
+  │     _ = early_exit_rx (optional)   => { oneshot_tx.send(()) }
+  │   }
+  │
+  ├─ await server task completion (flush in-flight requests)
+  │
+  ├─ query SQLite: count_detections(), tier breakdown
+  │
+  └─ print scorecard → std::process::exit(exit_code)
 ```
 
 ---
 
-## Key Design Decisions and Rationale
+## Architectural Patterns
 
-### All-in-One Server (same port, same process)
+### Pattern 1: Oneshot-Gated Temporary Server with Timeout
 
-The PRD mandates a single-process, all-in-one model. Axum handles this cleanly: one router with static file routes and callback routes registered together. No IPC, no sidecar.
+**What:** Axum server's `with_graceful_shutdown` accepts a future. Pass a oneshot receiver future. A separate coordinator task sends on the transmitter when a timeout fires (via `tokio::select!`).
 
-### tokio-rusqlite for SQLite Async Bridge
+**When to use:** Any subcommand that needs a server with bounded lifetime — test automation, OAuth callback receivers, one-shot webhooks.
 
-`rusqlite::Connection` is not `Sync`, making it incompatible with direct use in async handlers. `tokio-rusqlite` wraps the connection in a background thread with mpsc/oneshot channels, making every call `.await`-able. This is the standard pattern (HIGH confidence, verified against docs.rs).
+**Trade-offs:** Simple, zero external deps. The server does not force-close connections after shutdown signal — in-flight requests complete gracefully. For a test tool this is desirable (avoids losing a callback that arrived at the last millisecond).
 
-The DB store owns one `tokio_rusqlite::Connection`. The Event Broker's DB writer task is the sole writer. TUI and report queries are reads that can share the same connection through the `call()` method's serialization guarantee.
+### Pattern 2: Module Reuse Through Public Function Boundaries
 
-### broadcast Channel for Event Fan-Out
+**What:** `test_agent` calls `server::build_router` and `generator::generate` directly, without duplicating their logic.
 
-`tokio::sync::broadcast` is appropriate here (not `mpsc`) because the DB writer and the TUI are independent consumers that each need every event. The channel capacity should be large enough to absorb burst traffic; 1024 is a reasonable default. Lagged receivers receive an error that should be logged and recovered gracefully in the TUI task.
+**When to use:** When adding a new orchestration mode that reuses existing pipeline stages. The key requirement is that module entry points are `pub fn` with clean argument types (no hidden globals, no static state).
 
-### Nonce-Based Payload Identification
+**Trade-offs:** Coupling is real but deliberate. If `build_router` signature changes, `test_agent` must update. This is acceptable — they're in the same codebase. The alternative (duplicating logic) is worse.
 
-The callback URL carries only a nonce (`/cb/v1/<nonce>`). The server maps the nonce to proof level at reception time using `callback-map.json`. No proof level or payload content travels in the URL. This limits information leakage and avoids URL-as-data anti-patterns.
+**Evidence this is safe here:** The existing `monitor` module already does this — it calls `server::build_router` and `broker::broker_task` directly (monitor/mod.rs lines 854–895). The pattern is proven.
 
-### Fingerprinter as Pure Function
+### Pattern 3: Exit Code as Test Oracle
 
-The `fingerprint::extract(request_parts) -> AgentFingerprint` function takes no external state. This makes it unit-testable in isolation and decouples fingerprinting logic from server state. ASN lookup (if added) becomes an injected async function, not embedded logic.
+**What:** `std::process::exit(code)` from a CLI subcommand, where the code encodes the test result.
 
----
+**When to use:** When the subcommand output needs to be machine-readable by CI scripts and shell conditionals without parsing stdout.
 
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Shared Mutable In-Memory State Between Axum and TUI
-
-**What:** `Arc<Mutex<Vec<Event>>>` shared directly between Axum handlers and TUI render loop.
-**Why bad:** Lock contention; render loop holds the mutex during frame draw, blocking event ingestion. Deadlock risk.
-**Instead:** Use channels (broadcast) with each consumer owning its own state copy.
-
-### Anti-Pattern 2: SQLite Write in Axum Request Handler
-
-**What:** Writing to SQLite directly inside the `/cb/v1/:nonce` handler.
-**Why bad:** Blocks the handler on I/O; SQLite writes are serialized — under load this creates a bottleneck on the most latency-sensitive path (confirming agent compliance).
-**Instead:** The handler sends the event to the broker via a buffered channel and returns `200 OK` immediately. The DB writer task drains the channel asynchronously.
-
-### Anti-Pattern 3: Blocking rusqlite in Async Context
-
-**What:** Calling `rusqlite` directly with `tokio::spawn(async { ... })`.
-**Why bad:** `rusqlite::Connection` is not `Send + Sync`; this fails to compile or requires unsafe workarounds.
-**Instead:** Use `tokio-rusqlite` which moves the connection to a dedicated blocking thread and communicates via channels.
-
-### Anti-Pattern 4: Rendering Payload Templates at Request Time
-
-**What:** Generating honeypot HTML dynamically per-request.
-**Why bad:** Increases latency; introduces risk of accidentally exposing generation logic state to response.
-**Instead:** Generate pages offline during `generate` command; serve as static files from the filesystem. Axum's `ServeDir` handles this cleanly.
-
-### Anti-Pattern 5: Storing Callback Body Content
-
-**What:** Recording request body content in the SQLite events table.
-**Why bad:** Violates the safety model — agents might POST sensitive data if instructions are miscrafted.
-**Instead:** In metadata-only mode (default), only path, query params, and headers are stored. No body is read or stored. Request body is explicitly discarded.
+**Trade-offs:** Exit codes are coarse (0/1). For more detail (which tiers fired), the `--format json` stdout output is the richer channel. These two channels are complementary, not competing.
 
 ---
 
-## Component Build Order
+## Anti-Patterns to Avoid (v2.0 Additions)
 
-Dependencies flow upward; build lower layers first.
+### Anti-Pattern 1: Blocking on Server Shutdown Before Querying Results
+
+**What:** Querying SQLite for the scorecard while the DB writer task may still be flushing events from the broadcast channel.
+
+**Why bad:** The server may have received callbacks in its final milliseconds. The DB writer is async — it may not have committed all events by the time the server's `serve` future completes.
+
+**Instead:** After the server future completes, await a small drain window or use a tokio::sync::Notify/barrier to confirm the DB writer task has caught up. Simplest approach: drop the `broadcast::Sender` after shutdown, which causes the DB writer's `recv()` to return `Closed`, signaling it has drained all pending events.
+
+### Anti-Pattern 2: Generating Pages Inside the Server Runtime
+
+**What:** Running `generator::generate()` inside the `tokio::spawn` or async context.
+
+**Why bad:** The generator does synchronous filesystem I/O (reads templates, writes files). Running it on the async executor blocks the Tokio thread pool.
+
+**Instead:** Run `generator::generate()` synchronously before entering the async runtime, or use `tokio::task::spawn_blocking`. The simplest option for test-agent is to generate before `rt.block_on(...)` starts.
+
+### Anti-Pattern 3: Using a Persistent DB for Ephemeral Tests
+
+**What:** Running `test-agent` against the project's production `.honeyprompt/events.db`.
+
+**Why bad:** Mixes test data with real evidence. Repeated test runs inflate session counts and corrupt reports.
+
+**Instead:** For the MVP, document clearly that test-agent uses a separate temp path or the user should run it in a separate project directory. A `--db :memory:` flag is a clean future option (SQLite supports in-memory databases via rusqlite).
+
+### Anti-Pattern 4: Using actions-rs in GitHub Actions
+
+**What:** Using `actions-rs/toolchain` or `actions-rs/cargo` actions.
+
+**Why bad:** The `actions-rs` organization is unmaintained. Known bugs exist and no new releases are coming. Multiple community sources (MEDIUM confidence) consistently recommend migrating away.
+
+**Instead:** Use `dtolnay/rust-toolchain` for toolchain installation and plain `run: cargo ...` steps for commands. Use `houseabsolute/actions-rust-cross` for cross-compilation.
+
+---
+
+## Recommended Project Structure (v2.0 additions only)
 
 ```
-Layer 0 (no deps):
-  config/       — Config struct, file I/O
-  catalog/      — Payload definitions, hardcoded data
+src/
+├── test_agent/       # NEW — test-agent subcommand orchestration
+│   └── mod.rs        #   TestAgentArgs, run(), scorecard rendering
+├── cli/
+│   └── mod.rs        # MODIFIED — add TestAgent variant + TestAgentArgs
+├── main.rs           # MODIFIED — add TestAgent dispatch arm
 
-Layer 1 (depends on Layer 0):
-  fingerprint/  — Pure fn, no deps beyond std/http types
-  store/        — DB schema, migrations, query interface (needs config for path)
-
-Layer 2 (depends on Layer 1):
-  generator/    — Needs catalog (payloads) + config (output path)
-  broker/       — Needs store (to write), Event type definition
-
-Layer 3 (depends on Layer 2):
-  server/       — Needs broker (to send events), fingerprint (to extract)
-  tui/          — Needs broker (to receive events), store (for history queries)
-  report/       — Needs store (for query)
-
-Layer 4 (orchestrates all):
-  cli/          — Clap dispatch wiring all subcommands to Layer 0-3 components
+.github/
+└── workflows/
+    ├── ci.yml        # NEW — CI: fmt + clippy + test
+    └── release.yml   # NEW — release: cross-compile matrix + GitHub Release
 ```
 
-### Practical Phasing Implications
+---
 
-1. **Phase 1 target:** `config` + `catalog` + `generator` — this gives a working `honeyprompt generate` with no async runtime needed.
-2. **Phase 2 target:** `store` + `fingerprint` + basic `server` (static serving + callback reception, logging to stdout) — validates the core detection loop without TUI.
-3. **Phase 3 target:** `broker` + `tui` — live monitoring; this is the flagship experience and requires Phase 2 working first.
-4. **Phase 4 target:** `report` + `export` — offline analysis layer; safe to defer since it only reads from the already-built store.
+## Build Order for v2.0 Features
+
+Dependencies flow downward. Build in this order to have testable checkpoints at each step.
+
+```
+Step 1: GitHub Actions CI workflow
+  — No code changes. Add .github/workflows/ci.yml.
+  — Validates: existing code passes fmt/clippy/test before adding new code.
+  — Checkpoint: green CI badge.
+
+Step 2: CLI extension (TestAgent variant)
+  — Modify src/cli/mod.rs (add enum variant + args struct)
+  — Modify src/main.rs (add match arm — stub that prints "TODO")
+  — Checkpoint: `honeyprompt test-agent --help` works; compiles cleanly.
+
+Step 3: test_agent module — server setup and temporary serving
+  — Create src/test_agent/mod.rs
+  — Wire broker, server, store using existing module APIs
+  — Implement timeout-based shutdown using oneshot + tokio::select!
+  — Checkpoint: `honeyprompt test-agent` starts a server, prints URL, shuts down after timeout.
+
+Step 4: test_agent module — scorecard
+  — Add DB query after shutdown to count callbacks by tier
+  — Implement text and JSON scorecard rendering
+  — Implement exit codes
+  — Checkpoint: Running a manual curl to /cb/v1/<nonce> produces a scorecard showing tier 1 callback.
+
+Step 5: GitHub Actions release workflow
+  — Add .github/workflows/release.yml
+  — Test with a pre-release tag (v2.0.0-rc1)
+  — Verify all four binary archives appear on the GitHub Release
+  — Checkpoint: GitHub Release has four .tar.gz files, all download and run.
+
+Step 6: Deployment configuration
+  — Write honeyprompt.toml for production deployment
+  — Configure reverse proxy (nginx or Caddy) pointing to bound port
+  — Checkpoint: honeyprompt.sh serves live honeypot pages with real callback URLs.
+```
 
 ---
 
-## Technology Mapping
+## Integration Points Summary
 
-| Concern | Crate | Notes |
-|---------|-------|-------|
-| Async runtime | `tokio` | Multi-thread scheduler; `#[tokio::main]` entry point |
-| HTTP server | `axum` 0.8 | Announced Jan 2025; current stable |
-| Static file serving | `axum::routing::get` + `tower_http::services::ServeDir` | Built into tower-http |
-| Header extraction | `axum-extra::TypedHeader` | Typed access to standard headers |
-| Client IP extraction | `axum-client-ip` | Handles X-Forwarded-For, proxy headers |
-| SQLite async bridge | `tokio-rusqlite` | Background thread + mpsc/oneshot pattern |
-| TUI framework | `ratatui` + `crossterm` | Crossterm for cross-platform terminal backend |
-| Async TUI events | `crossterm::event::EventStream` + `tokio::select!` | Standard ratatui async pattern |
-| Event fan-out | `tokio::sync::broadcast` | DB writer + TUI as independent consumers |
-| CB→broker handoff | `tokio::sync::mpsc` | Axum handler is producer; broker task is consumer |
-| CLI parsing | `clap` (derive) | Subcommand enum pattern |
-| Template rendering | `minijinja` or `tera` | Compile-time template embedding via `rust-embed` |
-| Asset embedding | `rust-embed` | Embeds templates + catalog into binary at compile time |
-
----
-
-## Scalability Considerations
-
-HoneyPrompt is a single-researcher tool, not a multi-tenant service. Expected concurrency: occasional bursts from an agent triggering a handful of callbacks per crawl session.
-
-| Concern | At research scale (1-100 callbacks/session) | If repurposed for higher load |
-|---------|---------------------------------------------|-------------------------------|
-| SQLite writes | Serialize without contention | Connection pool (deadpool-sqlite) |
-| Broadcast channel | 1024 capacity more than adequate | Increase capacity; add back-pressure |
-| TUI frame rate | 60 FPS without issue | Rate-limit render ticks on slow terminals |
-| Static file serving | Filesystem reads are fast | Preload into memory with rust-embed |
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| `test_agent` → `server::build_router` | Direct function call | Reuses existing public API unchanged |
+| `test_agent` → `generator::generate` | Direct function call | Must run before entering async runtime |
+| `test_agent` → `broker::{broker_task, db_writer_task}` | tokio::spawn | Same wiring as monitor integrated mode |
+| `test_agent` → `store::count_detections` | Direct function call | Called post-shutdown, synchronous |
+| `test_agent` shutdown | oneshot channel + tokio::select! | Matches existing monitor pattern |
+| CI workflow → repository | GitHub Actions push/PR trigger | Standard; no external services |
+| release workflow → GitHub Releases | softprops/action-gh-release@v2 | GITHUB_TOKEN permissions: write |
+| release workflow → cross-compilation | houseabsolute/actions-rust-cross | Uses Docker for Linux ARM targets |
 
 ---
 
 ## Sources
 
-- [Ratatui async template structure](https://ratatui.github.io/async-template/02-structure.html) — HIGH confidence, official Ratatui docs
-- [Ratatui async event stream tutorial](https://ratatui.rs/tutorials/counter-async-app/async-event-stream/) — HIGH confidence, official Ratatui docs
-- [Axum 0.8.0 announcement](https://tokio.rs/blog/2025-01-01-announcing-axum-0-8-0) — HIGH confidence, official Tokio blog
-- [tokio-rusqlite docs](https://docs.rs/tokio-rusqlite/latest/tokio_rusqlite/) — HIGH confidence, docs.rs official
-- [axum-client-ip crate](https://crates.io/crates/axum-client-ip) — MEDIUM confidence, community crate
-- [Tokio channels tutorial](https://tokio.rs/tokio/tutorial/channels) — HIGH confidence, official Tokio docs
-- [Multi-interface Rust app with Ratatui + Axum](https://dev.to/sebyx07/building-a-multi-interface-todo-app-with-rust-ratatui-and-axum-1cke) — MEDIUM confidence, community article
-- [Hexagonal architecture in Rust](https://www.howtocodeit.com/guides/master-hexagonal-architecture-in-rust) — MEDIUM confidence, community guide
-- [rust-embed crate](https://crates.io/crates/rust-embed) — MEDIUM confidence, widely-used community crate
-- [axum-extra TypedHeader](https://docs.rs/axum-extra/latest/axum_extra/struct.TypedHeader.html) — HIGH confidence, docs.rs official
+- Existing `src/monitor/mod.rs` lines 823–960 — oneshot shutdown pattern in this codebase (HIGH confidence, primary source)
+- Existing `src/server/mod.rs` `build_router` pub API (HIGH confidence, primary source)
+- [Tokio graceful shutdown documentation](https://tokio.rs/tokio/topics/shutdown) — HIGH confidence, official
+- [Axum discussion: graceful shutdown after one request](https://github.com/tokio-rs/axum/discussions/2410) — MEDIUM confidence, community-verified pattern
+- [houseabsolute/actions-rust-cross GitHub Action](https://github.com/houseabsolute/actions-rust-cross) — MEDIUM confidence, active project on GitHub Marketplace
+- [softprops/action-gh-release](https://github.com/softprops/action-gh-release) — HIGH confidence, canonical release action
+- [Building a cross platform Rust CI/CD pipeline with GitHub Actions (2025)](https://ahmedjama.com/blog/2025/12/cross-platform-rust-pipeline-github-actions/) — MEDIUM confidence, recent article
+- [dtolnay/rust-toolchain](https://github.com/dtolnay/rust-toolchain) — MEDIUM confidence, widely recommended replacement for actions-rs
+- [Swatinem/rust-cache](https://github.com/Swatinem/rust-cache) — MEDIUM confidence, current community standard for Rust CI caching
+- [Cross Compiling Rust Projects in GitHub Actions (houseabsolute blog)](https://blog.urth.org/2023/03/05/cross-compiling-rust-projects-in-github-actions/) — MEDIUM confidence, authoritative author (created actions-rust-cross)
+
+---
+*Architecture research for: HoneyPrompt v2.0 — test-agent subcommand, CI/CD workflows, deployment config*
+*Researched: 2026-03-29*
