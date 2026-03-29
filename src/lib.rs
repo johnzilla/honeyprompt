@@ -1,6 +1,8 @@
 pub mod catalog;
 pub mod cli;
 pub mod config;
+pub mod crawler_catalog;
+pub mod fingerprint;
 pub mod generator;
 pub mod nonce;
 pub mod store;

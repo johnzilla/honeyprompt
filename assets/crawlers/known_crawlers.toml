@@ -1,0 +1,49 @@
+[[crawlers]]
+ua_fragment = "GPTBot"
+provider = "OpenAI"
+class = "crawler"
+
+[[crawlers]]
+ua_fragment = "ChatGPT-User"
+provider = "OpenAI"
+class = "agent"
+
+[[crawlers]]
+ua_fragment = "ClaudeBot"
+provider = "Anthropic"
+class = "crawler"
+
+[[crawlers]]
+ua_fragment = "claude-web"
+provider = "Anthropic"
+class = "agent"
+
+[[crawlers]]
+ua_fragment = "Googlebot"
+provider = "Google"
+class = "crawler"
+
+[[crawlers]]
+ua_fragment = "Google-Extended"
+provider = "Google"
+class = "crawler"
+
+[[crawlers]]
+ua_fragment = "Bingbot"
+provider = "Microsoft"
+class = "crawler"
+
+[[crawlers]]
+ua_fragment = "PerplexityBot"
+provider = "Perplexity"
+class = "crawler"
+
+[[crawlers]]
+ua_fragment = "CCBot"
+provider = "Common Crawl"
+class = "crawler"
+
+[[crawlers]]
+ua_fragment = "anthropic-ai"
+provider = "Anthropic"
+class = "crawler"
