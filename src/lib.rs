@@ -6,5 +6,6 @@ pub mod crawler_catalog;
 pub mod fingerprint;
 pub mod generator;
 pub mod nonce;
+pub mod server;
 pub mod store;
 pub mod types;

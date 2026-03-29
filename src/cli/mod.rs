@@ -14,6 +14,8 @@ pub enum Commands {
     Init(InitArgs),
     /// Generate honeypot output files
     Generate(GenerateArgs),
+    /// Start the honeypot HTTP server
+    Serve(ServeArgs),
 }
 
 #[derive(Parser)]
@@ -28,4 +30,14 @@ pub struct GenerateArgs {
     /// Project directory containing honeyprompt.toml
     #[arg(default_value = ".")]
     pub path: PathBuf,
+}
+
+#[derive(Parser)]
+pub struct ServeArgs {
+    /// Project directory containing honeyprompt.toml and output/
+    #[arg(default_value = ".")]
+    pub path: PathBuf,
+    /// Output events as JSON lines instead of structured text
+    #[arg(long)]
+    pub json: bool,
 }

@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use clap::Parser;
 use honeyprompt::cli::{Cli, Commands};
-use honeyprompt::{config, generator, store};
+use honeyprompt::{config, generator, server, store};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -47,6 +47,14 @@ fn main() -> Result<()> {
             generator::generate(&cfg, &conn, path)?;
 
             println!("Generated output/ — ready to deploy.");
+            Ok(())
+        }
+        Commands::Serve(args) => {
+            let path = &args.path;
+            let config_path = path.join("honeyprompt.toml");
+            let cfg = config::load_config(&config_path)?;
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(server::serve(&cfg, path, args.json))?;
             Ok(())
         }
     }
