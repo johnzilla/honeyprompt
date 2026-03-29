@@ -18,6 +18,8 @@ pub enum Commands {
     Serve(ServeArgs),
     /// Start the live TUI event monitor
     Monitor(MonitorArgs),
+    /// Generate a Markdown disclosure report from captured events
+    Report(ReportArgs),
 }
 
 #[derive(Parser)]
@@ -55,4 +57,17 @@ pub struct MonitorArgs {
     /// Port to bind the integrated server on (default from config)
     #[arg(long)]
     pub port: Option<u16>,
+}
+
+#[derive(Parser)]
+pub struct ReportArgs {
+    /// Project directory containing honeyprompt.toml and .honeyprompt/events.db
+    #[arg(default_value = ".")]
+    pub path: PathBuf,
+    /// Output file path (default: report.md in project directory)
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+    /// Print report to stdout instead of writing a file
+    #[arg(long)]
+    pub stdout: bool,
 }

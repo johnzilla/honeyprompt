@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use clap::Parser;
 use honeyprompt::cli::{Cli, Commands};
-use honeyprompt::{config, generator, monitor, server, store};
+use honeyprompt::{config, generator, monitor, report, server, store};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -63,6 +63,24 @@ fn main() -> Result<()> {
             let cfg = config::load_config(&config_path)?;
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(monitor::monitor(&cfg, path, &args))?;
+            Ok(())
+        }
+        Commands::Report(args) => {
+            let path = &args.path;
+            let db_path = path.join(".honeyprompt").join("events.db");
+            let conn = store::open_or_create_db(&db_path)?;
+            let markdown = report::generate_report(&conn)?;
+            if args.stdout {
+                print!("{}", markdown);
+            } else {
+                let out_path = if let Some(ref p) = args.output {
+                    p.clone()
+                } else {
+                    path.join("report.md")
+                };
+                std::fs::write(&out_path, &markdown)?;
+                println!("Report written to {}", out_path.display());
+            }
             Ok(())
         }
     }
