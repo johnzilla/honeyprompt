@@ -115,6 +115,152 @@ pub fn count_detections(conn: &Connection) -> rusqlite::Result<u32> {
     Ok(count)
 }
 
+/// Summary statistics for the report executive summary.
+pub struct ReportSummary {
+    pub total_sessions: u32,
+    pub detection_sessions: u32,   // excludes KnownCrawler
+    pub crawler_sessions: u32,     // KnownCrawler only
+    pub tier1_sessions: u32,
+    pub tier2_sessions: u32,
+    pub tier3_sessions: u32,
+    pub earliest_event: Option<String>,  // epoch seconds string
+    pub latest_event: Option<String>,    // epoch seconds string
+}
+
+/// Per-(session_id, tier) row for the evidence table.
+pub struct ReportSession {
+    pub session_id: String,
+    pub tier: u8,
+    pub payload_id: String,
+    pub embedding_loc: String,
+    pub first_seen_at: String,    // epoch seconds string
+    pub last_seen_at: String,     // epoch seconds string
+    pub fire_count: u32,
+    pub remote_addr: String,
+    pub user_agent: String,
+    pub classification: String,   // parsed from extra_headers JSON
+}
+
+/// Query aggregate summary statistics from the events table for the report.
+///
+/// Counts are session-based (per (session_id, tier) pair) per D-04.
+pub fn query_report_summary(conn: &Connection) -> rusqlite::Result<ReportSummary> {
+    let total_sessions: u32 = conn.query_row(
+        "SELECT COUNT(DISTINCT session_id || '-' || tier) FROM events",
+        [],
+        |row| row.get(0),
+    )?;
+
+    let detection_sessions: u32 = conn.query_row(
+        "SELECT COUNT(DISTINCT session_id || '-' || tier) FROM events
+         WHERE extra_headers NOT LIKE '%\"classification\":\"KnownCrawler%'",
+        [],
+        |row| row.get(0),
+    )?;
+
+    let crawler_sessions: u32 = conn.query_row(
+        "SELECT COUNT(DISTINCT session_id) FROM events
+         WHERE extra_headers LIKE '%\"classification\":\"KnownCrawler%'",
+        [],
+        |row| row.get(0),
+    )?;
+
+    let tier1_sessions: u32 = conn.query_row(
+        "SELECT COUNT(DISTINCT session_id) FROM events
+         WHERE tier = 1 AND extra_headers NOT LIKE '%\"classification\":\"KnownCrawler%'",
+        [],
+        |row| row.get(0),
+    )?;
+
+    let tier2_sessions: u32 = conn.query_row(
+        "SELECT COUNT(DISTINCT session_id) FROM events
+         WHERE tier = 2 AND extra_headers NOT LIKE '%\"classification\":\"KnownCrawler%'",
+        [],
+        |row| row.get(0),
+    )?;
+
+    let tier3_sessions: u32 = conn.query_row(
+        "SELECT COUNT(DISTINCT session_id) FROM events
+         WHERE tier = 3 AND extra_headers NOT LIKE '%\"classification\":\"KnownCrawler%'",
+        [],
+        |row| row.get(0),
+    )?;
+
+    let (earliest_event, latest_event): (Option<String>, Option<String>) = conn.query_row(
+        "SELECT MIN(first_seen_at), MAX(last_seen_at) FROM events",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+
+    Ok(ReportSummary {
+        total_sessions,
+        detection_sessions,
+        crawler_sessions,
+        tier1_sessions,
+        tier2_sessions,
+        tier3_sessions,
+        earliest_event,
+        latest_event,
+    })
+}
+
+/// Query all (session_id, tier) pairs from the events table, ordered by first seen descending.
+///
+/// Groups raw events rows by (session_id, tier) and aggregates metadata.
+/// Classification is parsed from the extra_headers JSON blob.
+pub fn query_report_sessions(conn: &Connection) -> rusqlite::Result<Vec<ReportSession>> {
+    let mut stmt = conn.prepare(
+        "SELECT session_id, tier, payload_id, embedding_loc,
+                MIN(first_seen_at) as first_seen_at,
+                MAX(last_seen_at) as last_seen_at,
+                SUM(fire_count) as total_fires,
+                MAX(remote_addr) as remote_addr,
+                MAX(user_agent) as user_agent,
+                MAX(extra_headers) as extra_headers
+         FROM events
+         GROUP BY session_id, tier
+         ORDER BY MIN(first_seen_at) DESC",
+    )?;
+
+    let sessions = stmt.query_map([], |row| {
+        let extra_headers: Option<String> = row.get(9)?;
+        let classification = parse_classification(extra_headers.as_deref());
+        Ok(ReportSession {
+            session_id: row.get::<_, Option<String>>(0)?.unwrap_or_default(),
+            tier: row.get::<_, u8>(1)?,
+            payload_id: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+            embedding_loc: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+            first_seen_at: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
+            last_seen_at: row.get::<_, Option<String>>(5)?.unwrap_or_default(),
+            fire_count: row.get::<_, u32>(6)?,
+            remote_addr: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
+            user_agent: row.get::<_, Option<String>>(8)?.unwrap_or_default(),
+            classification,
+        })
+    })?
+    .collect::<rusqlite::Result<Vec<_>>>()?;
+
+    Ok(sessions)
+}
+
+/// Parse the classification string from the extra_headers JSON blob.
+///
+/// Expected format: `{"classification": "KnownCrawler:OpenAI", "headers": {...}}`
+/// Falls back to "Unknown" if the JSON cannot be parsed or the field is missing.
+fn parse_classification(extra_headers: Option<&str>) -> String {
+    #[derive(serde::Deserialize)]
+    struct ExtraHeaders {
+        classification: Option<String>,
+    }
+    match extra_headers {
+        Some(s) => serde_json::from_str::<ExtraHeaders>(s)
+            .ok()
+            .and_then(|h| h.classification)
+            .unwrap_or_else(|| "Unknown".to_string()),
+        None => "Unknown".to_string(),
+    }
+}
+
 /// Insert a nonce-to-payload mapping into the nonce_map table.
 ///
 /// All values are passed via parameterized query — SQL metacharacters in any
