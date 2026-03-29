@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-29T19:37:36.257Z"
+status: executing
+stopped_at: Completed 04-report-and-landing 04-02-PLAN.md
+last_updated: "2026-03-29T21:11:34.953Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 10
+  completed_plans: 9
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** Phase 03 — tui-monitor
+**Current focus:** Phase 04 — report-and-landing
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 04 (report-and-landing) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
@@ -60,6 +60,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02-server-and-detection P03 | 3 | 2 tasks | 6 files |
 | Phase 03 P01 | 3 | 2 tasks | 5 files |
 | Phase 03-tui-monitor P02 | 45 | 3 tasks | 3 files |
+| Phase 04-report-and-landing P02 | 2 | 1 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,8 @@ Recent decisions affecting current work:
 - [Phase 03-tui-monitor]: Integrated mode replicates serve() pipeline inline so TUI can subscribe to broadcast before producers spawn
 - [Phase 03-tui-monitor]: restore_terminal called unconditionally after run_loop regardless of Ok/Err to ensure terminal cleanup on error paths
 - [Phase 03-tui-monitor]: Terminal setup inside async monitor() function body — avoids enabling raw mode before async runtime is running (Research Pitfall 5)
+- [Phase 04-report-and-landing]: Landing page output files committed as durable repository artifacts — deployed to honeyprompt.sh directly from repo
+- [Phase 04-report-and-landing]: .honeyprompt/ gitignored at root level to prevent any project runtime events.db from being committed
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-29T19:37:36.253Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-report-and-landing/04-CONTEXT.md
+Last session: 2026-03-29T21:11:34.949Z
+Stopped at: Completed 04-report-and-landing 04-02-PLAN.md
+Resume file: None

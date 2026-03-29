@@ -53,7 +53,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Landing Page
 
-- [ ] **LAND-01**: Minimal honeyprompt.sh page instrumented with its own canaries as live demo
+- [x] **LAND-01**: Minimal honeyprompt.sh page instrumented with its own canaries as live demo
 
 ## v2 Requirements
 
@@ -131,7 +131,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TUI-02 | Phase 3 | Complete |
 | RPT-01 | Phase 4 | Pending |
 | RPT-02 | Phase 4 | Pending |
-| LAND-01 | Phase 4 | Pending |
+| LAND-01 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 27 total

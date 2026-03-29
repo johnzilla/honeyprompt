@@ -74,10 +74,10 @@ Plans:
   1. User can run `honeyprompt report` and receive a structured Markdown file with payload descriptions, embedding locations, proof levels, timestamps, and anonymized agent metadata
   2. The report uses session-based counts (not raw callback rows) and treats robots.txt visits as context metadata only
   3. The honeyprompt.sh landing page is live and contains its own embedded canaries that prove the tool works on itself
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 04-01-PLAN.md — Report module: store queries, Markdown renderer, CLI wiring, tests (CLI-05, RPT-01, RPT-02)
-- [ ] 04-02-PLAN.md — Landing page config + .gitignore (LAND-01)
+- [x] 04-02-PLAN.md — Landing page config + .gitignore (LAND-01)
 
 ## Progress
 
@@ -89,4 +89,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Generation Pipeline | 3/3 | Complete   | 2026-03-29 |
 | 2. Server and Detection | 1/3 | In Progress|  |
 | 3. TUI Monitor | 2/2 | Complete   | 2026-03-29 |
-| 4. Report and Landing | 0/2 | Not started | - |
+| 4. Report and Landing | 1/2 | In Progress|  |
