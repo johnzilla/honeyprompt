@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-29T03:37:42.483Z"
+status: verifying
+stopped_at: "Completed 02-03-PLAN.md (checkpoint: human-verify Task 3)"
+last_updated: "2026-03-29T03:45:02.918Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 
 Phase: 02 (server-and-detection) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-generation-pipeline P03 | 35 | 2 tasks | 8 files |
 | Phase 02-server-and-detection P01 | 194 | 2 tasks | 6 files |
 | Phase 02-server-and-detection P02 | 163 | 2 tasks | 4 files |
+| Phase 02-server-and-detection P03 | 3 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,8 @@ Recent decisions affecting current work:
 - [Phase 02-server-and-detection]: axum::http::HeaderMap used directly in fingerprint module — avoids adding http as explicit dependency
 - [Phase 02-server-and-detection]: classification stored in extra_headers JSON blob — avoids schema migration since no classification column exists in events table
 - [Phase 02-server-and-detection]: broker broadcasts AppEvent with initial is_replay=false/fire_count=1 — DB writer gets authoritative values from insert_callback_event return value
+- [Phase 02-server-and-detection]: build_router() extracted as pub fn so integration tests can use tower::ServiceExt::oneshot without binding a port
+- [Phase 02-server-and-detection]: MockConnectInfo Axum layer satisfies ConnectInfo extractor in integration tests
 
 ### Pending Todos
 
@@ -98,6 +101,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-29T03:37:42.480Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-03-29T03:45:02.914Z
+Stopped at: Completed 02-03-PLAN.md (checkpoint: human-verify Task 3)
 Resume file: None

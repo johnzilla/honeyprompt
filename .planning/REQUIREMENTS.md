@@ -11,7 +11,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **CLI-01**: User can run `honeyprompt init` to create a project directory with config
 - [x] **CLI-02**: User can run `honeyprompt generate` to produce honeypot page, robots.txt, and ai.txt
-- [ ] **CLI-03**: User can run `honeyprompt serve` to start HTTP server for honeypot + callbacks
+- [x] **CLI-03**: User can run `honeyprompt serve` to start HTTP server for honeypot + callbacks
 - [ ] **CLI-04**: User can run `honeyprompt monitor` to view live TUI event display
 - [ ] **CLI-05**: User can run `honeyprompt report` to generate Markdown disclosure report
 
@@ -33,7 +33,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Server & Detection
 
-- [ ] **SRV-01**: Serve mode hosts honeypot page and callback listener on same port
+- [x] **SRV-01**: Serve mode hosts honeypot page and callback listener on same port
 - [x] **SRV-02**: Callback events are stored in SQLite with replay detection and session grouping
 - [x] **SRV-03**: Agent fingerprinting extracts UA, IP/ASN, and HTTP headers from callbacks
 - [x] **SRV-04**: Known-agent lookup enriches captures with provider names (GPTBot → OpenAI, etc.)
@@ -107,7 +107,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | CLI-01 | Phase 1 | Complete |
 | CLI-02 | Phase 1 | Complete |
-| CLI-03 | Phase 2 | Pending |
+| CLI-03 | Phase 2 | Complete |
 | CLI-04 | Phase 3 | Pending |
 | CLI-05 | Phase 4 | Pending |
 | GEN-01 | Phase 1 | Complete |
@@ -120,7 +120,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROOF-01 | Phase 1 | Complete |
 | PROOF-02 | Phase 1 | Complete |
 | PROOF-03 | Phase 1 | Complete |
-| SRV-01 | Phase 2 | Pending |
+| SRV-01 | Phase 2 | Complete |
 | SRV-02 | Phase 1 | Complete |
 | SRV-03 | Phase 2 | Complete |
 | SRV-04 | Phase 2 | Complete |
