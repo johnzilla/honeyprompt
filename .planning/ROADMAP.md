@@ -60,7 +60,10 @@ Plans:
   1. User can run `honeyprompt monitor` and see a live event table that updates as callbacks arrive
   2. Events are filterable and sortable by tier, time, and source without leaving the TUI
   3. Replay events are visually flagged and excluded from detection counts in the UI
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 03-01-PLAN.md — Monitor module foundation: AppState logic, CLI wiring, unit tests
+- [ ] 03-02-PLAN.md — TUI rendering, event loop, integrated/attach modes, visual checkpoint
 **UI hint**: yes
 
 ### Phase 4: Report and Landing
@@ -82,5 +85,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Generation Pipeline | 3/3 | Complete   | 2026-03-29 |
 | 2. Server and Detection | 1/3 | In Progress|  |
-| 3. TUI Monitor | 0/? | Not started | - |
+| 3. TUI Monitor | 0/2 | Not started | - |
 | 4. Report and Landing | 0/? | Not started | - |
