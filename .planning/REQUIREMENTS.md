@@ -9,8 +9,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### CLI Workflow
 
-- [ ] **CLI-01**: User can run `honeyprompt init` to create a project directory with config
-- [ ] **CLI-02**: User can run `honeyprompt generate` to produce honeypot page, robots.txt, and ai.txt
+- [x] **CLI-01**: User can run `honeyprompt init` to create a project directory with config
+- [x] **CLI-02**: User can run `honeyprompt generate` to produce honeypot page, robots.txt, and ai.txt
 - [ ] **CLI-03**: User can run `honeyprompt serve` to start HTTP server for honeypot + callbacks
 - [ ] **CLI-04**: User can run `honeyprompt monitor` to view live TUI event display
 - [ ] **CLI-05**: User can run `honeyprompt report` to generate Markdown disclosure report
@@ -105,8 +105,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLI-01 | Phase 1 | Pending |
-| CLI-02 | Phase 1 | Pending |
+| CLI-01 | Phase 1 | Complete |
+| CLI-02 | Phase 1 | Complete |
 | CLI-03 | Phase 2 | Pending |
 | CLI-04 | Phase 3 | Pending |
 | CLI-05 | Phase 4 | Pending |
