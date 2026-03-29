@@ -49,7 +49,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Reporting
 
 - [ ] **RPT-01**: Report subcommand generates structured Markdown disclosure artifact
-- [ ] **RPT-02**: Report includes payload description, embedding location, proof level, timestamps, and anonymized agent metadata
+- [ ] **RPT-02**: Report includes payload description, embedding location, proof level, timestamps, and full agent metadata (IP, UA, headers — per D-03, no anonymization)
 
 ### Landing Page
 
