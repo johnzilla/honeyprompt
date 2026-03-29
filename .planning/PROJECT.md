@@ -17,14 +17,13 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 - ✓ Curated prompt-injection payload catalog (Tiers 1-3) — Phase 1
 - ✓ SQLite event store schema with replay detection — Phase 1
 - ✓ robots.txt and ai.txt generation with disallow rules — Phase 1
+- ✓ HTTP callback listener integrated with honeypot server (all-in-one) — Phase 2
+- ✓ Agent fingerprinting from request metadata (IP, UA, headers, ASN) — Phase 2
+- ✓ TUI monitor for live event viewing with filters — Phase 3
 
 ### Active
 
-- [ ] CLI workflow for serve, monitor, report
-- [ ] HTTP callback listener integrated with honeypot server (all-in-one)
-- [ ] HTTP callback listener integrated with honeypot server (all-in-one)
-- [ ] Agent fingerprinting from request metadata (IP, UA, headers, ASN)
-- [ ] TUI monitor for live event viewing with filters
+- [ ] CLI workflow for report
 - [ ] Markdown disclosure report generator
 - [ ] Minimal honeyprompt.sh landing page (instrumented with its own canaries)
 
@@ -108,4 +107,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after Phase 1 completion*
+*Last updated: 2026-03-29 after Phase 3 completion*
