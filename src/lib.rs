@@ -8,4 +8,5 @@ pub mod generator;
 pub mod nonce;
 pub mod server;
 pub mod store;
+pub mod monitor;
 pub mod types;
