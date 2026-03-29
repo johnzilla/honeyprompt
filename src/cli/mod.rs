@@ -16,6 +16,8 @@ pub enum Commands {
     Generate(GenerateArgs),
     /// Start the honeypot HTTP server
     Serve(ServeArgs),
+    /// Start the live TUI event monitor
+    Monitor(MonitorArgs),
 }
 
 #[derive(Parser)]
@@ -40,4 +42,17 @@ pub struct ServeArgs {
     /// Output events as JSON lines instead of structured text
     #[arg(long)]
     pub json: bool,
+}
+
+#[derive(Parser)]
+pub struct MonitorArgs {
+    /// Project directory containing honeyprompt.toml and output/
+    #[arg(default_value = ".")]
+    pub path: PathBuf,
+    /// Attach to a running server's database instead of starting a new server
+    #[arg(long)]
+    pub attach: bool,
+    /// Port to bind the integrated server on (default from config)
+    #[arg(long)]
+    pub port: Option<u16>,
 }
