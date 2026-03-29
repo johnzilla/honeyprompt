@@ -38,8 +38,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **SRV-03**: Agent fingerprinting extracts UA, IP/ASN, and HTTP headers from callbacks
 - [x] **SRV-04**: Known-agent lookup enriches captures with provider names (GPTBot → OpenAI, etc.)
 - [x] **SRV-05**: Known crawler suppression separates indexing traffic from compliance detections
-- [ ] **SRV-06**: Detection counting uses sessions (visits), not raw callback rows
-- [ ] **SRV-07**: Metadata-only mode stores only path/query/headers/connection metadata (no body)
+- [x] **SRV-06**: Detection counting uses sessions (visits), not raw callback rows
+- [x] **SRV-07**: Metadata-only mode stores only path/query/headers/connection metadata (no body)
 
 ### TUI Monitor
 
@@ -125,8 +125,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SRV-03 | Phase 2 | Complete |
 | SRV-04 | Phase 2 | Complete |
 | SRV-05 | Phase 2 | Complete |
-| SRV-06 | Phase 2 | Pending |
-| SRV-07 | Phase 2 | Pending |
+| SRV-06 | Phase 2 | Complete |
+| SRV-07 | Phase 2 | Complete |
 | TUI-01 | Phase 3 | Pending |
 | TUI-02 | Phase 3 | Pending |
 | RPT-01 | Phase 4 | Pending |

@@ -48,7 +48,7 @@ Plans:
 **Plans:** 1/3 plans executed
 Plans:
 - [x] 02-01-PLAN.md — Phase 2 types, fingerprint extraction, crawler catalog (SRV-03, SRV-04, SRV-05)
-- [ ] 02-02-PLAN.md — Event pipeline: broker, async DB writer, session counting (SRV-06, SRV-07)
+- [x] 02-02-PLAN.md — Event pipeline: broker, async DB writer, session counting (SRV-06, SRV-07)
 - [ ] 02-03-PLAN.md — Axum server, serve CLI command, integration tests (CLI-03, SRV-01)
 **UI hint**: no
 
