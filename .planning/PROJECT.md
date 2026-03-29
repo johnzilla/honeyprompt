@@ -28,7 +28,24 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 
 ### Active
 
-- None — planning next milestone
+## Current Milestone: v2.0 Ship & Learn
+
+**Goal:** Get HoneyPrompt in front of real users and collect evidence of whether AI agents trigger canary payloads in the wild.
+
+**Target features:**
+- `honeyprompt test-agent` subcommand with pass/fail compliance scorecard
+- Live demo deployment at honeyprompt.sh domain
+- GitHub Actions CI/CD with cross-platform binary releases
+- README rewrite and public launch (blog post, HN, Reddit, Twitter)
+
+### Active Requirements
+
+- [ ] test-agent subcommand with --listen, --timeout, --format flags and exit codes
+- [ ] GitHub Actions CI workflow (test + clippy + fmt)
+- [ ] GitHub Actions release workflow with cross-platform binaries
+- [ ] Containerized or deployable server configuration for live demo
+- [ ] README rewrite with value prop, quick-start, installation instructions
+- [ ] Public deployment of honeyprompt.sh with canary payloads live
 
 ### Out of Scope
 
@@ -110,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after v1.0 milestone completion*
+*Last updated: 2026-03-29 after v2.0 Ship & Learn milestone started*
