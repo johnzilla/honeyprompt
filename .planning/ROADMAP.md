@@ -12,7 +12,7 @@ HoneyPrompt ships as a single Rust binary with four sequential capability layers
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Generation Pipeline** - Offline init + generate workflow producing deployable honeypot pages, payload catalog, and locked SQLite schema
+- [x] **Phase 1: Generation Pipeline** - Offline init + generate workflow producing deployable honeypot pages, payload catalog, and locked SQLite schema (completed 2026-03-29)
 - [ ] **Phase 2: Server and Detection** - Async HTTP server with callback listener, full event pipeline, and agent fingerprinting
 - [ ] **Phase 3: TUI Monitor** - Flagship live event display with filters, session-based counting, and replay flagging
 - [ ] **Phase 4: Report and Landing** - Markdown disclosure report generator and instrumented honeyprompt.sh landing page
@@ -29,11 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Every generated page contains a visible human warning and payloads distributed across multiple embedding locations (HTML comments, meta tags, invisible elements, JSON-LD, semantic prose)
   4. Each payload has a unique cryptographic nonce embedded in its callback URL
   5. The event store schema exists with replay detection fields and session grouping before any network code runs
-**Plans:** 1/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [x] 01-01-PLAN.md — Project foundation: Cargo manifest, CLI skeleton, Config, shared types
-- [ ] 01-02-PLAN.md — Payload catalog (Tiers 1-3), nonce generator, SQLite event store schema
-- [ ] 01-03-PLAN.md — Templates, generator pipeline, init/generate commands, integration tests
+- [x] 01-02-PLAN.md — Payload catalog (Tiers 1-3), nonce generator, SQLite event store schema
+- [x] 01-03-PLAN.md — Templates, generator pipeline, init/generate commands, integration tests
 
 ### Phase 2: Server and Detection
 **Goal**: Users can serve the honeypot and receive callback events that are stored, enriched with fingerprint data, and separated from known-good crawlers
@@ -76,7 +76,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Generation Pipeline | 1/3 | In Progress|  |
+| 1. Generation Pipeline | 3/3 | Complete   | 2026-03-29 |
 | 2. Server and Detection | 0/? | Not started | - |
 | 3. TUI Monitor | 0/? | Not started | - |
 | 4. Report and Landing | 0/? | Not started | - |

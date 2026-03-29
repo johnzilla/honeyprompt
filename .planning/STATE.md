@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 01-generation-pipeline-01-02-PLAN.md
-last_updated: "2026-03-29T02:00:45.933Z"
+status: verifying
+stopped_at: Completed 01-generation-pipeline-01-03-PLAN.md (awaiting human-verify checkpoint)
+last_updated: "2026-03-29T02:06:52.928Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 3
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 
 Phase: 01 (generation-pipeline) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 *Updated after each plan completion*
 | Phase 01-generation-pipeline P01 | 8 | 2 tasks | 7 files |
 | Phase 01-generation-pipeline P02 | 8 | 2 tasks | 7 files |
+| Phase 01-generation-pipeline P03 | 35 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,8 @@ Recent decisions affecting current work:
 - [Phase 01-generation-pipeline]: Tier 3 second payload uses html_comment location to maintain one-payload-per-location constraint (D-06)
 - [Phase 01-generation-pipeline]: chrono_now() uses std::time::SystemTime for timestamps — avoids adding time crate in Phase 1
 - [Phase 01-generation-pipeline]: PayloadDef intermediate struct decouples TOML schema from domain enums with explicit validation
+- [Phase 01-generation-pipeline]: minijinja auto-escaping: all rendered payload instructions use | safe filter to prevent double-encoding of HTML and URLs in canary content
+- [Phase 01-generation-pipeline]: Tier 2 payloads generate two distinct nonces (callback_url_a, callback_url_b), both inserted in nonce_map for server-side lookup of either conditional branch
 
 ### Pending Todos
 
@@ -83,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T02:00:45.930Z
-Stopped at: Completed 01-generation-pipeline-01-02-PLAN.md
+Last session: 2026-03-29T02:06:52.925Z
+Stopped at: Completed 01-generation-pipeline-01-03-PLAN.md (awaiting human-verify checkpoint)
 Resume file: None
