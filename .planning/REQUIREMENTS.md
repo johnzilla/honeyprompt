@@ -105,39 +105,39 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLI-01 | — | Pending |
-| CLI-02 | — | Pending |
-| CLI-03 | — | Pending |
-| CLI-04 | — | Pending |
-| CLI-05 | — | Pending |
-| GEN-01 | — | Pending |
-| GEN-02 | — | Pending |
-| GEN-03 | — | Pending |
-| GEN-04 | — | Pending |
-| GEN-05 | — | Pending |
-| GEN-06 | — | Pending |
-| GEN-07 | — | Pending |
-| PROOF-01 | — | Pending |
-| PROOF-02 | — | Pending |
-| PROOF-03 | — | Pending |
-| SRV-01 | — | Pending |
-| SRV-02 | — | Pending |
-| SRV-03 | — | Pending |
-| SRV-04 | — | Pending |
-| SRV-05 | — | Pending |
-| SRV-06 | — | Pending |
-| SRV-07 | — | Pending |
-| TUI-01 | — | Pending |
-| TUI-02 | — | Pending |
-| RPT-01 | — | Pending |
-| RPT-02 | — | Pending |
-| LAND-01 | — | Pending |
+| CLI-01 | Phase 1 | Pending |
+| CLI-02 | Phase 1 | Pending |
+| CLI-03 | Phase 2 | Pending |
+| CLI-04 | Phase 3 | Pending |
+| CLI-05 | Phase 4 | Pending |
+| GEN-01 | Phase 1 | Pending |
+| GEN-02 | Phase 1 | Pending |
+| GEN-03 | Phase 1 | Pending |
+| GEN-04 | Phase 1 | Pending |
+| GEN-05 | Phase 1 | Pending |
+| GEN-06 | Phase 1 | Pending |
+| GEN-07 | Phase 1 | Pending |
+| PROOF-01 | Phase 1 | Pending |
+| PROOF-02 | Phase 1 | Pending |
+| PROOF-03 | Phase 1 | Pending |
+| SRV-01 | Phase 2 | Pending |
+| SRV-02 | Phase 1 | Pending |
+| SRV-03 | Phase 2 | Pending |
+| SRV-04 | Phase 2 | Pending |
+| SRV-05 | Phase 2 | Pending |
+| SRV-06 | Phase 2 | Pending |
+| SRV-07 | Phase 2 | Pending |
+| TUI-01 | Phase 3 | Pending |
+| TUI-02 | Phase 3 | Pending |
+| RPT-01 | Phase 4 | Pending |
+| RPT-02 | Phase 4 | Pending |
+| LAND-01 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 27 total
-- Mapped to phases: 0
-- Unmapped: 27 ⚠️
+- Mapped to phases: 27
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-28*
-*Last updated: 2026-03-28 after initial definition*
+*Last updated: 2026-03-28 after roadmap creation*
