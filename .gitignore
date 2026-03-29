@@ -1,0 +1,8 @@
+# Build artifacts
+/target/
+
+# Runtime state — never commit event databases
+.honeyprompt/
+
+# OS files
+.DS_Store

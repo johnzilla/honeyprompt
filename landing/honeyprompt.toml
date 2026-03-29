@@ -1,0 +1,5 @@
+callback_base_url = "https://honeyprompt.sh"
+bind_address = "0.0.0.0:8080"
+tiers = [1, 2, 3]
+page_title = "HoneyPrompt — AI Agent Canary Detection"
+theme = "default"
