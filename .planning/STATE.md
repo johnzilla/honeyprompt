@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-generation-pipeline-01-01-PLAN.md
-last_updated: "2026-03-29T01:55:52.693Z"
+stopped_at: Completed 01-generation-pipeline-01-02-PLAN.md
+last_updated: "2026-03-29T02:00:45.933Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 4
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 ## Current Position
 
 Phase: 01 (generation-pipeline) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-29
 
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 01-generation-pipeline P01 | 8 | 2 tasks | 7 files |
+| Phase 01-generation-pipeline P02 | 8 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,9 @@ Recent decisions affecting current work:
 - Roadmap: LAND-01 placed in Phase 4 — landing page is a final deliverable after the tool itself is complete
 - [Phase 01-generation-pipeline]: tempfile added as dev-dependency for Config round-trip test
 - [Phase 01-generation-pipeline]: No warning field in Config struct — GEN-02 human warning is a template concern, enforced by unit test
+- [Phase 01-generation-pipeline]: Tier 3 second payload uses html_comment location to maintain one-payload-per-location constraint (D-06)
+- [Phase 01-generation-pipeline]: chrono_now() uses std::time::SystemTime for timestamps — avoids adding time crate in Phase 1
+- [Phase 01-generation-pipeline]: PayloadDef intermediate struct decouples TOML schema from domain enums with explicit validation
 
 ### Pending Todos
 
@@ -79,6 +83,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T01:55:52.689Z
-Stopped at: Completed 01-generation-pipeline-01-01-PLAN.md
+Last session: 2026-03-29T02:00:45.930Z
+Stopped at: Completed 01-generation-pipeline-01-02-PLAN.md
 Resume file: None

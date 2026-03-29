@@ -19,22 +19,22 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **GEN-01**: Generator produces static HTML honeypot page with embedded payloads
 - [ ] **GEN-02**: Every generated page includes a visible human warning (hard-coded, not configurable)
-- [ ] **GEN-03**: Each payload gets a unique cryptographic nonce embedded in callback URL
+- [x] **GEN-03**: Each payload gets a unique cryptographic nonce embedded in callback URL
 - [ ] **GEN-04**: Generator produces robots.txt with AI-specific user-agent disallow rules
 - [ ] **GEN-05**: Generator produces ai.txt with agent policy declarations
-- [ ] **GEN-06**: Payloads are distributed across multiple embedding locations per page (HTML comments, meta tags, invisible elements, JSON-LD, semantic prose)
-- [ ] **GEN-07**: Only curated payloads are available — no custom payload authoring
+- [x] **GEN-06**: Payloads are distributed across multiple embedding locations per page (HTML comments, meta tags, invisible elements, JSON-LD, semantic prose)
+- [x] **GEN-07**: Only curated payloads are available — no custom payload authoring
 
 ### Proof Levels
 
-- [ ] **PROOF-01**: Tier 1 payload — arbitrary callback (agent made an outbound request)
-- [ ] **PROOF-02**: Tier 2 payload — conditional-branch callback (agent evaluated logic and selected correct branch)
-- [ ] **PROOF-03**: Tier 3 payload — computed callback (agent performed non-sensitive computation and returned result)
+- [x] **PROOF-01**: Tier 1 payload — arbitrary callback (agent made an outbound request)
+- [x] **PROOF-02**: Tier 2 payload — conditional-branch callback (agent evaluated logic and selected correct branch)
+- [x] **PROOF-03**: Tier 3 payload — computed callback (agent performed non-sensitive computation and returned result)
 
 ### Server & Detection
 
 - [ ] **SRV-01**: Serve mode hosts honeypot page and callback listener on same port
-- [ ] **SRV-02**: Callback events are stored in SQLite with replay detection and session grouping
+- [x] **SRV-02**: Callback events are stored in SQLite with replay detection and session grouping
 - [ ] **SRV-03**: Agent fingerprinting extracts UA, IP/ASN, and HTTP headers from callbacks
 - [ ] **SRV-04**: Known-agent lookup enriches captures with provider names (GPTBot → OpenAI, etc.)
 - [ ] **SRV-05**: Known crawler suppression separates indexing traffic from compliance detections
@@ -112,16 +112,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-05 | Phase 4 | Pending |
 | GEN-01 | Phase 1 | Pending |
 | GEN-02 | Phase 1 | Pending |
-| GEN-03 | Phase 1 | Pending |
+| GEN-03 | Phase 1 | Complete |
 | GEN-04 | Phase 1 | Pending |
 | GEN-05 | Phase 1 | Pending |
-| GEN-06 | Phase 1 | Pending |
-| GEN-07 | Phase 1 | Pending |
-| PROOF-01 | Phase 1 | Pending |
-| PROOF-02 | Phase 1 | Pending |
-| PROOF-03 | Phase 1 | Pending |
+| GEN-06 | Phase 1 | Complete |
+| GEN-07 | Phase 1 | Complete |
+| PROOF-01 | Phase 1 | Complete |
+| PROOF-02 | Phase 1 | Complete |
+| PROOF-03 | Phase 1 | Complete |
 | SRV-01 | Phase 2 | Pending |
-| SRV-02 | Phase 1 | Pending |
+| SRV-02 | Phase 1 | Complete |
 | SRV-03 | Phase 2 | Pending |
 | SRV-04 | Phase 2 | Pending |
 | SRV-05 | Phase 2 | Pending |
