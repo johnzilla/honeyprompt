@@ -13,7 +13,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CLI-02**: User can run `honeyprompt generate` to produce honeypot page, robots.txt, and ai.txt
 - [x] **CLI-03**: User can run `honeyprompt serve` to start HTTP server for honeypot + callbacks
 - [x] **CLI-04**: User can run `honeyprompt monitor` to view live TUI event display
-- [ ] **CLI-05**: User can run `honeyprompt report` to generate Markdown disclosure report
+- [x] **CLI-05**: User can run `honeyprompt report` to generate Markdown disclosure report
 
 ### Honeypot Generation
 
@@ -48,8 +48,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Reporting
 
-- [ ] **RPT-01**: Report subcommand generates structured Markdown disclosure artifact
-- [ ] **RPT-02**: Report includes payload description, embedding location, proof level, timestamps, and full agent metadata (IP, UA, headers — per D-03, no anonymization)
+- [x] **RPT-01**: Report subcommand generates structured Markdown disclosure artifact
+- [x] **RPT-02**: Report includes payload description, embedding location, proof level, timestamps, and full agent metadata (IP, UA, headers — per D-03, no anonymization)
 
 ### Landing Page
 
@@ -109,7 +109,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-02 | Phase 1 | Complete |
 | CLI-03 | Phase 2 | Complete |
 | CLI-04 | Phase 3 | Complete |
-| CLI-05 | Phase 4 | Pending |
+| CLI-05 | Phase 4 | Complete |
 | GEN-01 | Phase 1 | Complete |
 | GEN-02 | Phase 1 | Complete |
 | GEN-03 | Phase 1 | Complete |
@@ -129,8 +129,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SRV-07 | Phase 2 | Complete |
 | TUI-01 | Phase 3 | Complete |
 | TUI-02 | Phase 3 | Complete |
-| RPT-01 | Phase 4 | Pending |
-| RPT-02 | Phase 4 | Pending |
+| RPT-01 | Phase 4 | Complete |
+| RPT-02 | Phase 4 | Complete |
 | LAND-01 | Phase 4 | Complete |
 
 **Coverage:**
