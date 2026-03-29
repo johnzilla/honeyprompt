@@ -11,7 +11,7 @@
     .notice { background: #f8d7da; border: 1px solid #f5c6cb; padding: 0.75rem; margin: 1rem 0; }
   </style>
   {% for p in payloads %}{% if p.embedding_location == "meta_tag" %}
-  {{ p.rendered_instruction }}
+  {{ p.rendered_instruction | safe }}
   {% endif %}{% endfor %}
 </head>
 <body>
@@ -23,7 +23,7 @@
   </div>
 
   {% for p in payloads %}{% if p.embedding_location == "html_comment" %}
-  {{ p.rendered_instruction }}
+  {{ p.rendered_instruction | safe }}
   {% endif %}{% endfor %}
 
   <article id="canary-content">
@@ -33,16 +33,16 @@
       principles. No secrets are collected. No harmful actions are performed. All payloads are auditable.
     </div>
     {% for p in payloads %}{% if p.embedding_location == "semantic_prose" %}
-    <p>{{ p.rendered_instruction }}</p>
+    <p>{{ p.rendered_instruction | safe }}</p>
     {% endif %}{% endfor %}
   </article>
 
   {% for p in payloads %}{% if p.embedding_location == "invisible_element" %}
-  {{ p.rendered_instruction }}
+  {{ p.rendered_instruction | safe }}
   {% endif %}{% endfor %}
 
   {% for p in payloads %}{% if p.embedding_location == "json_ld" %}
-  <script type="application/ld+json">{{ p.rendered_instruction }}</script>
+  <script type="application/ld+json">{{ p.rendered_instruction | safe }}</script>
   {% endif %}{% endfor %}
 </body>
 </html>
