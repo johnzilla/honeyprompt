@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 3 UI-SPEC approved
-last_updated: "2026-03-29T17:48:20.267Z"
+status: executing
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-29T18:53:29.813Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 8
+  completed_plans: 7
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** Phase 02 — server-and-detection
+**Current focus:** Phase 03 — tui-monitor
 
 ## Current Position
 
-Phase: 02 (server-and-detection) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
+Phase: 03 (tui-monitor) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
@@ -58,6 +58,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02-server-and-detection P01 | 194 | 2 tasks | 6 files |
 | Phase 02-server-and-detection P02 | 163 | 2 tasks | 4 files |
 | Phase 02-server-and-detection P03 | 3 | 2 tasks | 6 files |
+| Phase 03 P01 | 3 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,8 @@ Recent decisions affecting current work:
 - [Phase 02-server-and-detection]: broker broadcasts AppEvent with initial is_replay=false/fire_count=1 — DB writer gets authoritative values from insert_callback_event return value
 - [Phase 02-server-and-detection]: build_router() extracted as pub fn so integration tests can use tower::ServiceExt::oneshot without binding a port
 - [Phase 02-server-and-detection]: MockConnectInfo Axum layer satisfies ConnectInfo extractor in integration tests
+- [Phase 03]: ratatui 0.30 / crossterm 0.29 added as TUI stack — confirmed current crates.io versions
+- [Phase 03]: AppState is pure logic struct (no async) — TUI rendering in Plan 02 wraps it
 
 ### Pending Todos
 
@@ -101,6 +104,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-29T17:48:20.264Z
-Stopped at: Phase 3 UI-SPEC approved
-Resume file: .planning/phases/03-tui-monitor/03-UI-SPEC.md
+Last session: 2026-03-29T18:53:29.810Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: None

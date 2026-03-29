@@ -12,7 +12,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CLI-01**: User can run `honeyprompt init` to create a project directory with config
 - [x] **CLI-02**: User can run `honeyprompt generate` to produce honeypot page, robots.txt, and ai.txt
 - [x] **CLI-03**: User can run `honeyprompt serve` to start HTTP server for honeypot + callbacks
-- [ ] **CLI-04**: User can run `honeyprompt monitor` to view live TUI event display
+- [x] **CLI-04**: User can run `honeyprompt monitor` to view live TUI event display
 - [ ] **CLI-05**: User can run `honeyprompt report` to generate Markdown disclosure report
 
 ### Honeypot Generation
@@ -43,8 +43,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### TUI Monitor
 
-- [ ] **TUI-01**: Live event table displays callbacks in real time via Ratatui
-- [ ] **TUI-02**: Events filterable and sortable by tier, time, and source
+- [x] **TUI-01**: Live event table displays callbacks in real time via Ratatui
+- [x] **TUI-02**: Events filterable and sortable by tier, time, and source
 
 ### Reporting
 
@@ -108,7 +108,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-01 | Phase 1 | Complete |
 | CLI-02 | Phase 1 | Complete |
 | CLI-03 | Phase 2 | Complete |
-| CLI-04 | Phase 3 | Pending |
+| CLI-04 | Phase 3 | Complete |
 | CLI-05 | Phase 4 | Pending |
 | GEN-01 | Phase 1 | Complete |
 | GEN-02 | Phase 1 | Complete |
@@ -127,8 +127,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SRV-05 | Phase 2 | Complete |
 | SRV-06 | Phase 2 | Complete |
 | SRV-07 | Phase 2 | Complete |
-| TUI-01 | Phase 3 | Pending |
-| TUI-02 | Phase 3 | Pending |
+| TUI-01 | Phase 3 | Complete |
+| TUI-02 | Phase 3 | Complete |
 | RPT-01 | Phase 4 | Pending |
 | RPT-02 | Phase 4 | Pending |
 | LAND-01 | Phase 4 | Pending |
