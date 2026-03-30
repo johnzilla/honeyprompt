@@ -38,11 +38,11 @@
   3. Process exits with code 0 (no canaries triggered), 1 (one or more triggered), or 2 (error/no data) — verifiable with `echo $?`
   4. User can pass `--format json` and receive structured JSON output for use in CI pipelines
   5. Every push and PR to main triggers a green CI badge (cargo test, clippy, fmt) visible on the repository
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 05-01-PLAN.md — CI workflow with three parallel SHA-pinned jobs (REL-01)
-- [ ] 05-02-PLAN.md — CLI args, store query, and test_agent module with ephemeral server lifecycle (TEST-01, TEST-02)
+- [x] 05-02-PLAN.md — CLI args, store query, and test_agent module with ephemeral server lifecycle (TEST-01, TEST-02)
 - [ ] 05-03-PLAN.md — Scorecard text/JSON rendering and exit code wiring (TEST-03, TEST-04, TEST-05)
 
 ### Phase 6: Release Infrastructure
@@ -84,7 +84,7 @@ Plans:
 | 2. Server and Detection | v1.0 | 3/3 | Complete | 2026-03-29 |
 | 3. TUI Monitor | v1.0 | 2/2 | Complete | 2026-03-29 |
 | 4. Report and Landing | v1.0 | 2/2 | Complete | 2026-03-29 |
-| 5. test-agent Subcommand | v2.0 | 1/3 | In Progress|  |
+| 5. test-agent Subcommand | v2.0 | 2/3 | In Progress|  |
 | 6. Release Infrastructure | v2.0 | 0/? | Not started | - |
 | 7. Live Demo Deployment | v2.0 | 0/? | Not started | - |
 | 8. README and Public Launch | v2.0 | 0/? | Not started | - |

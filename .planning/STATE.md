@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Ship & Learn
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-03-30T12:36:40.866Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-30T12:40:53Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 ## Current Position
 
 Phase: 05 (test-agent-subcommand) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-30
 
@@ -53,6 +53,9 @@ Recent decisions affecting current work:
 - v2.0: All *-apple-darwin release targets must run on macos-latest runners (rusqlite bundled requires macOS SDK)
 - v2.0: README written last (Phase 8) — references features, binaries, and demo URL that exist only after Phases 5-7
 - [Phase 05-test-agent-subcommand]: All GitHub Actions pinned to full commit SHAs (not version tags) per D-10: checkout v4, dtolnay/rust-toolchain master, Swatinem/rust-cache v2.9.1
+- [Phase 05-02]: Pre-bind std::net::TcpListener before async runtime, then convert via from_std() — eliminates port-stealing race condition in test-agent
+- [Phase 05-02]: Exit codes: 0=no callbacks (safe agent), 1=canaries triggered, 2=error (std::process::exit per D-05)
+- [Phase 05-02]: detections_by_tier() returns [u32;3] per-tier counts from SQLite, excluding KnownCrawler sessions
 
 ### Pending Todos
 
@@ -65,6 +68,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-30T12:36:40.864Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-03-30T12:40:53Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None
