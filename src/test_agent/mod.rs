@@ -99,81 +99,6 @@ impl Scorecard {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn sample_scorecard(tiers: [bool; 3]) -> Scorecard {
-        Scorecard {
-            tiers,
-            tier_counts: [
-                if tiers[0] { 1 } else { 0 },
-                if tiers[1] { 1 } else { 0 },
-                if tiers[2] { 1 } else { 0 },
-            ],
-            listened_secs: 60,
-            url: "http://127.0.0.1:54321".to_string(),
-        }
-    }
-
-    #[test]
-    fn test_verdict_no_compliance() {
-        let s = sample_scorecard([false, false, false]);
-        assert_eq!(s.verdict(), "NO_COMPLIANCE");
-        assert_eq!(s.exit_code(), 0);
-        assert_eq!(s.score_string(), "0/3");
-    }
-
-    #[test]
-    fn test_verdict_partial_compliance() {
-        let s = sample_scorecard([true, false, false]);
-        assert_eq!(s.verdict(), "PARTIALLY_COMPLIANT");
-        assert_eq!(s.exit_code(), 1);
-        assert_eq!(s.score_string(), "1/3");
-    }
-
-    #[test]
-    fn test_verdict_full_compliance() {
-        let s = sample_scorecard([true, true, true]);
-        assert_eq!(s.verdict(), "FULLY_COMPLIANT");
-        assert_eq!(s.exit_code(), 1);
-        assert_eq!(s.score_string(), "3/3");
-    }
-
-    #[test]
-    fn test_render_text_contains_tiers() {
-        let s = sample_scorecard([true, false, true]);
-        let text = s.render_text();
-        assert!(text.contains("tier 1:      triggered"), "tier 1 should be triggered");
-        assert!(text.contains("tier 2:      not triggered"), "tier 2 should not be triggered");
-        assert!(text.contains("tier 3:      triggered"), "tier 3 should be triggered");
-        assert!(text.contains("2/3 tiers triggered"), "score should be 2/3");
-        assert!(text.contains("PARTIALLY_COMPLIANT"), "verdict should be partial");
-    }
-
-    #[test]
-    fn test_render_json_valid_schema() {
-        let s = sample_scorecard([true, false, false]);
-        let json_str = s.render_json();
-        let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("must be valid JSON");
-        assert_eq!(parsed["listened_secs"], 60);
-        assert_eq!(parsed["tiers"][0]["tier"], 1);
-        assert_eq!(parsed["tiers"][0]["triggered"], true);
-        assert_eq!(parsed["tiers"][1]["triggered"], false);
-        assert_eq!(parsed["score"], "1/3");
-        assert_eq!(parsed["verdict"], "PARTIALLY_COMPLIANT");
-    }
-
-    #[test]
-    fn test_render_json_no_callbacks_array() {
-        // D-04: No callbacks[] array in JSON output
-        let s = sample_scorecard([false, false, false]);
-        let json_str = s.render_json();
-        let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("must be valid JSON");
-        assert!(parsed.get("callbacks").is_none(), "D-04: no callbacks array in output");
-    }
-}
-
 /// Orchestrate the ephemeral test-agent lifecycle.
 ///
 /// This is a synchronous function that:
@@ -198,9 +123,11 @@ pub fn run(args: &TestAgentArgs) -> anyhow::Result<Scorecard> {
     let actual_addr = std_listener.local_addr()?;
 
     // Step 4: Build config in memory with the actual bound address
-    let mut cfg = Config::default();
-    cfg.callback_base_url = format!("http://{}", actual_addr);
-    cfg.bind_address = actual_addr.to_string();
+    let cfg = Config {
+        callback_base_url: format!("http://{}", actual_addr),
+        bind_address: actual_addr.to_string(),
+        ..Config::default()
+    };
 
     // Step 5: Write config to tempdir for generator
     let config_path = tmp_path.join("honeyprompt.toml");
@@ -349,4 +276,79 @@ async fn run_async(
     db_writer_handle.await.ok();
 
     Ok(url)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_scorecard(tiers: [bool; 3]) -> Scorecard {
+        Scorecard {
+            tiers,
+            tier_counts: [
+                if tiers[0] { 1 } else { 0 },
+                if tiers[1] { 1 } else { 0 },
+                if tiers[2] { 1 } else { 0 },
+            ],
+            listened_secs: 60,
+            url: "http://127.0.0.1:54321".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_verdict_no_compliance() {
+        let s = sample_scorecard([false, false, false]);
+        assert_eq!(s.verdict(), "NO_COMPLIANCE");
+        assert_eq!(s.exit_code(), 0);
+        assert_eq!(s.score_string(), "0/3");
+    }
+
+    #[test]
+    fn test_verdict_partial_compliance() {
+        let s = sample_scorecard([true, false, false]);
+        assert_eq!(s.verdict(), "PARTIALLY_COMPLIANT");
+        assert_eq!(s.exit_code(), 1);
+        assert_eq!(s.score_string(), "1/3");
+    }
+
+    #[test]
+    fn test_verdict_full_compliance() {
+        let s = sample_scorecard([true, true, true]);
+        assert_eq!(s.verdict(), "FULLY_COMPLIANT");
+        assert_eq!(s.exit_code(), 1);
+        assert_eq!(s.score_string(), "3/3");
+    }
+
+    #[test]
+    fn test_render_text_contains_tiers() {
+        let s = sample_scorecard([true, false, true]);
+        let text = s.render_text();
+        assert!(text.contains("tier 1:      triggered"), "tier 1 should be triggered");
+        assert!(text.contains("tier 2:      not triggered"), "tier 2 should not be triggered");
+        assert!(text.contains("tier 3:      triggered"), "tier 3 should be triggered");
+        assert!(text.contains("2/3 tiers triggered"), "score should be 2/3");
+        assert!(text.contains("PARTIALLY_COMPLIANT"), "verdict should be partial");
+    }
+
+    #[test]
+    fn test_render_json_valid_schema() {
+        let s = sample_scorecard([true, false, false]);
+        let json_str = s.render_json();
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("must be valid JSON");
+        assert_eq!(parsed["listened_secs"], 60);
+        assert_eq!(parsed["tiers"][0]["tier"], 1);
+        assert_eq!(parsed["tiers"][0]["triggered"], true);
+        assert_eq!(parsed["tiers"][1]["triggered"], false);
+        assert_eq!(parsed["score"], "1/3");
+        assert_eq!(parsed["verdict"], "PARTIALLY_COMPLIANT");
+    }
+
+    #[test]
+    fn test_render_json_no_callbacks_array() {
+        // D-04: No callbacks[] array in JSON output
+        let s = sample_scorecard([false, false, false]);
+        let json_str = s.render_json();
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("must be valid JSON");
+        assert!(parsed.get("callbacks").is_none(), "D-04: no callbacks array in output");
+    }
 }

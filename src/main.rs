@@ -84,10 +84,14 @@ fn main() -> Result<()> {
             Ok(())
         }
         Commands::TestAgent(args) => {
+            let format = args.format.clone();
             match test_agent::run(&args) {
                 Ok(scorecard) => {
-                    // Scorecard rendering will be added in Plan 03
-                    // For now, just exit with the correct code
+                    let output = match format {
+                        honeyprompt::cli::OutputFormat::Text => scorecard.render_text(),
+                        honeyprompt::cli::OutputFormat::Json => scorecard.render_json(),
+                    };
+                    println!("{}", output);
                     std::process::exit(scorecard.exit_code());
                 }
                 Err(e) => {
