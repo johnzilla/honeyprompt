@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Ship & Learn
-status: planning
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-30T01:25:41.287Z"
-last_activity: 2026-03-29 — v2.0 roadmap created, Phase 5 ready for planning
+status: executing
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-30T12:36:40.866Z"
+last_activity: 2026-03-30
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** Phase 5 — test-agent Subcommand
+**Current focus:** Phase 05 — test-agent-subcommand
 
 ## Current Position
 
-Phase: 5 of 8 (test-agent Subcommand)
-Plan: — of —
-Status: Ready to plan
-Last activity: 2026-03-29 — v2.0 roadmap created, Phase 5 ready for planning
+Phase: 05 (test-agent-subcommand) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-03-30
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -52,6 +52,7 @@ Recent decisions affecting current work:
 - v2.0: CI workflow (REL-01) is a Phase 5 pre-step — validates green baseline before any test-agent code lands
 - v2.0: All *-apple-darwin release targets must run on macos-latest runners (rusqlite bundled requires macOS SDK)
 - v2.0: README written last (Phase 8) — references features, binaries, and demo URL that exist only after Phases 5-7
+- [Phase 05-test-agent-subcommand]: All GitHub Actions pinned to full commit SHAs (not version tags) per D-10: checkout v4, dtolnay/rust-toolchain master, Swatinem/rust-cache v2.9.1
 
 ### Pending Todos
 
@@ -64,6 +65,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-30T01:25:41.284Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-test-agent-subcommand/05-CONTEXT.md
+Last session: 2026-03-30T12:36:40.864Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None

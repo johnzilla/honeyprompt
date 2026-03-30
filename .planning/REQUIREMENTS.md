@@ -17,7 +17,7 @@ Requirements for Ship & Learn milestone. Each maps to roadmap phases.
 
 ### Release Infrastructure
 
-- [ ] **REL-01**: Every push and PR triggers CI that runs `cargo test`, `cargo clippy`, and `cargo fmt --check`
+- [x] **REL-01**: Every push and PR triggers CI that runs `cargo test`, `cargo clippy`, and `cargo fmt --check`
 - [ ] **REL-02**: Pushing a `v*` tag triggers a release workflow that builds cross-platform binaries (x86_64-linux, aarch64-linux, x86_64-darwin, aarch64-darwin) and uploads them to GitHub Releases
 - [ ] **REL-03**: README includes `cargo install honeyprompt` and prebuilt binary download instructions
 
@@ -75,7 +75,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-03 | Phase 5 | Pending |
 | TEST-04 | Phase 5 | Pending |
 | TEST-05 | Phase 5 | Pending |
-| REL-01 | Phase 5 | Pending |
+| REL-01 | Phase 5 | Complete |
 | REL-02 | Phase 6 | Pending |
 | REL-03 | Phase 6 | Pending |
 | DEPLOY-01 | Phase 7 | Pending |
