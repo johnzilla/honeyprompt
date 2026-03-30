@@ -11,9 +11,9 @@ Requirements for Ship & Learn milestone. Each maps to roadmap phases.
 
 - [x] **TEST-01**: User can run `honeyprompt test-agent` to spin up a temporary honeypot server that auto-shuts-down after a configurable timeout
 - [x] **TEST-02**: User can specify listen address, timeout duration, and output format via `--listen`, `--timeout`, `--format` flags
-- [ ] **TEST-03**: User sees a per-tier (1/2/3) pass/fail compliance scorecard after the test completes
-- [ ] **TEST-04**: Process exits with code 0 (no canaries triggered), 1 (one or more triggered), or 2 (error/no data)
-- [ ] **TEST-05**: User can get JSON-formatted output via `--format json` for CI pipeline integration
+- [x] **TEST-03**: User sees a per-tier (1/2/3) pass/fail compliance scorecard after the test completes
+- [x] **TEST-04**: Process exits with code 0 (no canaries triggered), 1 (one or more triggered), or 2 (error/no data)
+- [x] **TEST-05**: User can get JSON-formatted output via `--format json` for CI pipeline integration
 
 ### Release Infrastructure
 
@@ -72,9 +72,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | TEST-01 | Phase 5 | Complete |
 | TEST-02 | Phase 5 | Complete |
-| TEST-03 | Phase 5 | Pending |
-| TEST-04 | Phase 5 | Pending |
-| TEST-05 | Phase 5 | Pending |
+| TEST-03 | Phase 5 | Complete |
+| TEST-04 | Phase 5 | Complete |
+| TEST-05 | Phase 5 | Complete |
 | REL-01 | Phase 5 | Complete |
 | REL-02 | Phase 6 | Pending |
 | REL-03 | Phase 6 | Pending |

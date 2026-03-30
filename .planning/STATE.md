@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Ship & Learn
-status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-03-30T12:40:53Z"
+status: verifying
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-03-30T14:55:46.009Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 Phase: 05 (test-agent-subcommand) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-30
 
 Progress: [░░░░░░░░░░] 0%
@@ -56,6 +56,8 @@ Recent decisions affecting current work:
 - [Phase 05-02]: Pre-bind std::net::TcpListener before async runtime, then convert via from_std() — eliminates port-stealing race condition in test-agent
 - [Phase 05-02]: Exit codes: 0=no callbacks (safe agent), 1=canaries triggered, 2=error (std::process::exit per D-05)
 - [Phase 05-02]: detections_by_tier() returns [u32;3] per-tier counts from SQLite, excluding KnownCrawler sessions
+- [Phase 05-03]: Scorecard::render_text() and render_json() are pure methods on Scorecard; main dispatch is the only call site
+- [Phase 05-03]: Test module moved to end of file to satisfy clippy::items_after_test_module lint
 
 ### Pending Todos
 
@@ -68,6 +70,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-30T12:40:53Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-03-30T14:55:46.005Z
+Stopped at: Completed 05-03-PLAN.md
 Resume file: None
