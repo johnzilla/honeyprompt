@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use clap::Parser;
 use honeyprompt::cli::{Cli, Commands};
-use honeyprompt::{config, generator, monitor, report, server, store};
+use honeyprompt::{config, generator, monitor, report, server, store, test_agent};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -83,10 +83,18 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
-        Commands::TestAgent(_args) => {
-            // TODO(05-02): Implement test-agent subcommand
-            eprintln!("test-agent subcommand not yet implemented");
-            std::process::exit(2);
+        Commands::TestAgent(args) => {
+            match test_agent::run(&args) {
+                Ok(scorecard) => {
+                    // Scorecard rendering will be added in Plan 03
+                    // For now, just exit with the correct code
+                    std::process::exit(scorecard.exit_code());
+                }
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(2); // D-05: exit 2 on error
+                }
+            }
         }
     }
 }

@@ -10,4 +10,5 @@ pub mod server;
 pub mod store;
 pub mod monitor;
 pub mod report;
+pub mod test_agent;
 pub mod types;
