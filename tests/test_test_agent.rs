@@ -31,7 +31,11 @@ fn test_agent_lifecycle_clean_shutdown() {
     // Should exit 0 (no canaries triggered)
     assert_eq!(code, 0, "Expected exit code 0 (no callbacks), got {}", code);
     // Should have run for at least ~2 seconds (the timeout)
-    assert!(elapsed >= 2, "Exited too quickly: {}s (expected >= 2s)", elapsed);
+    assert!(
+        elapsed >= 2,
+        "Exited too quickly: {}s (expected >= 2s)",
+        elapsed
+    );
     // Should have printed startup info to stderr
     assert!(
         stderr.contains("test-agent"),
@@ -48,7 +52,11 @@ fn test_agent_timeout_flag() {
     let elapsed = start.elapsed().as_secs();
 
     assert_eq!(code, 0, "Expected exit code 0, got {}", code);
-    assert!(elapsed < 10, "Took too long: {}s (expected < 10s for 1s timeout)", elapsed);
+    assert!(
+        elapsed < 10,
+        "Took too long: {}s (expected < 10s for 1s timeout)",
+        elapsed
+    );
 }
 
 /// TEST-02: --listen flag with explicit port is accepted.
@@ -68,11 +76,11 @@ fn test_agent_listen_flag() {
 #[test]
 fn test_agent_format_json() {
     let (code, stdout, _stderr) = run_test_agent(&["--timeout", "1", "--format", "json"]);
-    // Note: Plan 03 wires the actual render output. This test will pass once Plan 03 is done.
-    // For now, exit code 0 is the primary assertion.
     assert_eq!(code, 0, "Expected exit code 0, got {}", code);
-    // Once Plan 03 lands, stdout should be parseable JSON:
-    // let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("stdout should be valid JSON");
-    // assert!(parsed.get("verdict").is_some(), "JSON should have verdict field");
-    let _ = stdout; // suppress unused warning until Plan 03
+    let parsed: serde_json::Value =
+        serde_json::from_str(&stdout).expect("stdout should be valid JSON");
+    assert!(
+        parsed.get("verdict").is_some(),
+        "JSON should have verdict field"
+    );
 }

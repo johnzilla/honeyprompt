@@ -1,12 +1,12 @@
+use crate::cli::MonitorArgs;
+use crate::config::Config;
 use crate::types::{AgentClass, AppEvent};
-use std::collections::HashSet;
-use std::io::Stdout;
-use std::path::Path;
-use std::sync::Arc;
-use std::time::Duration;
+use crate::types::{NonceMapping, RawCallbackEvent};
 use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use futures::StreamExt;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
@@ -15,10 +15,12 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table};
 use ratatui::Frame;
 use ratatui::Terminal;
+use std::collections::HashSet;
+use std::io::Stdout;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::{broadcast, mpsc};
-use crate::cli::MonitorArgs;
-use crate::config::Config;
-use crate::types::{NonceMapping, RawCallbackEvent};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TierFilter {
@@ -277,9 +279,21 @@ fn render_event_table(frame: &mut Frame, area: Rect, app: &mut AppState) {
         Constraint::Length(6),  // REPLAY
     ];
 
-    let header_cells = ["TIME", "TIER", "CLASS", "SOURCE IP", "UA", "NONCE", "SESS", "FIRES", "REPLAY"]
-        .into_iter()
-        .map(|h| Cell::from(h).style(Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED)));
+    let header_cells = [
+        "TIME",
+        "TIER",
+        "CLASS",
+        "SOURCE IP",
+        "UA",
+        "NONCE",
+        "SESS",
+        "FIRES",
+        "REPLAY",
+    ]
+    .into_iter()
+    .map(|h| {
+        Cell::from(h).style(Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED))
+    });
     let header = Row::new(header_cells).height(1);
 
     // Empty state rendering
@@ -307,36 +321,39 @@ fn render_event_table(frame: &mut Frame, area: Rect, app: &mut AppState) {
         return;
     }
 
-    let rows: Vec<Row> = visible.iter().map(|ev| {
-        let time_str = format_time(ev.received_at);
-        let tier_str = format!("T{}", ev.tier);
-        let (class_str, class_color) = class_label(&ev.classification);
-        let ip_str = truncate_str(&ev.fingerprint.source_ip.to_string(), 16);
-        let ua_str = truncate_str(&ev.fingerprint.user_agent, 30);
-        let nonce_short = format!("{}...", &ev.nonce[..ev.nonce.len().min(8)]);
-        let sess_short = format!("{}...", &ev.session_id[..ev.session_id.len().min(8)]);
-        let fires_str = ev.fire_count.to_string();
-        let replay_str = if ev.is_replay { " [R] " } else { "     " };
+    let rows: Vec<Row> = visible
+        .iter()
+        .map(|ev| {
+            let time_str = format_time(ev.received_at);
+            let tier_str = format!("T{}", ev.tier);
+            let (class_str, class_color) = class_label(&ev.classification);
+            let ip_str = truncate_str(&ev.fingerprint.source_ip.to_string(), 16);
+            let ua_str = truncate_str(&ev.fingerprint.user_agent, 30);
+            let nonce_short = format!("{}...", &ev.nonce[..ev.nonce.len().min(8)]);
+            let sess_short = format!("{}...", &ev.session_id[..ev.session_id.len().min(8)]);
+            let fires_str = ev.fire_count.to_string();
+            let replay_str = if ev.is_replay { " [R] " } else { "     " };
 
-        let cells = vec![
-            Cell::from(time_str),
-            Cell::from(tier_str).style(Style::default().fg(tier_color(ev.tier))),
-            Cell::from(truncate_str(class_str, 12)).style(Style::default().fg(class_color)),
-            Cell::from(ip_str),
-            Cell::from(ua_str),
-            Cell::from(nonce_short),
-            Cell::from(sess_short),
-            Cell::from(fires_str),
-            Cell::from(replay_str),
-        ];
+            let cells = vec![
+                Cell::from(time_str),
+                Cell::from(tier_str).style(Style::default().fg(tier_color(ev.tier))),
+                Cell::from(truncate_str(class_str, 12)).style(Style::default().fg(class_color)),
+                Cell::from(ip_str),
+                Cell::from(ua_str),
+                Cell::from(nonce_short),
+                Cell::from(sess_short),
+                Cell::from(fires_str),
+                Cell::from(replay_str),
+            ];
 
-        let row_style = if ev.is_replay {
-            Style::default().add_modifier(Modifier::DIM)
-        } else {
-            Style::default()
-        };
-        Row::new(cells).style(row_style)
-    }).collect();
+            let row_style = if ev.is_replay {
+                Style::default().add_modifier(Modifier::DIM)
+            } else {
+                Style::default()
+            };
+            Row::new(cells).style(row_style)
+        })
+        .collect();
 
     let table = Table::new(rows, widths)
         .header(header)
@@ -374,15 +391,25 @@ fn render(frame: &mut Frame, app: &mut AppState) {
     };
 
     let stats_spans = vec![
-        Span::styled("Detections: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Detections: ",
+            Style::default().add_modifier(Modifier::BOLD),
+        ),
         Span::styled(
             app.detection_count().to_string(),
-            Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan),
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::Cyan),
         ),
-        Span::styled("  Sessions: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "  Sessions: ",
+            Style::default().add_modifier(Modifier::BOLD),
+        ),
         Span::styled(
             app.session_count().to_string(),
-            Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan),
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::Cyan),
         ),
         Span::styled("  T1: ", Style::default().add_modifier(Modifier::BOLD)),
         Span::styled(t1.to_string(), Style::default().fg(Color::Cyan)),
@@ -399,8 +426,11 @@ fn render(frame: &mut Frame, app: &mut AppState) {
         Line::from(stats_spans),
         Line::from(vec![Span::raw(status_line)]),
     ];
-    let stats_para = Paragraph::new(stats_text)
-        .block(Block::default().title("HoneyPrompt Monitor").borders(Borders::ALL));
+    let stats_para = Paragraph::new(stats_text).block(
+        Block::default()
+            .title("HoneyPrompt Monitor")
+            .borders(Borders::ALL),
+    );
     frame.render_widget(stats_para, chunks[0]);
 
     // --- Panel B: Filter bar ---
@@ -424,7 +454,9 @@ fn render(frame: &mut Frame, app: &mut AppState) {
         if *f == app.filter {
             filter_spans.push(Span::styled(
                 *label,
-                Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan),
+                Style::default()
+                    .add_modifier(Modifier::BOLD)
+                    .fg(Color::Cyan),
             ));
         } else {
             filter_spans.push(Span::styled(*label, Style::default().fg(Color::DarkGray)));
@@ -439,7 +471,9 @@ fn render(frame: &mut Frame, app: &mut AppState) {
         if *s == app.sort {
             filter_spans.push(Span::styled(
                 *label,
-                Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan),
+                Style::default()
+                    .add_modifier(Modifier::BOLD)
+                    .fg(Color::Cyan),
             ));
         } else {
             filter_spans.push(Span::styled(*label, Style::default().fg(Color::DarkGray)));
@@ -453,8 +487,8 @@ fn render(frame: &mut Frame, app: &mut AppState) {
         ));
     }
 
-    let filter_para = Paragraph::new(Line::from(filter_spans))
-        .block(Block::default().borders(Borders::ALL));
+    let filter_para =
+        Paragraph::new(Line::from(filter_spans)).block(Block::default().borders(Borders::ALL));
     frame.render_widget(filter_para, chunks[1]);
 
     // --- Panel C: Event table ---
@@ -464,31 +498,32 @@ fn render(frame: &mut Frame, app: &mut AppState) {
     match app.mode {
         UiMode::Command => {
             let cmd_text = format!(": {}_", app.command_input);
-            let cmd_para = Paragraph::new(cmd_text)
-                .style(Style::default().fg(Color::White));
+            let cmd_para = Paragraph::new(cmd_text).style(Style::default().fg(Color::White));
             frame.render_widget(cmd_para, chunks[3]);
         }
         UiMode::Normal => {
             // Check if there's a recent error to display
-            let show_error = app.command_error.as_ref().map_or(false, |(_, t)| {
-                t.elapsed() < Duration::from_secs(2)
-            });
+            let show_error = app
+                .command_error
+                .as_ref()
+                .is_some_and(|(_, t)| t.elapsed() < Duration::from_secs(2));
             if show_error {
-                let err_msg = app.command_error.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
-                let err_para = Paragraph::new(err_msg)
-                    .style(Style::default().fg(Color::Red));
+                let err_msg = app
+                    .command_error
+                    .as_ref()
+                    .map(|(m, _)| m.clone())
+                    .unwrap_or_default();
+                let err_para = Paragraph::new(err_msg).style(Style::default().fg(Color::Red));
                 frame.render_widget(err_para, chunks[3]);
             } else {
                 let hint = "j/k scroll  Tab filter  s sort  r replays  : cmd  ? help  q quit";
-                let hint_para = Paragraph::new(hint)
-                    .style(Style::default().fg(Color::DarkGray));
+                let hint_para = Paragraph::new(hint).style(Style::default().fg(Color::DarkGray));
                 frame.render_widget(hint_para, chunks[3]);
             }
         }
         UiMode::Help => {
             let hint = "j/k scroll  Tab filter  s sort  r replays  : cmd  ? help  q quit";
-            let hint_para = Paragraph::new(hint)
-                .style(Style::default().fg(Color::DarkGray));
+            let hint_para = Paragraph::new(hint).style(Style::default().fg(Color::DarkGray));
             frame.render_widget(hint_para, chunks[3]);
         }
     }
@@ -510,7 +545,10 @@ fn render(frame: &mut Frame, app: &mut AppState) {
         frame.render_widget(Clear, overlay_area);
 
         let help_text = vec![
-            Line::from(vec![Span::styled("Key Bindings", Style::default().add_modifier(Modifier::BOLD))]),
+            Line::from(vec![Span::styled(
+                "Key Bindings",
+                Style::default().add_modifier(Modifier::BOLD),
+            )]),
             Line::from(""),
             Line::from("  j / Down    Scroll down one row"),
             Line::from("  k / Up      Scroll up one row"),
@@ -525,7 +563,10 @@ fn render(frame: &mut Frame, app: &mut AppState) {
             Line::from("  q / Ctrl-C  Quit"),
             Line::from("  ?           Toggle this help overlay"),
             Line::from(""),
-            Line::from(vec![Span::styled("Commands (:)", Style::default().add_modifier(Modifier::BOLD))]),
+            Line::from(vec![Span::styled(
+                "Commands (:)",
+                Style::default().add_modifier(Modifier::BOLD),
+            )]),
             Line::from("  quit"),
             Line::from("  filter all|t1|t2|t3"),
             Line::from("  sort time|tier|source"),
@@ -621,58 +662,56 @@ fn handle_key_event(key: &KeyEvent, app: &mut AppState) -> bool {
                 _ => {}
             }
         }
-        UiMode::Command => {
-            match key.code {
-                KeyCode::Esc => {
-                    app.mode = UiMode::Normal;
-                }
-                KeyCode::Enter => {
-                    let input = app.command_input.trim().to_lowercase();
-                    app.mode = UiMode::Normal;
-                    match input.as_str() {
-                        "quit" => return true,
-                        "filter all" => {
-                            app.filter = TierFilter::All;
-                            app.table_state.select(Some(0));
-                        }
-                        "filter t1" => {
-                            app.filter = TierFilter::T1;
-                            app.table_state.select(Some(0));
-                        }
-                        "filter t2" => {
-                            app.filter = TierFilter::T2;
-                            app.table_state.select(Some(0));
-                        }
-                        "filter t3" => {
-                            app.filter = TierFilter::T3;
-                            app.table_state.select(Some(0));
-                        }
-                        "sort time" => {
-                            app.sort = SortField::Time;
-                        }
-                        "sort tier" => {
-                            app.sort = SortField::Tier;
-                        }
-                        "sort source" => {
-                            app.sort = SortField::Source;
-                        }
-                        other => {
-                            app.command_error = Some((
-                                format!("Unknown command: {}", other),
-                                std::time::Instant::now(),
-                            ));
-                        }
+        UiMode::Command => match key.code {
+            KeyCode::Esc => {
+                app.mode = UiMode::Normal;
+            }
+            KeyCode::Enter => {
+                let input = app.command_input.trim().to_lowercase();
+                app.mode = UiMode::Normal;
+                match input.as_str() {
+                    "quit" => return true,
+                    "filter all" => {
+                        app.filter = TierFilter::All;
+                        app.table_state.select(Some(0));
+                    }
+                    "filter t1" => {
+                        app.filter = TierFilter::T1;
+                        app.table_state.select(Some(0));
+                    }
+                    "filter t2" => {
+                        app.filter = TierFilter::T2;
+                        app.table_state.select(Some(0));
+                    }
+                    "filter t3" => {
+                        app.filter = TierFilter::T3;
+                        app.table_state.select(Some(0));
+                    }
+                    "sort time" => {
+                        app.sort = SortField::Time;
+                    }
+                    "sort tier" => {
+                        app.sort = SortField::Tier;
+                    }
+                    "sort source" => {
+                        app.sort = SortField::Source;
+                    }
+                    other => {
+                        app.command_error = Some((
+                            format!("Unknown command: {}", other),
+                            std::time::Instant::now(),
+                        ));
                     }
                 }
-                KeyCode::Char(c) => {
-                    app.command_input.push(c);
-                }
-                KeyCode::Backspace => {
-                    app.command_input.pop();
-                }
-                _ => {}
             }
-        }
+            KeyCode::Char(c) => {
+                app.command_input.push(c);
+            }
+            KeyCode::Backspace => {
+                app.command_input.pop();
+            }
+            _ => {}
+        },
         UiMode::Help => {
             // Any key dismisses help overlay
             app.mode = UiMode::Normal;
@@ -732,7 +771,8 @@ async fn run_loop_attach(
             _ = poll.tick() => {
                 // Poll DB for new events since last_seen_id
                 let since_id = last_seen_id;
-                let rows: Result<Vec<(i64, String, u8, String, String, String, String, String, u32, bool, Option<String>, u64)>, _> = conn.call(move |c| {
+                type EventRow = (i64, String, u8, String, String, String, String, String, u32, bool, Option<String>, u64);
+                let rows: Result<Vec<EventRow>, _> = conn.call(move |c| {
                     let mut stmt = c.prepare(
                         "SELECT id, nonce, tier, payload_id, embedding_loc, session_id, remote_addr, user_agent, fire_count, is_replay, extra_headers, first_seen_at \
                          FROM events WHERE id > ?1 ORDER BY id ASC"
@@ -761,7 +801,7 @@ async fn run_loop_attach(
                         // Parse classification from extra_headers JSON
                         let classification = parse_classification_from_extra(&extra_headers);
                         let source_ip: std::net::IpAddr = remote_addr.parse()
-                            .unwrap_or_else(|_| std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+                            .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
                         let fingerprint = crate::types::AgentFingerprint {
                             source_ip,
                             user_agent: user_agent.clone(),
@@ -820,7 +860,11 @@ fn parse_classification_from_extra(extra_headers: &Option<String>) -> AgentClass
 // --- Public entry point ---
 
 /// Start the honeyprompt monitor (integrated or attach mode).
-pub async fn monitor(config: &Config, project_path: &Path, args: &MonitorArgs) -> anyhow::Result<()> {
+pub async fn monitor(
+    config: &Config,
+    project_path: &Path,
+    args: &MonitorArgs,
+) -> anyhow::Result<()> {
     let mut app = AppState::new();
 
     if args.attach {
@@ -869,10 +913,8 @@ pub async fn monitor(config: &Config, project_path: &Path, args: &MonitorArgs) -
 
         // Open tokio-rusqlite connection and run migrations
         let conn = tokio_rusqlite::Connection::open(&db_path).await?;
-        conn.call(|c| {
-            crate::store::run_migrations(c).map_err(tokio_rusqlite::Error::from)
-        })
-        .await?;
+        conn.call(|c| crate::store::run_migrations(c).map_err(tokio_rusqlite::Error::from))
+            .await?;
 
         // Create event pipeline channels
         let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(256);
@@ -902,7 +944,8 @@ pub async fn monitor(config: &Config, project_path: &Path, args: &MonitorArgs) -
         };
 
         // Bind TcpListener
-        let listener = tokio::net::TcpListener::bind(&bind_addr).await
+        let listener = tokio::net::TcpListener::bind(&bind_addr)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to bind to {}: {}", bind_addr, e))?;
         let actual_addr = listener.local_addr()?;
 
@@ -938,9 +981,9 @@ pub async fn monitor(config: &Config, project_path: &Path, args: &MonitorArgs) -
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::{AgentClass, AgentFingerprint};
     use std::collections::HashMap;
     use std::net::IpAddr;
-    use crate::types::{AgentFingerprint, AgentClass};
 
     fn make_test_event(
         tier: u8,
@@ -1032,7 +1075,7 @@ mod tests {
         state.push_event(make_test_event(1, true, "2.3.4.5", "sess2", 2000));
         let visible = state.visible_events();
         assert_eq!(visible.len(), 1);
-        assert_eq!(visible[0].is_replay, false);
+        assert!(!visible[0].is_replay);
     }
 
     #[test]
@@ -1192,11 +1235,15 @@ mod tests {
 
     #[test]
     fn test_class_label() {
-        let (label, color) = class_label(&AgentClass::KnownAgent { provider: "OpenAI".to_string() });
+        let (label, color) = class_label(&AgentClass::KnownAgent {
+            provider: "OpenAI".to_string(),
+        });
         assert_eq!(label, "agent");
         assert_eq!(color, Color::Green);
 
-        let (label, color) = class_label(&AgentClass::KnownCrawler { provider: "Google".to_string() });
+        let (label, color) = class_label(&AgentClass::KnownCrawler {
+            provider: "Google".to_string(),
+        });
         assert_eq!(label, "crawler");
         assert_eq!(color, Color::Red);
 
@@ -1209,14 +1256,24 @@ mod tests {
     fn test_parse_classification_known_agent() {
         let extra = Some(r#"{"classification":"KnownAgent:OpenAI","headers":{}}"#.to_string());
         let cls = parse_classification_from_extra(&extra);
-        assert_eq!(cls, AgentClass::KnownAgent { provider: "OpenAI".to_string() });
+        assert_eq!(
+            cls,
+            AgentClass::KnownAgent {
+                provider: "OpenAI".to_string()
+            }
+        );
     }
 
     #[test]
     fn test_parse_classification_known_crawler() {
         let extra = Some(r#"{"classification":"KnownCrawler:Google","headers":{}}"#.to_string());
         let cls = parse_classification_from_extra(&extra);
-        assert_eq!(cls, AgentClass::KnownCrawler { provider: "Google".to_string() });
+        assert_eq!(
+            cls,
+            AgentClass::KnownCrawler {
+                provider: "Google".to_string()
+            }
+        );
     }
 
     #[test]

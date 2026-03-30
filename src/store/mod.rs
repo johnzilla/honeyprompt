@@ -1,4 +1,4 @@
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 
 /// Open or create a SQLite database at the given path, running schema migrations.
 pub fn open_or_create_db(path: &std::path::Path) -> anyhow::Result<Connection> {
@@ -51,6 +51,7 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
 ///
 /// Returns `(fire_count, is_replay)` so the broker knows if this was a replay.
 /// All values are passed via parameterized query — SQL metacharacters cannot corrupt queries.
+#[allow(clippy::too_many_arguments)]
 pub fn insert_callback_event(
     conn: &Connection,
     nonce: &str,
@@ -92,7 +93,13 @@ pub fn lookup_nonce(
     let result = conn.query_row(
         "SELECT tier, payload_id, embedding_loc FROM nonce_map WHERE nonce = ?1",
         params![nonce],
-        |row| Ok((row.get::<_, u8>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
+        |row| {
+            Ok((
+                row.get::<_, u8>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        },
     );
     match result {
         Ok(row) => Ok(Some(row)),
@@ -136,13 +143,13 @@ pub fn count_detections(conn: &Connection) -> rusqlite::Result<u32> {
 /// Summary statistics for the report executive summary.
 pub struct ReportSummary {
     pub total_sessions: u32,
-    pub detection_sessions: u32,   // excludes KnownCrawler
-    pub crawler_sessions: u32,     // KnownCrawler only
+    pub detection_sessions: u32, // excludes KnownCrawler
+    pub crawler_sessions: u32,   // KnownCrawler only
     pub tier1_sessions: u32,
     pub tier2_sessions: u32,
     pub tier3_sessions: u32,
-    pub earliest_event: Option<String>,  // epoch seconds string
-    pub latest_event: Option<String>,    // epoch seconds string
+    pub earliest_event: Option<String>, // epoch seconds string
+    pub latest_event: Option<String>,   // epoch seconds string
 }
 
 /// Per-(session_id, tier) row for the evidence table.
@@ -151,12 +158,12 @@ pub struct ReportSession {
     pub tier: u8,
     pub payload_id: String,
     pub embedding_loc: String,
-    pub first_seen_at: String,    // epoch seconds string
-    pub last_seen_at: String,     // epoch seconds string
+    pub first_seen_at: String, // epoch seconds string
+    pub last_seen_at: String,  // epoch seconds string
     pub fire_count: u32,
     pub remote_addr: String,
     pub user_agent: String,
-    pub classification: String,   // parsed from extra_headers JSON
+    pub classification: String, // parsed from extra_headers JSON
 }
 
 /// Query aggregate summary statistics from the events table for the report.
@@ -240,23 +247,24 @@ pub fn query_report_sessions(conn: &Connection) -> rusqlite::Result<Vec<ReportSe
          ORDER BY MIN(first_seen_at) DESC",
     )?;
 
-    let sessions = stmt.query_map([], |row| {
-        let extra_headers: Option<String> = row.get(9)?;
-        let classification = parse_classification(extra_headers.as_deref());
-        Ok(ReportSession {
-            session_id: row.get::<_, Option<String>>(0)?.unwrap_or_default(),
-            tier: row.get::<_, u8>(1)?,
-            payload_id: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
-            embedding_loc: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
-            first_seen_at: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
-            last_seen_at: row.get::<_, Option<String>>(5)?.unwrap_or_default(),
-            fire_count: row.get::<_, u32>(6)?,
-            remote_addr: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
-            user_agent: row.get::<_, Option<String>>(8)?.unwrap_or_default(),
-            classification,
-        })
-    })?
-    .collect::<rusqlite::Result<Vec<_>>>()?;
+    let sessions = stmt
+        .query_map([], |row| {
+            let extra_headers: Option<String> = row.get(9)?;
+            let classification = parse_classification(extra_headers.as_deref());
+            Ok(ReportSession {
+                session_id: row.get::<_, Option<String>>(0)?.unwrap_or_default(),
+                tier: row.get::<_, u8>(1)?,
+                payload_id: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                embedding_loc: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                first_seen_at: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                last_seen_at: row.get::<_, Option<String>>(5)?.unwrap_or_default(),
+                fire_count: row.get::<_, u32>(6)?,
+                remote_addr: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
+                user_agent: row.get::<_, Option<String>>(8)?.unwrap_or_default(),
+                classification,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
 
     Ok(sessions)
 }
@@ -336,9 +344,17 @@ mod tests {
         // First insert a nonce in nonce_map
         insert_nonce(&conn, "nonce001", 1, "t1-html", "html_comment").unwrap();
         let (fire_count, is_replay) = insert_callback_event(
-            &conn, "nonce001", 1, "t1-html", "html_comment",
-            "sess01", "1.2.3.4", "TestBot/1.0", r#"{"classification":"Unknown","headers":{}}"#,
-        ).unwrap();
+            &conn,
+            "nonce001",
+            1,
+            "t1-html",
+            "html_comment",
+            "sess01",
+            "1.2.3.4",
+            "TestBot/1.0",
+            r#"{"classification":"Unknown","headers":{}}"#,
+        )
+        .unwrap();
         assert_eq!(fire_count, 1, "new nonce should have fire_count=1");
         assert!(!is_replay, "new nonce should not be a replay");
     }
@@ -349,14 +365,30 @@ mod tests {
         insert_nonce(&conn, "nonce002", 1, "t1-html", "html_comment").unwrap();
         // First fire
         insert_callback_event(
-            &conn, "nonce002", 1, "t1-html", "html_comment",
-            "sess02", "1.2.3.4", "TestBot/1.0", r#"{"classification":"Unknown","headers":{}}"#,
-        ).unwrap();
+            &conn,
+            "nonce002",
+            1,
+            "t1-html",
+            "html_comment",
+            "sess02",
+            "1.2.3.4",
+            "TestBot/1.0",
+            r#"{"classification":"Unknown","headers":{}}"#,
+        )
+        .unwrap();
         // Second fire — same nonce
         let (fire_count, is_replay) = insert_callback_event(
-            &conn, "nonce002", 1, "t1-html", "html_comment",
-            "sess02", "1.2.3.4", "TestBot/1.0", r#"{"classification":"Unknown","headers":{}}"#,
-        ).unwrap();
+            &conn,
+            "nonce002",
+            1,
+            "t1-html",
+            "html_comment",
+            "sess02",
+            "1.2.3.4",
+            "TestBot/1.0",
+            r#"{"classification":"Unknown","headers":{}}"#,
+        )
+        .unwrap();
         assert_eq!(fire_count, 2, "second fire should have fire_count=2");
         assert!(is_replay, "second fire should be a replay");
     }
@@ -367,9 +399,17 @@ mod tests {
         insert_nonce(&conn, "nonce003", 2, "t2-cond", "meta_tag").unwrap();
         let extra = r#"{"classification":"KnownAgent","headers":{"accept":"text/html"}}"#;
         insert_callback_event(
-            &conn, "nonce003", 2, "t2-cond", "meta_tag",
-            "sess03", "5.6.7.8", "GPTBot/1.0", extra,
-        ).unwrap();
+            &conn,
+            "nonce003",
+            2,
+            "t2-cond",
+            "meta_tag",
+            "sess03",
+            "5.6.7.8",
+            "GPTBot/1.0",
+            extra,
+        )
+        .unwrap();
         let (session_id, remote_addr, user_agent, extra_headers): (String, String, String, String) = conn
             .query_row(
                 "SELECT session_id, remote_addr, user_agent, extra_headers FROM events WHERE nonce = ?1",
@@ -393,8 +433,15 @@ mod tests {
         insert_nonce(&conn, "nonce004", 1, "t1-html", "html_comment").unwrap();
         // Calling without any body parameter — if a body param existed this wouldn't compile
         let result = insert_callback_event(
-            &conn, "nonce004", 1, "t1-html", "html_comment",
-            "sess04", "9.9.9.9", "NoBodyBot/1.0", "{}",
+            &conn,
+            "nonce004",
+            1,
+            "t1-html",
+            "html_comment",
+            "sess04",
+            "9.9.9.9",
+            "NoBodyBot/1.0",
+            "{}",
         );
         assert!(result.is_ok());
     }
@@ -428,17 +475,31 @@ mod tests {
         // Insert a KnownCrawler event — should NOT count
         insert_nonce(&conn, "crawler01", 1, "t1-html", "html_comment").unwrap();
         insert_callback_event(
-            &conn, "crawler01", 1, "t1-html", "html_comment",
-            "sess_crawler", "10.0.0.1", "Googlebot/2.1",
+            &conn,
+            "crawler01",
+            1,
+            "t1-html",
+            "html_comment",
+            "sess_crawler",
+            "10.0.0.1",
+            "Googlebot/2.1",
             r#"{"classification":"KnownCrawler","headers":{}}"#,
-        ).unwrap();
+        )
+        .unwrap();
         // Insert an Unknown event — should count
         insert_nonce(&conn, "agent01", 1, "t1-html", "html_comment").unwrap();
         insert_callback_event(
-            &conn, "agent01", 1, "t1-html", "html_comment",
-            "sess_agent", "10.0.0.2", "EvilAgent/1.0",
+            &conn,
+            "agent01",
+            1,
+            "t1-html",
+            "html_comment",
+            "sess_agent",
+            "10.0.0.2",
+            "EvilAgent/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
-        ).unwrap();
+        )
+        .unwrap();
         let count = count_detections(&conn).unwrap();
         assert_eq!(count, 1, "only non-crawler events should be counted");
     }
@@ -449,25 +510,49 @@ mod tests {
         // Same session, same tier — should count as 1
         insert_nonce(&conn, "same01", 1, "t1-html", "html_comment").unwrap();
         insert_callback_event(
-            &conn, "same01", 1, "t1-html", "html_comment",
-            "sess_same", "1.1.1.1", "Agent/1.0",
+            &conn,
+            "same01",
+            1,
+            "t1-html",
+            "html_comment",
+            "sess_same",
+            "1.1.1.1",
+            "Agent/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
-        ).unwrap();
+        )
+        .unwrap();
         insert_nonce(&conn, "same02", 1, "t1-other", "meta_tag").unwrap();
         insert_callback_event(
-            &conn, "same02", 1, "t1-other", "meta_tag",
-            "sess_same", "1.1.1.1", "Agent/1.0",
+            &conn,
+            "same02",
+            1,
+            "t1-other",
+            "meta_tag",
+            "sess_same",
+            "1.1.1.1",
+            "Agent/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
-        ).unwrap();
+        )
+        .unwrap();
         // Different tier, same session — should count as 2
         insert_nonce(&conn, "tier2a", 2, "t2-cond", "meta_tag").unwrap();
         insert_callback_event(
-            &conn, "tier2a", 2, "t2-cond", "meta_tag",
-            "sess_same", "1.1.1.1", "Agent/1.0",
+            &conn,
+            "tier2a",
+            2,
+            "t2-cond",
+            "meta_tag",
+            "sess_same",
+            "1.1.1.1",
+            "Agent/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
-        ).unwrap();
+        )
+        .unwrap();
         let count = count_detections(&conn).unwrap();
-        assert_eq!(count, 2, "same session + same tier should count as 1 detection, different tier as another");
+        assert_eq!(
+            count, 2,
+            "same session + same tier should count as 1 detection, different tier as another"
+        );
     }
 
     #[test]
@@ -483,7 +568,13 @@ mod tests {
             .filter_map(|r| r.ok())
             .collect();
 
-        for required in &["fire_count", "is_replay", "session_id", "first_seen_at", "last_seen_at"] {
+        for required in &[
+            "fire_count",
+            "is_replay",
+            "session_id",
+            "first_seen_at",
+            "last_seen_at",
+        ] {
             assert!(
                 column_names.iter().any(|c| c == required),
                 "events table missing required column: {}",
@@ -495,8 +586,14 @@ mod tests {
     #[test]
     fn test_insert_nonce() {
         let conn = in_memory_conn();
-        insert_nonce(&conn, "abcdef1234567890", 1, "t1-html-comment", "html_comment")
-            .expect("insert must succeed");
+        insert_nonce(
+            &conn,
+            "abcdef1234567890",
+            1,
+            "t1-html-comment",
+            "html_comment",
+        )
+        .expect("insert must succeed");
 
         let (nonce, tier, payload_id, embedding_loc): (String, u8, String, String) = conn
             .query_row(
@@ -518,26 +615,51 @@ mod tests {
         // Tier 1 event
         insert_nonce(&conn, "tier1a", 1, "t1-html", "html_comment").unwrap();
         insert_callback_event(
-            &conn, "tier1a", 1, "t1-html", "html_comment",
-            "sess_t1", "10.0.0.1", "Agent/1.0",
+            &conn,
+            "tier1a",
+            1,
+            "t1-html",
+            "html_comment",
+            "sess_t1",
+            "10.0.0.1",
+            "Agent/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
-        ).unwrap();
+        )
+        .unwrap();
         // Tier 3 event
         insert_nonce(&conn, "tier3a", 3, "t3-comp", "json_ld").unwrap();
         insert_callback_event(
-            &conn, "tier3a", 3, "t3-comp", "json_ld",
-            "sess_t3", "10.0.0.2", "Agent/1.0",
+            &conn,
+            "tier3a",
+            3,
+            "t3-comp",
+            "json_ld",
+            "sess_t3",
+            "10.0.0.2",
+            "Agent/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
-        ).unwrap();
+        )
+        .unwrap();
         // Known crawler should be excluded
         insert_nonce(&conn, "crawler_t2", 2, "t2-cond", "meta_tag").unwrap();
         insert_callback_event(
-            &conn, "crawler_t2", 2, "t2-cond", "meta_tag",
-            "sess_crawler", "10.0.0.3", "Googlebot/2.1",
+            &conn,
+            "crawler_t2",
+            2,
+            "t2-cond",
+            "meta_tag",
+            "sess_crawler",
+            "10.0.0.3",
+            "Googlebot/2.1",
             r#"{"classification":"KnownCrawler","headers":{}}"#,
-        ).unwrap();
+        )
+        .unwrap();
         let counts = detections_by_tier(&conn).unwrap();
-        assert_eq!(counts, [1, 0, 1], "tier 1=1, tier 2=0 (crawler excluded), tier 3=1");
+        assert_eq!(
+            counts,
+            [1, 0, 1],
+            "tier 1=1, tier 2=0 (crawler excluded), tier 3=1"
+        );
     }
 
     #[test]
@@ -550,11 +672,7 @@ mod tests {
 
         // The nonce_map table must still exist and contain the malicious string literally.
         let stored: String = conn
-            .query_row(
-                "SELECT nonce FROM nonce_map LIMIT 1",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT nonce FROM nonce_map LIMIT 1", [], |row| row.get(0))
             .expect("nonce_map must still exist and contain the row");
         assert_eq!(
             stored, malicious_nonce,
