@@ -40,8 +40,8 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 
 ### Active Requirements
 
-- [ ] test-agent subcommand with --listen, --timeout, --format flags and exit codes
-- [ ] GitHub Actions CI workflow (test + clippy + fmt)
+- [x] test-agent subcommand with --listen, --timeout, --format flags and exit codes — Phase 5
+- [x] GitHub Actions CI workflow (test + clippy + fmt) — Phase 5
 - [ ] GitHub Actions release workflow with cross-platform binaries
 - [ ] Containerized or deployable server configuration for live demo
 - [ ] README rewrite with value prop, quick-start, installation instructions
@@ -127,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after v2.0 Ship & Learn milestone started*
+*Last updated: 2026-03-30 after Phase 5 (test-agent Subcommand) completion*
