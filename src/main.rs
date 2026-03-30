@@ -83,5 +83,10 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
+        Commands::TestAgent(_args) => {
+            // TODO(05-02): Implement test-agent subcommand
+            eprintln!("test-agent subcommand not yet implemented");
+            std::process::exit(2);
+        }
     }
 }
