@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Ship & Learn
-status: defining-requirements
+status: ready-to-plan
 stopped_at: null
 last_updated: "2026-03-29"
 last_activity: 2026-03-29
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,22 +21,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** Defining requirements for v2.0 Ship & Learn
+**Current focus:** Phase 5 — test-agent Subcommand
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-29 — Milestone v2.0 started
+Phase: 5 of 8 (test-agent Subcommand)
+Plan: — of —
+Status: Ready to plan
+Last activity: 2026-03-29 — v2.0 roadmap created, Phase 5 ready for planning
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: -
+- Total plans completed: 0 (v2.0) / 10 (v1.0)
+- Average duration: ~25 min/plan (v1.0 baseline)
+- Total execution time: —
 
 ## Accumulated Context
 
@@ -46,9 +48,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - v2.0 approach: "Ship & Learn" — deploy live demo + build test-agent, collect evidence before building SaaS infrastructure
-- v2.0: test-agent does NOT bundle a tunnel (ngrok/Cloudflare Tunnel) — users provide their own public endpoint for remote agents
-- v2.0: Live demo at honeyprompt.sh domain proves concept works; test-agent proves utility to others
-- v2.0: Design doc approved at ~/.gstack/projects/johnzilla-honeyprompt/john-main-design-20260329-180748.md
+- v2.0: test-agent does NOT bundle a tunnel — users provide their own public endpoint for remote agents
+- v2.0: CI workflow (REL-01) is a Phase 5 pre-step — validates green baseline before any test-agent code lands
+- v2.0: All *-apple-darwin release targets must run on macos-latest runners (rusqlite bundled requires macOS SDK)
+- v2.0: README written last (Phase 8) — references features, binaries, and demo URL that exist only after Phases 5-7
 
 ### Pending Todos
 
@@ -56,16 +59,11 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-None for v2.0. Previous v1.0 blockers resolved.
-
-### Quick Tasks Completed
-
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-| 260328-vo4 | update README.md as needed and keep it updated when each phase is complete | 2026-03-29 | 8c5b722 | [260328-vo4-update-readme-md-as-needed-and-keep-it-u](./quick/260328-vo4-update-readme-md-as-needed-and-keep-it-u/) |
+- [Phase 8] crates.io publish workflow not researched — verify `cargo install honeyprompt` works before writing install instructions
+- [Phase 5] Default 60s timeout is an assumption — validate against real agent behavior post-launch
 
 ## Session Continuity
 
 Last session: 2026-03-29
-Stopped at: Milestone v2.0 started, defining requirements
+Stopped at: v2.0 roadmap written, Phases 5-8 defined, ready to plan Phase 5
 Resume file: None
