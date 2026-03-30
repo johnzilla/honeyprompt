@@ -101,6 +101,24 @@ pub fn lookup_nonce(
     }
 }
 
+/// Count unique detection sessions per tier (1/2/3), excluding known crawlers.
+///
+/// Returns a [u32; 3] array where index 0 = tier 1 count, index 1 = tier 2, index 2 = tier 3.
+/// D-07: per-tier hit counts for the test-agent scorecard.
+pub fn detections_by_tier(conn: &Connection) -> rusqlite::Result<[u32; 3]> {
+    let mut counts = [0u32; 3];
+    for tier in 1u8..=3 {
+        counts[(tier - 1) as usize] = conn.query_row(
+            "SELECT COUNT(DISTINCT session_id) FROM events
+             WHERE tier = ?1
+             AND extra_headers NOT LIKE '%\"classification\":\"KnownCrawler%'",
+            params![tier],
+            |row| row.get(0),
+        )?;
+    }
+    Ok(counts)
+}
+
 /// Count unique (session_id, tier) detection pairs, excluding known-crawler events.
 ///
 /// Per D-08: detection counting is per-session per-tier. Same session + same tier = 1 detection.
@@ -492,6 +510,34 @@ mod tests {
         assert_eq!(tier, 1u8);
         assert_eq!(payload_id, "t1-html-comment");
         assert_eq!(embedding_loc, "html_comment");
+    }
+
+    #[test]
+    fn test_detections_by_tier() {
+        let conn = in_memory_conn();
+        // Tier 1 event
+        insert_nonce(&conn, "tier1a", 1, "t1-html", "html_comment").unwrap();
+        insert_callback_event(
+            &conn, "tier1a", 1, "t1-html", "html_comment",
+            "sess_t1", "10.0.0.1", "Agent/1.0",
+            r#"{"classification":"Unknown","headers":{}}"#,
+        ).unwrap();
+        // Tier 3 event
+        insert_nonce(&conn, "tier3a", 3, "t3-comp", "json_ld").unwrap();
+        insert_callback_event(
+            &conn, "tier3a", 3, "t3-comp", "json_ld",
+            "sess_t3", "10.0.0.2", "Agent/1.0",
+            r#"{"classification":"Unknown","headers":{}}"#,
+        ).unwrap();
+        // Known crawler should be excluded
+        insert_nonce(&conn, "crawler_t2", 2, "t2-cond", "meta_tag").unwrap();
+        insert_callback_event(
+            &conn, "crawler_t2", 2, "t2-cond", "meta_tag",
+            "sess_crawler", "10.0.0.3", "Googlebot/2.1",
+            r#"{"classification":"KnownCrawler","headers":{}}"#,
+        ).unwrap();
+        let counts = detections_by_tier(&conn).unwrap();
+        assert_eq!(counts, [1, 0, 1], "tier 1=1, tier 2=0 (crawler excluded), tier 3=1");
     }
 
     #[test]
