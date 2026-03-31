@@ -127,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-31 after Phase 7 (Live Demo Deployment) completion*
+*Last updated: 2026-03-31 after Phase 8 (README and Public Launch) — v2.0 milestone complete*
