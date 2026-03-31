@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Ship & Learn
 status: verifying
-stopped_at: Phase 6 context gathered
-last_updated: "2026-03-30T23:59:54.432Z"
-last_activity: 2026-03-30
+stopped_at: Completed 06-02-PLAN.md (README installation section)
+last_updated: "2026-03-31T00:38:34.491Z"
+last_activity: 2026-03-31
 progress:
   total_phases: 4
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 2
+  total_plans: 5
+  completed_plans: 5
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** Phase 05 — test-agent-subcommand
+**Current focus:** Phase 06 — release-infrastructure
 
 ## Current Position
 
-Phase: 6
-Plan: Not started
+Phase: 06 (release-infrastructure) — EXECUTING
+Plan: 2 of 2
 Status: Phase complete — ready for verification
-Last activity: 2026-03-30
+Last activity: 2026-03-31
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -58,6 +58,8 @@ Recent decisions affecting current work:
 - [Phase 05-02]: detections_by_tier() returns [u32;3] per-tier counts from SQLite, excluding KnownCrawler sessions
 - [Phase 05-03]: Scorecard::render_text() and render_json() are pure methods on Scorecard; main dispatch is the only call site
 - [Phase 05-03]: Test module moved to end of file to satisfy clippy::items_after_test_module lint
+- [Phase 06-release-infrastructure]: cargo install --git is primary source install path (crates.io publish deferred)
+- [Phase 06-release-infrastructure]: Binary names use full Rust target triple per D-03 in README platform table
 
 ### Pending Todos
 
@@ -70,6 +72,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-30T23:59:54.428Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-release-infrastructure/06-CONTEXT.md
+Last session: 2026-03-31T00:38:23.953Z
+Stopped at: Completed 06-02-PLAN.md (README installation section)
+Resume file: None

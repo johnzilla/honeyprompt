@@ -56,8 +56,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — GitHub Actions release workflow with cross-platform build matrix (REL-02)
-- [ ] 06-02-PLAN.md — README installation section with cargo install and binary download paths (REL-03)
+- [x] 06-01-PLAN.md — GitHub Actions release workflow with cross-platform build matrix (REL-02)
+- [x] 06-02-PLAN.md — README installation section with cargo install and binary download paths (REL-03)
 
 ### Phase 7: Live Demo Deployment
 **Goal**: honeyprompt.sh serves a live honeypot with canary payloads over HTTPS and stays up without manual intervention
