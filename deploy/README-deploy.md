@@ -1,48 +1,55 @@
 # Deploying HoneyPrompt
 
-Docker Compose deployment with auto-TLS via Caddy.
+Auto-deploys on every push to main via GitHub Actions → GHCR → Droplet.
 
-Architecture: Internet → Caddy (:443 TLS) → honeyprompt (:8080) → SQLite DB
+Architecture: Internet → Caddy (:443 TLS) → honeyprompt (:8080) → SQLite DB (persistent volume)
 
-## Prerequisites
+## How it works
 
-- A server with Docker and Docker Compose installed
-- A domain (honeyprompt.sh) pointed at the server's IP
-- Ports 80 and 443 open
+1. Push to `main` triggers `.github/workflows/deploy.yml`
+2. GitHub Actions builds the Docker image and pushes to `ghcr.io/johnzilla/honeyprompt:latest`
+3. GitHub Actions SSHs to the droplet and runs `docker compose pull && up -d`
 
-## Deploy
+## One-time droplet setup
 
-```bash
-git clone https://github.com/YOUR_USER/honeyprompt.git
-cd honeyprompt/deploy
-docker compose up -d
-```
+1. **Provision a DigitalOcean Droplet** ($4-6/month, Ubuntu 22.04+)
 
-Caddy auto-provisions a Let's Encrypt certificate for honeyprompt.sh on first request.
+2. **Install Docker:**
+   ```bash
+   curl -fsSL https://get.docker.com | sh
+   ```
+
+3. **Copy deploy files to the droplet:**
+   ```bash
+   scp deploy/docker-compose.yml deploy/Caddyfile root@YOUR_DROPLET_IP:/opt/honeyprompt/
+   ```
+
+4. **Start the stack:**
+   ```bash
+   ssh root@YOUR_DROPLET_IP "cd /opt/honeyprompt && docker compose up -d"
+   ```
+
+5. **Point DNS:** Add an A record for `honeyprompt.sh` → droplet IP
+
+6. **Add GitHub Secrets** (Settings → Secrets → Actions):
+   - `DEPLOY_HOST` — droplet IP
+   - `DEPLOY_USER` — `root` (or deploy user)
+   - `DEPLOY_KEY` — SSH private key for the droplet
+
+After this, every push to main auto-deploys.
 
 ## Verify
 
 ```bash
-curl -I https://honeyprompt.sh        # Should return HTTP/2 200
-docker compose logs honeyprompt        # Should show "honeyprompt serve ... ready"
+curl -I https://honeyprompt.sh       # HTTP/2 200
+docker compose logs honeyprompt       # "honeyprompt serve ... ready"
 ```
 
 ## Data
 
-- SQLite DB persists in the `hp-db` Docker volume
-- Callback events survive container restarts and redeployments
-- Backup: `docker compose cp honeyprompt:/data/.honeyprompt/events.db ./events-backup.db`
-
-## Upgrade
-
-```bash
-cd honeyprompt
-git pull
-cd deploy
-docker compose build honeyprompt
-docker compose up -d honeyprompt
-```
+- SQLite DB persists in the `hp-db` Docker volume — survives image updates
+- Backup: `ssh root@DROPLET "docker compose -f /opt/honeyprompt/docker-compose.yml cp honeyprompt:/landing/.honeyprompt/events.db -" > events-backup.db`
 
 ## Monitor
 
-Set up a free [UptimeRobot](https://uptimerobot.com) HTTP(S) monitor pointing at `https://honeyprompt.sh` for external uptime alerts.
+Set up a free [UptimeRobot](https://uptimerobot.com) HTTP(S) monitor for `https://honeyprompt.sh`.

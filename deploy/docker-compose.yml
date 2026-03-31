@@ -1,10 +1,8 @@
 services:
   honeyprompt:
-    build: ..
-    command: ["serve", "/data"]
+    image: ghcr.io/johnzilla/honeyprompt:latest
     volumes:
-      - ../landing:/data:ro
-      - hp-db:/data/.honeyprompt
+      - hp-db:/landing/.honeyprompt
     restart: always
 
   caddy:

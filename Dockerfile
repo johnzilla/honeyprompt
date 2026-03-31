@@ -16,4 +16,6 @@ RUN apt-get update && apt-get install -y musl-tools && \
 
 FROM gcr.io/distroless/static-debian12
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/honeyprompt /usr/local/bin/honeyprompt
+COPY landing/ /landing/
 ENTRYPOINT ["/usr/local/bin/honeyprompt"]
+CMD ["serve", "/landing"]
