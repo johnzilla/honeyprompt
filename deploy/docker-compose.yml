@@ -1,0 +1,24 @@
+services:
+  honeyprompt:
+    build: ..
+    command: ["serve", "/data"]
+    volumes:
+      - ../landing:/data:ro
+      - hp-db:/data/.honeyprompt
+    restart: always
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: always
+
+volumes:
+  hp-db:
+  caddy-data:
+  caddy-config:
