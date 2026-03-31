@@ -53,7 +53,11 @@ Plans:
   1. Pushing a `v*` tag causes GitHub Actions to build and upload binaries for x86_64-linux, aarch64-linux, x86_64-darwin, and aarch64-darwin
   2. A security researcher can download a pre-built binary and run `honeyprompt --version` without compiling from source
   3. README includes both `cargo install honeyprompt` and pre-built binary download paths
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — GitHub Actions release workflow with cross-platform build matrix (REL-02)
+- [ ] 06-02-PLAN.md — README installation section with cargo install and binary download paths (REL-03)
 
 ### Phase 7: Live Demo Deployment
 **Goal**: honeyprompt.sh serves a live honeypot with canary payloads over HTTPS and stays up without manual intervention
@@ -85,6 +89,6 @@ Plans:
 | 3. TUI Monitor | v1.0 | 2/2 | Complete | 2026-03-29 |
 | 4. Report and Landing | v1.0 | 2/2 | Complete | 2026-03-29 |
 | 5. test-agent Subcommand | v2.0 | 3/3 | Complete   | 2026-03-30 |
-| 6. Release Infrastructure | v2.0 | 0/? | Not started | - |
+| 6. Release Infrastructure | v2.0 | 0/2 | Planning | - |
 | 7. Live Demo Deployment | v2.0 | 0/? | Not started | - |
 | 8. README and Public Launch | v2.0 | 0/? | Not started | - |
