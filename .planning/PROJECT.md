@@ -4,7 +4,7 @@
 
 HoneyPrompt is a terminal-first security tool that detects and measures unsafe behavior by AI browsing agents. It generates honeypot web pages containing visible human warnings and hidden prompt-injection canaries, then records HTTP callbacks that prove varying levels of agent compliance with injected instructions. Built in Rust as a single binary for security researchers, defenders, and platform teams who want evidence of agentic web abuse without collecting secrets or performing harmful actions.
 
-v1.0 ships a complete workflow: `init` → `generate` → `serve` → `monitor` → `report`. 3,650 lines of Rust across 4 phases, 10 plans.
+v2.0 ships the complete workflow (`init` → `generate` → `serve` → `monitor` → `report` → `test-agent`) plus CI/CD, cross-platform releases, and a live demo at honeyprompt.sh. 5,300 lines of Rust across 2 milestones, 8 phases.
 
 ## Core Value
 
@@ -25,64 +25,58 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 - ✓ TUI monitor with live event table, vim-style controls, integrated/attach modes — v1.0
 - ✓ Markdown disclosure report with executive summary and full metadata — v1.0
 - ✓ Self-dogfooded honeyprompt.sh landing page with embedded canaries — v1.0
+- ✓ test-agent subcommand with per-tier compliance scorecard and CI exit codes — v2.0
+- ✓ GitHub Actions CI workflow (test + clippy + fmt, SHA-pinned) — v2.0
+- ✓ Cross-platform release workflow (4 targets on v* tag push) — v2.0
+- ✓ Docker + Caddy deployment config for live demo — v2.0
+- ✓ honeyprompt.sh live at DigitalOcean with persistent SQLite — v2.0
+- ✓ README with install guides, ethics section, live demo link — v2.0
 
 ### Active
 
-## Current Milestone: v2.0 Ship & Learn
-
-**Goal:** Get HoneyPrompt in front of real users and collect evidence of whether AI agents trigger canary payloads in the wild.
-
-**Target features:**
-- `honeyprompt test-agent` subcommand with pass/fail compliance scorecard
-- Live demo deployment at honeyprompt.sh domain
-- GitHub Actions CI/CD with cross-platform binary releases
-- README rewrite and public launch (blog post, HN, Reddit, Twitter)
-
-### Active Requirements
-
-- [x] test-agent subcommand with --listen, --timeout, --format flags and exit codes — Phase 5
-- [x] GitHub Actions CI workflow (test + clippy + fmt) — Phase 5
-- [x] GitHub Actions release workflow with cross-platform binaries — Phase 6
-- [x] Containerized or deployable server configuration for live demo — Phase 7
-- [x] README rewrite with value prop, quick-start, installation instructions — Phase 6
-- [x] Public deployment of honeyprompt.sh with canary payloads live — Phase 7
+- None — planning next milestone
 
 ### Out of Scope
 
-- DNS callback listener — v2 (adds operational complexity, requires domain delegation)
-- Custom payload authoring — v2 (curated-only ensures safety in v1)
-- Full web dashboard — v2+ (TUI is the primary interface)
-- TLS fingerprinting — v2 (complexity vs value tradeoff for v1)
-- Windows support — v2+ (Linux and macOS first)
+- DNS callback listener — adds operational complexity, requires domain delegation
+- Custom payload authoring — curated-only ensures safety
+- Full web dashboard — TUI is the primary interface
+- TLS fingerprinting — complexity vs value tradeoff
+- Windows support — Linux and macOS first
 - Secret/credential collection — never (violates safety model)
 - Active exploitation or offensive automation — never (ethical boundary)
-- Multi-page or linked-site deployments — v2+
-- Per-payload breakdown in reports — v2 (executive summary only in v1)
-- Alternative report formats (JSON, HTML) — v2 (Markdown only in v1)
+- Multi-page or linked-site deployments — future
+- Per-payload breakdown in reports — executive summary only
+- Alternative report formats (JSON, HTML) — Markdown only
+- Bundled tunnel (ngrok/Cloudflare) — users provide their own public endpoint
+- crates.io publish — binary releases + cargo install from git sufficient
+- Micro SaaS infrastructure — deferred until evidence of demand
 
 ## Context
 
 - Security research tool in the emerging AI agent detection space
 - No direct competitor does passive, deployable canary tokens specifically for AI browsing agents
-- Shipped v1.0 with 3,650 LOC Rust, single binary distribution
-- Tech stack: Clap CLI, Axum HTTP, Ratatui TUI, rusqlite storage, rust-embed assets
+- Shipped v2.0 with 5,300 LOC Rust, single binary distribution
+- Tech stack: Clap CLI, Axum HTTP, Ratatui TUI, rusqlite + tokio-rusqlite storage, rust-embed assets
+- Live demo running at honeyprompt.sh on DigitalOcean (Docker + Caddy)
+- CI/CD: GitHub Actions for test/clippy/fmt + cross-platform binary releases
 - The TUI monitor is the flagship experience — the demo screenshot, the sell
-- All payloads designed so success signals never require transmitting secrets
-- Metadata-only mode enforced: no callback body accepted (SRV-07)
+- Agent-builder QA use case identified as strongest commercial angle (office hours insight)
+- Zero external users as of v2.0 launch — collecting evidence of demand
 
 ### Proof Levels
 
 1. **Arbitrary callback** — Agent executed an injected outbound request
 2. **Conditional callback** — Agent evaluated a condition and selected the correct branch
 3. **Computed callback** — Agent performed a non-sensitive computation and returned the result
-4. **Capability introspection** — v2 (agent self-reports tools)
-5. **Multi-step compliance chain** — v2 (agent follows dependency sequence)
+4. **Capability introspection** — future (agent self-reports tools)
+5. **Multi-step compliance chain** — future (agent follows dependency sequence)
 
 ### Safety Model
 
 - No API keys, session cookies, prompt contents, user data, file contents, or env vars
 - HTTP beacons carry only prompt ID, nonce, tier, and derived values
-- Safe payloads only — unsafe custom payloads impossible in v1
+- Safe payloads only — unsafe custom payloads impossible
 - Reports include full metadata (IP, UA, headers) — no anonymization by design
 
 ## Constraints
@@ -109,6 +103,12 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 | Full metadata in reports | Anonymization defeats evidence attribution | ✓ Good — user-requested |
 | Broadcast event pipeline | Decouples DB, TUI, and stdout consumers | ✓ Good — clean fan-out |
 | Session-based detection counting | Per-session per-tier avoids inflated counts from replays | ✓ Good — accurate metrics |
+| test-agent uses tempdir pipeline | Reuses 100% of existing generate code, auto-picks up catalog changes | ✓ Good — no code duplication |
+| TcpListener::from_std for port binding | Eliminates TOCTOU race between sync bind and async rebind | ✓ Good — idiomatic Rust |
+| SHA-pinned GitHub Actions | Supply chain security for a security-focused project | ✓ Good — matches project values |
+| Docker + Caddy for deployment | Simple docker-compose up, auto-TLS, persistent SQLite volume | ✓ Good — replaced 408-line manual runbook |
+| Manual deploy over auto-deploy | SSH one-liner sufficient for research demo frequency | ✓ Good — no SSH key in GitHub Secrets |
+| KillSignal=SIGINT in systemd | Server shutdown_signal() listens for SIGINT not SIGTERM | ✓ Good — matches code behavior |
 
 ## Evolution
 
@@ -127,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-31 after Phase 8 (README and Public Launch) — v2.0 milestone complete*
+*Last updated: 2026-03-31 after v2.0 Ship & Learn milestone completion*

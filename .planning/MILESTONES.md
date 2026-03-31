@@ -1,5 +1,22 @@
 # Milestones
 
+## v2.0 Ship & Learn (Shipped: 2026-03-31)
+
+**Phases completed:** 4 phases, 9 plans, 15 tasks
+
+**Key accomplishments:**
+
+- GitHub Actions CI with three SHA-pinned parallel jobs (fmt, clippy, test) using dtolnay/rust-toolchain and Swatinem/rust-cache v2.9.1
+- Ephemeral generate-serve-wait-score pipeline via CancellationToken timeout, pre-bound TcpListener, and per-tier SQLite scorecard query
+- Per-tier text and JSON scorecard rendering wired to honeyprompt test-agent with D-05 exit codes (0/1/2)
+- README rewritten with two clear install paths — prebuilt binaries via GitHub Releases curl one-liner and cargo install --git from source — plus platform table covering all four targets and updated Project Status through Phase 6
+- systemd unit with KillSignal=SIGINT + Caddyfile reverse proxy + distroless Dockerfile for honeyprompt.sh live deployment
+- Status:
+- README polished with honeyprompt.sh live demo link, all GitHub URLs corrected to johnzilla/honeyprompt, Project Status updated to show 8 phases complete, and Safety Model expanded to Ethics and Safety with what-HoneyPrompt-is-NOT framing
+- 3 X post draft variations (under 280 chars, GitHub-linked) ready for user; Google Search Console submission steps presented as human-action checkpoint
+
+---
+
 ## v1.0 MVP (Shipped: 2026-03-29)
 
 **Phases completed:** 4 phases, 10 plans, 15 tasks
