@@ -4,7 +4,7 @@ milestone: v2.0
 milestone_name: Ship & Learn
 status: verifying
 stopped_at: Completed 06-02-PLAN.md (README installation section)
-last_updated: "2026-03-31T00:38:34.491Z"
+last_updated: "2026-03-31T01:32:03.258Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 4
@@ -25,8 +25,8 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 ## Current Position
 
-Phase: 06 (release-infrastructure) — EXECUTING
-Plan: 2 of 2
+Phase: 7
+Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-03-31
 
@@ -60,6 +60,8 @@ Recent decisions affecting current work:
 - [Phase 05-03]: Test module moved to end of file to satisfy clippy::items_after_test_module lint
 - [Phase 06-release-infrastructure]: cargo install --git is primary source install path (crates.io publish deferred)
 - [Phase 06-release-infrastructure]: Binary names use full Rust target triple per D-03 in README platform table
+- [Phase 06-release-infrastructure]: taiki-e/upload-rust-binary-action auto-installs cross for Linux musl targets — no manual cross install step needed
+- [Phase 06-release-infrastructure]: Release workflow: SHA pins for taiki-e actions — create-gh-release-action@c5baa0b5dc700cf06439d87935e130220a6882d9 (v1), upload-rust-binary-action@0e34102c043ded9f2ca39f7af5cd99a540c61aff (v1)
 
 ### Pending Todos
 
