@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Ship & Learn
-status: executing
-stopped_at: Completed 08-01-PLAN.md — README polished with live demo, corrected URLs, ethics section
-last_updated: "2026-03-31T17:19:35.877Z"
+status: verifying
+stopped_at: "Checkpoint: Task 2 of 08-02 — awaiting Google Search Console submission by user"
+last_updated: "2026-03-31T17:22:00.058Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 Phase: 08 (readme-and-public-launch) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-31
 
 Progress: [░░░░░░░░░░] 0%
@@ -65,6 +65,7 @@ Recent decisions affecting current work:
 - [Phase 07-live-demo-deployment]: ExecStart uses /var/lib/honeyprompt/landing so DB at /var/lib/honeyprompt/landing/.honeyprompt/events.db stays within ReadWritePaths — satisfies D-04 persistent evidence store
 - [Phase 07-live-demo-deployment]: KillSignal=SIGINT required in systemd unit: server shutdown_signal() listens for SIGINT (ctrl_c), not SIGTERM; without this systemctl stop bypasses graceful shutdown and risks losing in-flight mpsc channel events
 - [Phase 08]: Project Status table rows use 'Phase N' prefix for clarity and grep-based verification
+- [Phase 08-readme-and-public-launch]: X post drafting only — user posts manually per D-06; Google Search Console submission is human-only per D-07
 
 ### Pending Todos
 
@@ -77,6 +78,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-31T17:19:35.873Z
-Stopped at: Completed 08-01-PLAN.md — README polished with live demo, corrected URLs, ethics section
+Last session: 2026-03-31T17:22:00.055Z
+Stopped at: Checkpoint: Task 2 of 08-02 — awaiting Google Search Console submission by user
 Resume file: None

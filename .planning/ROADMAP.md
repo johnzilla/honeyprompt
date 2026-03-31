@@ -24,7 +24,7 @@
 - [x] **Phase 5: test-agent Subcommand** - Add `honeyprompt test-agent` with scorecard, exit codes, and CI gating all new code (completed 2026-03-30)
 - [ ] **Phase 6: Release Infrastructure** - Cross-platform binary releases triggered by version tag
 - [ ] **Phase 7: Live Demo Deployment** - `honeyprompt serve` running persistently at honeyprompt.sh with HTTPS
-- [ ] **Phase 8: README and Public Launch** - Rewrite README with value prop, install instructions, and demo link; launch publicly
+- [x] **Phase 8: README and Public Launch** - Rewrite README with value prop, install instructions, and demo link; launch publicly (completed 2026-03-31)
 
 ## Phase Details
 
@@ -81,11 +81,11 @@ Plans:
   1. A security researcher arriving at the repository cold can understand the value proposition, run `honeyprompt test-agent`, and install the binary — all within the README, in under 5 commands
   2. The README links to the live demo at honeyprompt.sh and honeyprompt.sh is submitted to Google Search Console for crawler discoverability
   3. The README contains an ethics/scope section that explains what HoneyPrompt does and does not do, and the project is publicly announced (HN, Reddit r/netsec, Twitter/X)
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 08-01-PLAN.md — Polish README: live demo link, URL fixes, status update, ethics section (LAUNCH-01, LAUNCH-03)
-- [ ] 08-02-PLAN.md — Google Search Console submission and X post draft (LAUNCH-02)
+- [x] 08-02-PLAN.md — Google Search Console submission and X post draft (LAUNCH-02)
 
 ## Progress
 
@@ -98,4 +98,4 @@ Plans:
 | 5. test-agent Subcommand | v2.0 | 3/3 | Complete   | 2026-03-30 |
 | 6. Release Infrastructure | v2.0 | 0/2 | Planning | - |
 | 7. Live Demo Deployment | v2.0 | 1/2 | In Progress|  |
-| 8. README and Public Launch | v2.0 | 1/2 | In Progress|  |
+| 8. README and Public Launch | v2.0 | 2/2 | Complete   | 2026-03-31 |
