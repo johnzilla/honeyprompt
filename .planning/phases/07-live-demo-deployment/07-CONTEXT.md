@@ -19,7 +19,7 @@ Create deployment configuration for running `honeyprompt serve` as a persistent 
 - **D-03:** Caddy for TLS reverse proxy — auto-provisions Let's Encrypt certificates for honeyprompt.sh domain.
 
 ### Persistence
-- **D-04:** Persistent SQLite DB at `/var/lib/honeyprompt/events.db` on the droplet disk. Survives restarts and binary upgrades. This is the evidence store — losing it means losing the data this whole milestone is about.
+- **D-04:** Persistent SQLite DB on the droplet disk. The `serve` command derives the DB path as `{project_dir}/.honeyprompt/events.db`, so with `ExecStart=honeyprompt serve /var/lib/honeyprompt/landing`, the DB resolves to `/var/lib/honeyprompt/landing/.honeyprompt/events.db`. Survives restarts and binary upgrades. This is the evidence store — losing it means losing the data this whole milestone is about.
 
 ### Binary Deployment
 - **D-05:** Deploy the musl static binary from GitHub Releases (Phase 6 output). No Docker needed on the droplet — just download the binary, systemctl restart.
@@ -69,7 +69,7 @@ Create deployment configuration for running `honeyprompt serve` as a persistent 
 ### Established Patterns
 - `honeyprompt serve` takes a project directory argument and serves from `output/`
 - Binds to `0.0.0.0:8080` by default (configurable in honeyprompt.toml)
-- Graceful shutdown on SIGTERM (systemd sends this on `systemctl stop`)
+- Graceful shutdown on SIGINT (`shutdown_signal()` listens for Ctrl+C); `KillSignal=SIGINT` required in systemd unit since systemd sends SIGTERM by default
 
 ### Integration Points
 - New files: `deploy/Caddyfile`, `deploy/honeyprompt.service`, `deploy/README-deploy.md`
