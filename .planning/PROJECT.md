@@ -42,9 +42,9 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 
 - [x] test-agent subcommand with --listen, --timeout, --format flags and exit codes — Phase 5
 - [x] GitHub Actions CI workflow (test + clippy + fmt) — Phase 5
-- [ ] GitHub Actions release workflow with cross-platform binaries
+- [x] GitHub Actions release workflow with cross-platform binaries — Phase 6
 - [ ] Containerized or deployable server configuration for live demo
-- [ ] README rewrite with value prop, quick-start, installation instructions
+- [x] README rewrite with value prop, quick-start, installation instructions — Phase 6
 - [ ] Public deployment of honeyprompt.sh with canary payloads live
 
 ### Out of Scope
@@ -127,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-30 after Phase 5 (test-agent Subcommand) completion*
+*Last updated: 2026-03-31 after Phase 6 (Release Infrastructure) completion*
