@@ -1,0 +1,31 @@
+[Unit]
+Description=HoneyPrompt honeypot server
+Documentation=https://github.com/jthwho/honeyprompt
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=honeyprompt
+Group=honeyprompt
+WorkingDirectory=/var/lib/honeyprompt
+ExecStart=/usr/local/bin/honeyprompt serve /var/lib/honeyprompt/landing
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+# Graceful shutdown: server listens for SIGINT (Ctrl+C), not SIGTERM.
+# Without this, systemctl stop sends SIGTERM which bypasses graceful shutdown
+# and may lose in-flight events from the mpsc channel.
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+# Sandbox hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/honeyprompt
+
+[Install]
+WantedBy=multi-user.target
