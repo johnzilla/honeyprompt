@@ -69,8 +69,8 @@ fn test_generate_html_has_payloads() {
     let html = std::fs::read_to_string(dir.path().join("output/index.html"))
         .expect("index.html must be readable");
     assert!(
-        html.contains("/cb/"),
-        "index.html must contain callback URLs matching '/cb/' pattern"
+        html.contains("/cb/v1/"),
+        "index.html must contain callback URLs matching '/cb/v1/' pattern"
     );
 }
 

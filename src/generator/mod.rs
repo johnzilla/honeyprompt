@@ -60,7 +60,7 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
         match payload.tier {
             Tier::Tier1 => {
                 let nonce = nonce::generate_nonce();
-                let callback_url = format!("{}/cb/{}", config.callback_base_url, nonce);
+                let callback_url = format!("{}/cb/v1/{}", config.callback_base_url, nonce);
                 let rendered = payload.instruction.replace("{callback_url}", &callback_url);
 
                 store::insert_nonce(conn, &nonce, tier_num, &payload.id, &embedding_loc)
@@ -84,8 +84,8 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
             Tier::Tier2 => {
                 let nonce_a = nonce::generate_nonce();
                 let nonce_b = nonce::generate_nonce();
-                let callback_url_a = format!("{}/cb/{}", config.callback_base_url, nonce_a);
-                let callback_url_b = format!("{}/cb/{}", config.callback_base_url, nonce_b);
+                let callback_url_a = format!("{}/cb/v1/{}", config.callback_base_url, nonce_a);
+                let callback_url_b = format!("{}/cb/v1/{}", config.callback_base_url, nonce_b);
 
                 let rendered = payload
                     .instruction
@@ -123,7 +123,7 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
             }
             Tier::Tier3 => {
                 let nonce = nonce::generate_nonce();
-                let callback_url_base = format!("{}/cb/{}", config.callback_base_url, nonce);
+                let callback_url_base = format!("{}/cb/v1/{}", config.callback_base_url, nonce);
                 let rendered = payload
                     .instruction
                     .replace("{callback_url_base}", &callback_url_base);
