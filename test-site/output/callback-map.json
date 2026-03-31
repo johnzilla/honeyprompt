@@ -1,0 +1,58 @@
+[
+  {
+    "nonce": "008050e2d9087cab",
+    "tier": "Tier1",
+    "payload_id": "t1-html-comment",
+    "embedding_location": "html_comment",
+    "callback_url": "http://localhost:8080/cb/v1/008050e2d9087cab"
+  },
+  {
+    "nonce": "2801e4e8a9905444",
+    "tier": "Tier1",
+    "payload_id": "t1-semantic-prose",
+    "embedding_location": "semantic_prose",
+    "callback_url": "http://localhost:8080/cb/v1/2801e4e8a9905444"
+  },
+  {
+    "nonce": "6522aeeae514f380",
+    "tier": "Tier2",
+    "payload_id": "t2-meta-tag",
+    "embedding_location": "meta_tag",
+    "callback_url": "http://localhost:8080/cb/v1/6522aeeae514f380"
+  },
+  {
+    "nonce": "b63e6de7e887abfc",
+    "tier": "Tier2",
+    "payload_id": "t2-meta-tag",
+    "embedding_location": "meta_tag",
+    "callback_url": "http://localhost:8080/cb/v1/b63e6de7e887abfc"
+  },
+  {
+    "nonce": "423770920db7fe1e",
+    "tier": "Tier2",
+    "payload_id": "t2-json-ld",
+    "embedding_location": "json_ld",
+    "callback_url": "http://localhost:8080/cb/v1/423770920db7fe1e"
+  },
+  {
+    "nonce": "8829ff298c590a18",
+    "tier": "Tier2",
+    "payload_id": "t2-json-ld",
+    "embedding_location": "json_ld",
+    "callback_url": "http://localhost:8080/cb/v1/8829ff298c590a18"
+  },
+  {
+    "nonce": "292983094d29a22e",
+    "tier": "Tier3",
+    "payload_id": "t3-invisible-element",
+    "embedding_location": "invisible_element",
+    "callback_url": "http://localhost:8080/cb/v1/292983094d29a22e"
+  },
+  {
+    "nonce": "3ea2691d9cb6425f",
+    "tier": "Tier3",
+    "payload_id": "t3-html-comment-compute",
+    "embedding_location": "html_comment",
+    "callback_url": "http://localhost:8080/cb/v1/3ea2691d9cb6425f"
+  }
+]

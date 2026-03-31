@@ -1,0 +1,9 @@
+callback_base_url = "http://localhost:8080"
+bind_address = "0.0.0.0:8080"
+tiers = [
+    1,
+    2,
+    3,
+]
+page_title = "Security Research Canary"
+theme = "default"
