@@ -2,6 +2,8 @@
 
 Terminal-first security tool that detects unsafe AI browsing agent behavior using honeypot pages and prompt-injection canaries.
 
+**Live Demo:** [honeyprompt.sh](https://honeyprompt.sh) — a live honeypot serving canary payloads to AI agents right now.
+
 ## What This Is
 
 HoneyPrompt generates static honeypot web pages with visible human warnings and hidden prompt-injection payloads embedded across multiple locations (HTML comments, meta tags, invisible elements, JSON-LD, semantic prose). When an AI browsing agent visits the page and follows the injected instructions, it makes an HTTP callback that proves a specific level of compliance. Built in Rust, ships as a single binary with no runtime dependencies.
@@ -24,7 +26,7 @@ Each tier's callback URL carries only a unique cryptographic nonce, the prompt I
 
 ### Prebuilt binaries
 
-Download the latest release for your platform from [GitHub Releases](https://github.com/honeyprompt/honeyprompt/releases/latest).
+Download the latest release for your platform from [GitHub Releases](https://github.com/johnzilla/honeyprompt/releases/latest).
 
 | Platform | Binary |
 |----------|--------|
@@ -36,7 +38,7 @@ Download the latest release for your platform from [GitHub Releases](https://git
 Example (Linux x86_64):
 
 ```sh
-curl -LO https://github.com/honeyprompt/honeyprompt/releases/latest/download/honeyprompt-x86_64-unknown-linux-musl.tar.gz
+curl -LO https://github.com/johnzilla/honeyprompt/releases/latest/download/honeyprompt-x86_64-unknown-linux-musl.tar.gz
 tar xzf honeyprompt-x86_64-unknown-linux-musl.tar.gz
 ./honeyprompt --version
 ```
@@ -46,13 +48,13 @@ tar xzf honeyprompt-x86_64-unknown-linux-musl.tar.gz
 Requires Rust toolchain (stable). Install from [rustup.rs](https://rustup.rs/) if not present.
 
 ```sh
-cargo install --git https://github.com/honeyprompt/honeyprompt
+cargo install --git https://github.com/johnzilla/honeyprompt
 ```
 
 Or clone and build:
 
 ```sh
-git clone https://github.com/honeyprompt/honeyprompt
+git clone https://github.com/johnzilla/honeyprompt
 cd honeyprompt
 cargo build --release
 ```
