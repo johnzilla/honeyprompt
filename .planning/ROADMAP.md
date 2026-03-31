@@ -81,7 +81,11 @@ Plans:
   1. A security researcher arriving at the repository cold can understand the value proposition, run `honeyprompt test-agent`, and install the binary — all within the README, in under 5 commands
   2. The README links to the live demo at honeyprompt.sh and honeyprompt.sh is submitted to Google Search Console for crawler discoverability
   3. The README contains an ethics/scope section that explains what HoneyPrompt does and does not do, and the project is publicly announced (HN, Reddit r/netsec, Twitter/X)
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Polish README: live demo link, URL fixes, status update, ethics section (LAUNCH-01, LAUNCH-03)
+- [ ] 08-02-PLAN.md — Google Search Console submission and X post draft (LAUNCH-02)
 
 ## Progress
 
@@ -94,4 +98,4 @@ Plans:
 | 5. test-agent Subcommand | v2.0 | 3/3 | Complete   | 2026-03-30 |
 | 6. Release Infrastructure | v2.0 | 0/2 | Planning | - |
 | 7. Live Demo Deployment | v2.0 | 1/2 | In Progress|  |
-| 8. README and Public Launch | v2.0 | 0/? | Not started | - |
+| 8. README and Public Launch | v2.0 | 0/2 | Planning | - |
