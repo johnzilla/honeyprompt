@@ -22,15 +22,40 @@ Each tier's callback URL carries only a unique cryptographic nonce, the prompt I
 
 ## Installation
 
+### Prebuilt binaries
+
+Download the latest release for your platform from [GitHub Releases](https://github.com/honeyprompt/honeyprompt/releases/latest).
+
+| Platform | Binary |
+|----------|--------|
+| Linux x86_64 | `honeyprompt-x86_64-unknown-linux-musl.tar.gz` |
+| Linux aarch64 | `honeyprompt-aarch64-unknown-linux-musl.tar.gz` |
+| macOS x86_64 | `honeyprompt-x86_64-apple-darwin.tar.gz` |
+| macOS Apple Silicon | `honeyprompt-aarch64-apple-darwin.tar.gz` |
+
+Example (Linux x86_64):
+
+```sh
+curl -LO https://github.com/honeyprompt/honeyprompt/releases/latest/download/honeyprompt-x86_64-unknown-linux-musl.tar.gz
+tar xzf honeyprompt-x86_64-unknown-linux-musl.tar.gz
+./honeyprompt --version
+```
+
+### Build from source
+
 Requires Rust toolchain (stable). Install from [rustup.rs](https://rustup.rs/) if not present.
+
+```sh
+cargo install --git https://github.com/honeyprompt/honeyprompt
+```
+
+Or clone and build:
 
 ```sh
 git clone https://github.com/honeyprompt/honeyprompt
 cd honeyprompt
 cargo build --release
 ```
-
-The binary is at `target/release/honeyprompt`. Copy it to your `$PATH` or run it directly.
 
 ## Usage
 
@@ -64,13 +89,41 @@ Reads the project config and writes static files to the output directory:
 
 Each payload contains a unique cryptographic nonce in its callback URL, so individual visits and tiers can be correlated on the server side.
 
-### Planned commands
+### Serve the honeypot
 
-The following commands are planned for future phases:
+```sh
+honeyprompt serve
+honeyprompt serve --port 8080
+```
 
-- `honeyprompt serve` — Serve the honeypot and listen for callbacks on the same port (Phase 2)
-- `honeyprompt monitor` — Live TUI event viewer showing callbacks as they arrive (Phase 3)
-- `honeyprompt report` — Generate a Markdown disclosure report from captured events (Phase 4)
+Starts an HTTP server that serves the honeypot page and listens for callback beacons on the same port. Each incoming callback is fingerprinted and stored in SQLite.
+
+### Monitor live callbacks
+
+```sh
+honeyprompt monitor
+honeyprompt monitor --dir /path/to/project
+```
+
+Opens the TUI live event viewer. Displays incoming callbacks as they arrive with agent fingerprinting, tier breakdown, and session grouping. Vim-style navigation. Can attach to a running server or start integrated mode.
+
+### Generate a disclosure report
+
+```sh
+honeyprompt report
+honeyprompt report --output report.md
+```
+
+Generates a Markdown disclosure report from captured events, including an executive summary, per-session tier breakdown, agent fingerprints, and full request metadata.
+
+### Test an AI agent
+
+```sh
+honeyprompt test-agent --listen 0.0.0.0:8080
+honeyprompt test-agent --listen 0.0.0.0:8080 --timeout 30 --format json
+```
+
+Runs a self-contained compliance test: spins up a honeypot server, waits for callbacks, then outputs a pass/fail scorecard. Exit code 0 means no canaries triggered (safe agent). Exit code 1 means one or more canaries triggered. Designed for CI pipelines testing AI agent compliance.
 
 ## How It Works
 
@@ -86,11 +139,11 @@ The following commands are planned for future phases:
 | Phase | Capability | Status |
 |-------|-----------|--------|
 | 1 | Generation Pipeline — `init`, `generate`, payload catalog (Tiers 1-3), SQLite schema | Complete |
-| 2 | Server and Detection — `serve`, callback listener, agent fingerprinting, event storage | Planned |
-| 3 | TUI Monitor — live event display, filters, session-based counts, replay flagging | Planned |
-| 4 | Report and Landing — Markdown disclosure report, instrumented landing page | Planned |
-
-Phase 1 is complete. The tool builds and runs. Phases 2-4 are sequential: each phase depends on the one before it.
+| 2 | Server and Detection — `serve`, callback listener, agent fingerprinting, event storage | Complete |
+| 3 | TUI Monitor — live event display, filters, session-based counts, replay flagging | Complete |
+| 4 | Report and Landing — `report` subcommand, Markdown disclosure report, instrumented landing page | Complete |
+| 5 | Test Agent — `test-agent` subcommand, compliance scorecard, CI integration, GitHub Actions CI | Complete |
+| 6 | Release Infrastructure — cross-platform binary releases, README installation guide | In Progress |
 
 ## Safety Model
 
