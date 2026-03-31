@@ -140,14 +140,18 @@ Runs a self-contained compliance test: spins up a honeypot server, waits for cal
 
 | Phase | Capability | Status |
 |-------|-----------|--------|
-| 1 | Generation Pipeline — `init`, `generate`, payload catalog (Tiers 1-3), SQLite schema | Complete |
-| 2 | Server and Detection — `serve`, callback listener, agent fingerprinting, event storage | Complete |
-| 3 | TUI Monitor — live event display, filters, session-based counts, replay flagging | Complete |
-| 4 | Report and Landing — `report` subcommand, Markdown disclosure report, instrumented landing page | Complete |
-| 5 | Test Agent — `test-agent` subcommand, compliance scorecard, CI integration, GitHub Actions CI | Complete |
-| 6 | Release Infrastructure — cross-platform binary releases, README installation guide | In Progress |
+| Phase 1 | Generation Pipeline — `init`, `generate`, payload catalog (Tiers 1-3), SQLite schema | Complete |
+| Phase 2 | Server and Detection — `serve`, callback listener, agent fingerprinting, event storage | Complete |
+| Phase 3 | TUI Monitor — live event display, filters, session-based counts, replay flagging | Complete |
+| Phase 4 | Report and Landing — `report` subcommand, Markdown disclosure report, instrumented landing page | Complete |
+| Phase 5 | Test Agent — `test-agent` subcommand, compliance scorecard, CI integration, GitHub Actions CI | Complete |
+| Phase 6 | Release Infrastructure — cross-platform binary releases, README installation guide | Complete |
+| Phase 7 | Live Demo Deployment — `honeyprompt serve` running at honeyprompt.sh with HTTPS and auto-restart | Complete |
+| Phase 8 | Public Launch — README polish, ethics section, discoverability | Complete |
 
-## Safety Model
+## Ethics and Safety
+
+HoneyPrompt is not an exploit tool, a vulnerability scanner, or a surveillance instrument. It is not designed to collect secrets, credentials, or private data of any kind. Its sole purpose is to produce verifiable, graduated evidence of whether AI agents comply with prompt-injection instructions from untrusted web content — so defenders can measure the risk, not cause harm.
 
 HoneyPrompt is designed to produce evidence, not to exploit or surveil:
 
