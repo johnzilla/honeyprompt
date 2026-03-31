@@ -1,14 +1,8 @@
 # Deploying HoneyPrompt
 
-Auto-deploys on every push to main via GitHub Actions → GHCR → Droplet.
+Docker Compose deployment with auto-TLS via Caddy on a DigitalOcean Droplet.
 
 Architecture: Internet → Caddy (:443 TLS) → honeyprompt (:8080) → SQLite DB (persistent volume)
-
-## How it works
-
-1. Push to `main` triggers `.github/workflows/deploy.yml`
-2. GitHub Actions builds the Docker image and pushes to `ghcr.io/johnzilla/honeyprompt:latest`
-3. GitHub Actions SSHs to the droplet and runs `docker compose pull && up -d`
 
 ## One-time droplet setup
 
@@ -31,12 +25,17 @@ Architecture: Internet → Caddy (:443 TLS) → honeyprompt (:8080) → SQLite D
 
 5. **Point DNS:** Add an A record for `honeyprompt.sh` → droplet IP
 
-6. **Add GitHub Secrets** (Settings → Secrets → Actions):
-   - `DEPLOY_HOST` — droplet IP
-   - `DEPLOY_USER` — `root` (or deploy user)
-   - `DEPLOY_KEY` — SSH private key for the droplet
+Caddy auto-provisions a Let's Encrypt certificate on first request.
 
-After this, every push to main auto-deploys.
+## Redeploy
+
+Build and push a new image locally, then pull on the droplet:
+
+```bash
+docker build -t ghcr.io/johnzilla/honeyprompt:latest .
+docker push ghcr.io/johnzilla/honeyprompt:latest
+ssh root@YOUR_DROPLET_IP "cd /opt/honeyprompt && docker compose pull && docker compose up -d"
+```
 
 ## Verify
 

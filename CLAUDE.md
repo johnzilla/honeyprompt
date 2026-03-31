@@ -23,19 +23,35 @@ HoneyPrompt is a terminal-first security tool that detects and measures unsafe b
 <!-- GSD:stack-start source:STACK.md -->
 ## Technology Stack
 
-Technology stack not yet documented. Will populate after codebase mapping or first phase.
+- **Rust** (stable) with Clap derive CLI, Axum HTTP, Ratatui TUI
+- **SQLite** via rusqlite (sync) + tokio-rusqlite (async)
+- **rust-embed** for bundled assets (templates, payload catalog)
+- **tokio** async runtime with broadcast channels for event pipeline
+- **GitHub Actions** CI (test/clippy/fmt) + release workflow (4-target cross-platform binaries)
+- **Docker** + Caddy for deployment (ghcr.io/johnzilla/honeyprompt)
 <!-- GSD:stack-end -->
 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 
-Conventions not yet established. Will populate as patterns emerge during development.
+- All async entry points use `tokio::runtime::Runtime::new()` in main.rs (not `#[tokio::main]`)
+- Event pipeline: mpsc(256) for raw callbacks → broadcast(1024) for processed events
+- `build_router()` is the reusable Axum router constructor
+- `ConnectInfo<SocketAddr>` + `into_make_service_with_connect_info` for peer address extraction
+- Tests: unit tests in `#[cfg(test)] mod tests` within each module, integration tests in `tests/`
+- CI: all GitHub Actions SHA-pinned with version comments
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
 ## Architecture
 
-Architecture not yet mapped. Follow existing patterns found in the codebase.
+- **CLI** (`cli/mod.rs`, `main.rs`): Clap derive with Commands enum (Init, Generate, Serve, Monitor, Report, TestAgent)
+- **Generator** (`generator/mod.rs`): Loads payload catalog via rust-embed, assigns nonces, renders templates
+- **Server** (`server/mod.rs`): Axum router serving static honeypot + `/cb/v1/{nonce}` callback handler
+- **Broker** (`broker/mod.rs`): Receives raw callbacks via mpsc, enriches with fingerprint/classification, fans out via broadcast to DB writer + stdout logger
+- **Store** (`store/mod.rs`): SQLite with WAL mode, replay detection, session grouping, per-tier queries
+- **Monitor** (`monitor/mod.rs`): Ratatui TUI with integrated server mode or DB attach mode
+- **TestAgent** (`test_agent/mod.rs`): Ephemeral tempdir pipeline with CancellationToken timeout and per-tier scorecard
 <!-- GSD:architecture-end -->
 
 <!-- GSD:workflow-start source:GSD defaults -->
