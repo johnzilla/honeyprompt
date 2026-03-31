@@ -29,9 +29,9 @@ Requirements for Ship & Learn milestone. Each maps to roadmap phases.
 
 ### Launch
 
-- [ ] **LAUNCH-01**: README rewritten with clear value proposition, quick-start for test-agent, live demo link, and installation instructions
+- [x] **LAUNCH-01**: README rewritten with clear value proposition, quick-start for test-agent, live demo link, and installation instructions
 - [ ] **LAUNCH-02**: honeyprompt.sh submitted to Google Search Console and linked from README for crawler discoverability
-- [ ] **LAUNCH-03**: Ethics/scope section in README explaining what HoneyPrompt does and does not do
+- [x] **LAUNCH-03**: Ethics/scope section in README explaining what HoneyPrompt does and does not do
 
 ## Future Requirements
 
@@ -81,9 +81,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEPLOY-01 | Phase 7 | Complete |
 | DEPLOY-02 | Phase 7 | Pending |
 | DEPLOY-03 | Phase 7 | Complete |
-| LAUNCH-01 | Phase 8 | Pending |
+| LAUNCH-01 | Phase 8 | Complete |
 | LAUNCH-02 | Phase 8 | Pending |
-| LAUNCH-03 | Phase 8 | Pending |
+| LAUNCH-03 | Phase 8 | Complete |
 
 **Coverage:**
 - v2.0 requirements: 14 total

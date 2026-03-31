@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Ship & Learn
 status: executing
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-31T17:08:18.386Z"
+stopped_at: Completed 08-01-PLAN.md — README polished with live demo, corrected URLs, ethics section
+last_updated: "2026-03-31T17:19:35.877Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 6
+  total_plans: 9
+  completed_plans: 7
   percent: 0
 ---
 
@@ -21,12 +21,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** Phase 07 — live-demo-deployment
+**Current focus:** Phase 08 — readme-and-public-launch
 
 ## Current Position
 
-Phase: 8
-Plan: Not started
+Phase: 08 (readme-and-public-launch) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
 Last activity: 2026-03-31
 
@@ -64,6 +64,7 @@ Recent decisions affecting current work:
 - [Phase 06-release-infrastructure]: Release workflow: SHA pins for taiki-e actions — create-gh-release-action@c5baa0b5dc700cf06439d87935e130220a6882d9 (v1), upload-rust-binary-action@0e34102c043ded9f2ca39f7af5cd99a540c61aff (v1)
 - [Phase 07-live-demo-deployment]: ExecStart uses /var/lib/honeyprompt/landing so DB at /var/lib/honeyprompt/landing/.honeyprompt/events.db stays within ReadWritePaths — satisfies D-04 persistent evidence store
 - [Phase 07-live-demo-deployment]: KillSignal=SIGINT required in systemd unit: server shutdown_signal() listens for SIGINT (ctrl_c), not SIGTERM; without this systemctl stop bypasses graceful shutdown and risks losing in-flight mpsc channel events
+- [Phase 08]: Project Status table rows use 'Phase N' prefix for clarity and grep-based verification
 
 ### Pending Todos
 
@@ -76,6 +77,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-31T17:08:18.382Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-readme-and-public-launch/08-CONTEXT.md
+Last session: 2026-03-31T17:19:35.873Z
+Stopped at: Completed 08-01-PLAN.md — README polished with live demo, corrected URLs, ethics section
+Resume file: None
