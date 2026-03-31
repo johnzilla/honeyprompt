@@ -76,8 +76,15 @@ Recent decisions affecting current work:
 - [Phase 8] crates.io publish workflow not researched — verify `cargo install honeyprompt` works before writing install instructions
 - [Phase 5] Default 60s timeout is an assumption — validate against real agent behavior post-launch
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260331-m5o | Fix critical route mismatch: generator /cb/ → /cb/v1/ | 2026-03-31 | cf9893e | [260331-m5o-fix-critical-route-mismatch-generator-pr](./quick/260331-m5o-fix-critical-route-mismatch-generator-pr/) |
+
 ## Session Continuity
 
-Last session: 2026-03-31T17:22:00.055Z
-Stopped at: Checkpoint: Task 2 of 08-02 — awaiting Google Search Console submission by user
+Last session: 2026-03-31T19:57:00Z
+Last activity: 2026-03-31 - Completed quick task 260331-m5o: Fix critical route mismatch generator /cb/ to /cb/v1/
+Stopped at: Quick task complete — ready for next task
 Resume file: None
