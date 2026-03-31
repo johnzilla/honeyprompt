@@ -18,14 +18,14 @@ Requirements for Ship & Learn milestone. Each maps to roadmap phases.
 ### Release Infrastructure
 
 - [x] **REL-01**: Every push and PR triggers CI that runs `cargo test`, `cargo clippy`, and `cargo fmt --check`
-- [ ] **REL-02**: Pushing a `v*` tag triggers a release workflow that builds cross-platform binaries (x86_64-linux, aarch64-linux, x86_64-darwin, aarch64-darwin) and uploads them to GitHub Releases
-- [ ] **REL-03**: README includes `cargo install honeyprompt` and prebuilt binary download instructions
+- [x] **REL-02**: Pushing a `v*` tag triggers a release workflow that builds cross-platform binaries (x86_64-linux, aarch64-linux, x86_64-darwin, aarch64-darwin) and uploads them to GitHub Releases
+- [x] **REL-03**: README includes `cargo install honeyprompt` and prebuilt binary download instructions
 
 ### Deployment
 
-- [ ] **DEPLOY-01**: Repository includes deployment configuration (Dockerfile or systemd unit) for running `honeyprompt serve` as a persistent process
+- [x] **DEPLOY-01**: Repository includes deployment configuration (Dockerfile or systemd unit) for running `honeyprompt serve` as a persistent process
 - [ ] **DEPLOY-02**: honeyprompt.sh domain serves a live honeypot with canary payloads over HTTPS
-- [ ] **DEPLOY-03**: Live demo has uptime monitoring and process auto-restart
+- [x] **DEPLOY-03**: Live demo has uptime monitoring and process auto-restart
 
 ### Launch
 
@@ -76,11 +76,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-04 | Phase 5 | Complete |
 | TEST-05 | Phase 5 | Complete |
 | REL-01 | Phase 5 | Complete |
-| REL-02 | Phase 6 | Pending |
-| REL-03 | Phase 6 | Pending |
-| DEPLOY-01 | Phase 7 | Pending |
+| REL-02 | Phase 6 | Complete |
+| REL-03 | Phase 6 | Complete |
+| DEPLOY-01 | Phase 7 | Complete |
 | DEPLOY-02 | Phase 7 | Pending |
-| DEPLOY-03 | Phase 7 | Pending |
+| DEPLOY-03 | Phase 7 | Complete |
 | LAUNCH-01 | Phase 8 | Pending |
 | LAUNCH-02 | Phase 8 | Pending |
 | LAUNCH-03 | Phase 8 | Pending |

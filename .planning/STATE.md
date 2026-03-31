@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Ship & Learn
-status: verifying
-stopped_at: Phase 7 context gathered
-last_updated: "2026-03-31T02:24:11.790Z"
+status: executing
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-31T02:57:23.942Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 7
+  completed_plans: 6
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** Phase 06 — release-infrastructure
+**Current focus:** Phase 07 — live-demo-deployment
 
 ## Current Position
 
-Phase: 7
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 07 (live-demo-deployment) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-03-31
 
 Progress: [░░░░░░░░░░] 0%
@@ -62,6 +62,8 @@ Recent decisions affecting current work:
 - [Phase 06-release-infrastructure]: Binary names use full Rust target triple per D-03 in README platform table
 - [Phase 06-release-infrastructure]: taiki-e/upload-rust-binary-action auto-installs cross for Linux musl targets — no manual cross install step needed
 - [Phase 06-release-infrastructure]: Release workflow: SHA pins for taiki-e actions — create-gh-release-action@c5baa0b5dc700cf06439d87935e130220a6882d9 (v1), upload-rust-binary-action@0e34102c043ded9f2ca39f7af5cd99a540c61aff (v1)
+- [Phase 07-live-demo-deployment]: ExecStart uses /var/lib/honeyprompt/landing so DB at /var/lib/honeyprompt/landing/.honeyprompt/events.db stays within ReadWritePaths — satisfies D-04 persistent evidence store
+- [Phase 07-live-demo-deployment]: KillSignal=SIGINT required in systemd unit: server shutdown_signal() listens for SIGINT (ctrl_c), not SIGTERM; without this systemctl stop bypasses graceful shutdown and risks losing in-flight mpsc channel events
 
 ### Pending Todos
 
@@ -74,6 +76,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-31T02:24:11.787Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-live-demo-deployment/07-CONTEXT.md
+Last session: 2026-03-31T02:57:23.939Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None

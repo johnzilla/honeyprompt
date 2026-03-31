@@ -67,10 +67,10 @@ Plans:
   1. A Dockerfile or systemd unit file in the repository lets any user deploy `honeyprompt serve` as a persistent process with a single command
   2. honeyprompt.sh responds over HTTPS with a live honeypot page containing canary payloads
   3. The live demo process auto-restarts on failure and is monitored for uptime
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 07-01-PLAN.md — Deployment config files: systemd unit, Caddyfile, Dockerfile (DEPLOY-01, DEPLOY-03)
+- [x] 07-01-PLAN.md — Deployment config files: systemd unit, Caddyfile, Dockerfile (DEPLOY-01, DEPLOY-03)
 - [ ] 07-02-PLAN.md — Deployment runbook and live verification checkpoint (DEPLOY-01, DEPLOY-02, DEPLOY-03)
 
 ### Phase 8: README and Public Launch
@@ -93,5 +93,5 @@ Plans:
 | 4. Report and Landing | v1.0 | 2/2 | Complete | 2026-03-29 |
 | 5. test-agent Subcommand | v2.0 | 3/3 | Complete   | 2026-03-30 |
 | 6. Release Infrastructure | v2.0 | 0/2 | Planning | - |
-| 7. Live Demo Deployment | v2.0 | 0/2 | Planning | - |
+| 7. Live Demo Deployment | v2.0 | 1/2 | In Progress|  |
 | 8. README and Public Launch | v2.0 | 0/? | Not started | - |
