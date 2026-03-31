@@ -17,7 +17,7 @@ use tokio_util::sync::CancellationToken;
 use crate::cli::TestAgentArgs;
 use crate::config::Config;
 use crate::crawler_catalog::CrawlerCatalog;
-use crate::server::{AppState, NonceMeta, build_router};
+use crate::server::{build_router, AppState, NonceMeta};
 use crate::types::{NonceMapping, RawCallbackEvent};
 
 /// Scorecard result from a test-agent run.
@@ -61,7 +61,11 @@ impl Scorecard {
     /// Render the scorecard as human-readable text per D-03.
     pub fn render_text(&self) -> String {
         let tier_status = |triggered: bool| -> &str {
-            if triggered { "triggered" } else { "not triggered" }
+            if triggered {
+                "triggered"
+            } else {
+                "not triggered"
+            }
         };
         format!(
             "honeyprompt test-agent\n\
@@ -155,11 +159,7 @@ pub fn run(args: &TestAgentArgs) -> anyhow::Result<Scorecard> {
     let final_conn = crate::store::open_or_create_db(&db_path)?;
     let tier_counts = crate::store::detections_by_tier(&final_conn)?;
 
-    let tiers = [
-        tier_counts[0] > 0,
-        tier_counts[1] > 0,
-        tier_counts[2] > 0,
-    ];
+    let tiers = [tier_counts[0] > 0, tier_counts[1] > 0, tier_counts[2] > 0];
 
     // tmp drops here — TempDir auto-deletes
     Ok(Scorecard {
@@ -209,10 +209,8 @@ async fn run_async(
     // Open tokio-rusqlite connection and run migrations
     let db_path = tmp_path.join(".honeyprompt").join("events.db");
     let conn = tokio_rusqlite::Connection::open(&db_path).await?;
-    conn.call(|c| {
-        crate::store::run_migrations(c).map_err(tokio_rusqlite::Error::from)
-    })
-    .await?;
+    conn.call(|c| crate::store::run_migrations(c).map_err(tokio_rusqlite::Error::from))
+        .await?;
 
     // Create event pipeline channels
     let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(256);
@@ -323,18 +321,31 @@ mod tests {
     fn test_render_text_contains_tiers() {
         let s = sample_scorecard([true, false, true]);
         let text = s.render_text();
-        assert!(text.contains("tier 1:      triggered"), "tier 1 should be triggered");
-        assert!(text.contains("tier 2:      not triggered"), "tier 2 should not be triggered");
-        assert!(text.contains("tier 3:      triggered"), "tier 3 should be triggered");
+        assert!(
+            text.contains("tier 1:      triggered"),
+            "tier 1 should be triggered"
+        );
+        assert!(
+            text.contains("tier 2:      not triggered"),
+            "tier 2 should not be triggered"
+        );
+        assert!(
+            text.contains("tier 3:      triggered"),
+            "tier 3 should be triggered"
+        );
         assert!(text.contains("2/3 tiers triggered"), "score should be 2/3");
-        assert!(text.contains("PARTIALLY_COMPLIANT"), "verdict should be partial");
+        assert!(
+            text.contains("PARTIALLY_COMPLIANT"),
+            "verdict should be partial"
+        );
     }
 
     #[test]
     fn test_render_json_valid_schema() {
         let s = sample_scorecard([true, false, false]);
         let json_str = s.render_json();
-        let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("must be valid JSON");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&json_str).expect("must be valid JSON");
         assert_eq!(parsed["listened_secs"], 60);
         assert_eq!(parsed["tiers"][0]["tier"], 1);
         assert_eq!(parsed["tiers"][0]["triggered"], true);
@@ -348,7 +359,11 @@ mod tests {
         // D-04: No callbacks[] array in JSON output
         let s = sample_scorecard([false, false, false]);
         let json_str = s.render_json();
-        let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("must be valid JSON");
-        assert!(parsed.get("callbacks").is_none(), "D-04: no callbacks array in output");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&json_str).expect("must be valid JSON");
+        assert!(
+            parsed.get("callbacks").is_none(),
+            "D-04: no callbacks array in output"
+        );
     }
 }

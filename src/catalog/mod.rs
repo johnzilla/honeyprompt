@@ -1,6 +1,6 @@
+use anyhow::{anyhow, Context};
 use rust_embed::RustEmbed;
 use serde::Deserialize;
-use anyhow::{anyhow, Context};
 
 use crate::types::{EmbeddingLocation, Payload, Tier};
 
@@ -91,7 +91,11 @@ mod tests {
     #[test]
     fn test_load_all_payloads() {
         let payloads = load_catalog().expect("catalog must load");
-        assert_eq!(payloads.len(), 6, "Expected 6 total payloads across all tiers");
+        assert_eq!(
+            payloads.len(),
+            6,
+            "Expected 6 total payloads across all tiers"
+        );
     }
 
     #[test]
@@ -101,7 +105,10 @@ mod tests {
         let has_semantic_prose = payloads
             .iter()
             .any(|p| p.embedding_location == EmbeddingLocation::SemanticProse);
-        assert!(has_semantic_prose, "Tier 1 must have at least one semantic_prose payload");
+        assert!(
+            has_semantic_prose,
+            "Tier 1 must have at least one semantic_prose payload"
+        );
     }
 
     #[test]

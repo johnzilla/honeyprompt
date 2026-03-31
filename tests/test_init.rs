@@ -17,13 +17,22 @@ fn test_init_creates_scaffold() {
     let _conn = store::open_or_create_db(&db_path).expect("open_or_create_db must succeed");
 
     // Assert scaffold exists
-    assert!(config_path.exists(), "honeyprompt.toml must exist after init");
-    assert!(path.join("output").is_dir(), "output/ must be a directory after init");
+    assert!(
+        config_path.exists(),
+        "honeyprompt.toml must exist after init"
+    );
+    assert!(
+        path.join("output").is_dir(),
+        "output/ must be a directory after init"
+    );
     assert!(
         path.join(".honeyprompt").join("overrides").is_dir(),
         ".honeyprompt/overrides/ must be a directory after init"
     );
-    assert!(db_path.exists(), ".honeyprompt/events.db must exist after init");
+    assert!(
+        db_path.exists(),
+        ".honeyprompt/events.db must exist after init"
+    );
 }
 
 /// Verify that attempting to init a project twice fails with an "already exists" error.
@@ -67,7 +76,13 @@ fn test_init_config_is_valid_toml() {
         !loaded.callback_base_url.is_empty(),
         "callback_base_url must not be empty"
     );
-    assert!(!loaded.bind_address.is_empty(), "bind_address must not be empty");
+    assert!(
+        !loaded.bind_address.is_empty(),
+        "bind_address must not be empty"
+    );
     assert!(!loaded.tiers.is_empty(), "tiers must not be empty");
-    assert!(!loaded.page_title.is_empty(), "page_title must not be empty");
+    assert!(
+        !loaded.page_title.is_empty(),
+        "page_title must not be empty"
+    );
 }

@@ -43,7 +43,8 @@ pub async fn db_writer_task(
     loop {
         match event_rx.recv().await {
             Ok(event) => {
-                let extra_headers = build_extra_headers(&event.classification, &event.fingerprint.headers);
+                let extra_headers =
+                    build_extra_headers(&event.classification, &event.fingerprint.headers);
                 let nonce = event.nonce.clone();
                 let tier = event.tier;
                 let payload_id = event.payload_id.clone();
@@ -89,10 +90,7 @@ pub async fn db_writer_task(
 /// where ua_snippet is the first 60 characters of the user-agent.
 ///
 /// Handles broadcast lag gracefully. Exits when the channel is closed.
-pub async fn stdout_logger_task(
-    mut event_rx: broadcast::Receiver<AppEvent>,
-    json_mode: bool,
-) {
+pub async fn stdout_logger_task(mut event_rx: broadcast::Receiver<AppEvent>, json_mode: bool) {
     loop {
         match event_rx.recv().await {
             Ok(event) => {
@@ -112,12 +110,8 @@ pub async fn stdout_logger_task(
                     println!("{}", serde_json::to_string(&log_entry).unwrap_or_default());
                 } else {
                     let classification = classify_label(&event.classification);
-                    let ua_snippet: String = event
-                        .fingerprint
-                        .user_agent
-                        .chars()
-                        .take(60)
-                        .collect();
+                    let ua_snippet: String =
+                        event.fingerprint.user_agent.chars().take(60).collect();
                     println!(
                         "{} tier={} class={} ip={} ua=\"{}\"",
                         event.received_at,
@@ -203,18 +197,23 @@ mod tests {
         callback_tx.send(raw).await.unwrap();
 
         // Receive the enriched AppEvent
-        let app_event = tokio::time::timeout(
-            std::time::Duration::from_millis(500),
-            event_rx.recv(),
-        )
-        .await
-        .expect("timed out waiting for AppEvent")
-        .expect("broadcast recv failed");
+        let app_event =
+            tokio::time::timeout(std::time::Duration::from_millis(500), event_rx.recv())
+                .await
+                .expect("timed out waiting for AppEvent")
+                .expect("broadcast recv failed");
 
         assert_eq!(app_event.nonce, "testnonce01");
         assert_eq!(app_event.tier, 1);
-        assert!(!app_event.session_id.is_empty(), "session_id should be computed");
-        assert_eq!(app_event.session_id.len(), 16, "session_id should be 16-char hex");
+        assert!(
+            !app_event.session_id.is_empty(),
+            "session_id should be computed"
+        );
+        assert_eq!(
+            app_event.session_id.len(),
+            16,
+            "session_id should be 16-char hex"
+        );
     }
 
     #[tokio::test]
@@ -224,9 +223,7 @@ mod tests {
 
         // Run migrations
         tk_conn
-            .call(|conn| {
-                crate::store::run_migrations(conn).map_err(tokio_rusqlite::Error::from)
-            })
+            .call(|conn| crate::store::run_migrations(conn).map_err(tokio_rusqlite::Error::from))
             .await
             .unwrap();
 

@@ -59,7 +59,11 @@ pub fn generate_report(conn: &Connection) -> anyhow::Result<String> {
 
     let date_range = match (&summary.earliest_event, &summary.latest_event) {
         (Some(earliest), Some(latest)) => {
-            format!("{} — {}", format_timestamp(earliest), format_timestamp(latest))
+            format!(
+                "{} — {}",
+                format_timestamp(earliest),
+                format_timestamp(latest)
+            )
         }
         _ => "No events recorded".to_string(),
     };

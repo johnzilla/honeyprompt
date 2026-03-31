@@ -100,12 +100,14 @@ pub struct AppEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::IpAddr;
     use std::collections::HashMap;
+    use std::net::IpAddr;
 
     #[test]
     fn test_agent_class_known_crawler_has_provider() {
-        let c = AgentClass::KnownCrawler { provider: "OpenAI".to_string() };
+        let c = AgentClass::KnownCrawler {
+            provider: "OpenAI".to_string(),
+        };
         match c {
             AgentClass::KnownCrawler { provider } => assert_eq!(provider, "OpenAI"),
             _ => panic!("Expected KnownCrawler"),
@@ -114,7 +116,9 @@ mod tests {
 
     #[test]
     fn test_agent_class_known_agent_has_provider() {
-        let a = AgentClass::KnownAgent { provider: "Anthropic".to_string() };
+        let a = AgentClass::KnownAgent {
+            provider: "Anthropic".to_string(),
+        };
         match a {
             AgentClass::KnownAgent { provider } => assert_eq!(provider, "Anthropic"),
             _ => panic!("Expected KnownAgent"),
@@ -181,7 +185,9 @@ mod tests {
             payload_id: "t2-meta".to_string(),
             embedding_loc: "meta_tag".to_string(),
             fingerprint: fp,
-            classification: AgentClass::KnownCrawler { provider: "Google".to_string() },
+            classification: AgentClass::KnownCrawler {
+                provider: "Google".to_string(),
+            },
             session_id: "aabbccdd11223344".to_string(),
             is_replay: false,
             fire_count: 1,

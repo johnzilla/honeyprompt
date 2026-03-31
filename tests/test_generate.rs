@@ -28,9 +28,18 @@ fn init_and_generate() -> tempfile::TempDir {
 fn test_generate_creates_output_files() {
     let dir = init_and_generate();
     let path = dir.path();
-    assert!(path.join("output/index.html").exists(), "output/index.html must exist");
-    assert!(path.join("output/robots.txt").exists(), "output/robots.txt must exist");
-    assert!(path.join("output/ai.txt").exists(), "output/ai.txt must exist");
+    assert!(
+        path.join("output/index.html").exists(),
+        "output/index.html must exist"
+    );
+    assert!(
+        path.join("output/robots.txt").exists(),
+        "output/robots.txt must exist"
+    );
+    assert!(
+        path.join("output/ai.txt").exists(),
+        "output/ai.txt must exist"
+    );
     assert!(
         path.join("output/callback-map.json").exists(),
         "output/callback-map.json must exist"
@@ -41,8 +50,8 @@ fn test_generate_creates_output_files() {
 #[test]
 fn test_generate_html_has_warning() {
     let dir = init_and_generate();
-    let html =
-        std::fs::read_to_string(dir.path().join("output/index.html")).expect("index.html must be readable");
+    let html = std::fs::read_to_string(dir.path().join("output/index.html"))
+        .expect("index.html must be readable");
     assert!(
         html.contains("SECURITY RESEARCH CANARY"),
         "index.html must contain 'SECURITY RESEARCH CANARY'"
@@ -57,8 +66,8 @@ fn test_generate_html_has_warning() {
 #[test]
 fn test_generate_html_has_payloads() {
     let dir = init_and_generate();
-    let html =
-        std::fs::read_to_string(dir.path().join("output/index.html")).expect("index.html must be readable");
+    let html = std::fs::read_to_string(dir.path().join("output/index.html"))
+        .expect("index.html must be readable");
     assert!(
         html.contains("/cb/"),
         "index.html must contain callback URLs matching '/cb/' pattern"
@@ -69,8 +78,8 @@ fn test_generate_html_has_payloads() {
 #[test]
 fn test_generate_html_multiple_locations() {
     let dir = init_and_generate();
-    let html =
-        std::fs::read_to_string(dir.path().join("output/index.html")).expect("index.html must be readable");
+    let html = std::fs::read_to_string(dir.path().join("output/index.html"))
+        .expect("index.html must be readable");
 
     let mut found_locations = 0;
     if html.contains("<!--") {
@@ -101,15 +110,23 @@ fn test_generate_html_multiple_locations() {
 #[test]
 fn test_generate_nonce_format() {
     let dir = init_and_generate();
-    let json_str =
-        std::fs::read_to_string(dir.path().join("output/callback-map.json")).expect("callback-map.json must be readable");
-    let entries: Value = serde_json::from_str(&json_str).expect("callback-map.json must be valid JSON");
-    let arr = entries.as_array().expect("callback-map.json must be a JSON array");
+    let json_str = std::fs::read_to_string(dir.path().join("output/callback-map.json"))
+        .expect("callback-map.json must be readable");
+    let entries: Value =
+        serde_json::from_str(&json_str).expect("callback-map.json must be valid JSON");
+    let arr = entries
+        .as_array()
+        .expect("callback-map.json must be a JSON array");
 
-    assert!(!arr.is_empty(), "callback-map.json must have at least one entry");
+    assert!(
+        !arr.is_empty(),
+        "callback-map.json must have at least one entry"
+    );
 
     for entry in arr {
-        let nonce = entry["nonce"].as_str().expect("each entry must have a 'nonce' string field");
+        let nonce = entry["nonce"]
+            .as_str()
+            .expect("each entry must have a 'nonce' string field");
         assert_eq!(
             nonce.len(),
             16,
@@ -117,7 +134,9 @@ fn test_generate_nonce_format() {
             nonce
         );
         assert!(
-            nonce.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
+            nonce
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
             "nonce '{}' must be lowercase hex",
             nonce
         );
@@ -128,10 +147,13 @@ fn test_generate_nonce_format() {
 #[test]
 fn test_generate_nonce_uniqueness() {
     let dir = init_and_generate();
-    let json_str =
-        std::fs::read_to_string(dir.path().join("output/callback-map.json")).expect("callback-map.json must be readable");
-    let entries: Value = serde_json::from_str(&json_str).expect("callback-map.json must be valid JSON");
-    let arr = entries.as_array().expect("callback-map.json must be a JSON array");
+    let json_str = std::fs::read_to_string(dir.path().join("output/callback-map.json"))
+        .expect("callback-map.json must be readable");
+    let entries: Value =
+        serde_json::from_str(&json_str).expect("callback-map.json must be valid JSON");
+    let arr = entries
+        .as_array()
+        .expect("callback-map.json must be a JSON array");
 
     let mut seen = std::collections::HashSet::new();
     for entry in arr {
@@ -148,10 +170,16 @@ fn test_generate_nonce_uniqueness() {
 #[test]
 fn test_generate_robots_has_ai_bots() {
     let dir = init_and_generate();
-    let robots =
-        std::fs::read_to_string(dir.path().join("output/robots.txt")).expect("robots.txt must be readable");
-    assert!(robots.contains("GPTBot"), "robots.txt must contain 'GPTBot'");
-    assert!(robots.contains("ClaudeBot"), "robots.txt must contain 'ClaudeBot'");
+    let robots = std::fs::read_to_string(dir.path().join("output/robots.txt"))
+        .expect("robots.txt must be readable");
+    assert!(
+        robots.contains("GPTBot"),
+        "robots.txt must contain 'GPTBot'"
+    );
+    assert!(
+        robots.contains("ClaudeBot"),
+        "robots.txt must contain 'ClaudeBot'"
+    );
     assert!(
         robots.contains("Google-Extended"),
         "robots.txt must contain 'Google-Extended'"
@@ -175,18 +203,36 @@ fn test_generate_ai_txt_exists() {
 #[test]
 fn test_generate_callback_map_structure() {
     let dir = init_and_generate();
-    let json_str =
-        std::fs::read_to_string(dir.path().join("output/callback-map.json")).expect("callback-map.json must be readable");
-    let entries: Value = serde_json::from_str(&json_str).expect("callback-map.json must be valid JSON");
-    let arr = entries.as_array().expect("callback-map.json must be a JSON array");
+    let json_str = std::fs::read_to_string(dir.path().join("output/callback-map.json"))
+        .expect("callback-map.json must be readable");
+    let entries: Value =
+        serde_json::from_str(&json_str).expect("callback-map.json must be valid JSON");
+    let arr = entries
+        .as_array()
+        .expect("callback-map.json must be a JSON array");
 
-    assert!(!arr.is_empty(), "callback-map.json must have at least one entry");
+    assert!(
+        !arr.is_empty(),
+        "callback-map.json must have at least one entry"
+    );
 
     for entry in arr {
         let obj = entry.as_object().expect("each entry must be a JSON object");
-        assert!(obj.contains_key("nonce"), "entry must have 'nonce' field: {:?}", obj);
-        assert!(obj.contains_key("tier"), "entry must have 'tier' field: {:?}", obj);
-        assert!(obj.contains_key("payload_id"), "entry must have 'payload_id' field: {:?}", obj);
+        assert!(
+            obj.contains_key("nonce"),
+            "entry must have 'nonce' field: {:?}",
+            obj
+        );
+        assert!(
+            obj.contains_key("tier"),
+            "entry must have 'tier' field: {:?}",
+            obj
+        );
+        assert!(
+            obj.contains_key("payload_id"),
+            "entry must have 'payload_id' field: {:?}",
+            obj
+        );
         assert!(
             obj.contains_key("embedding_location"),
             "entry must have 'embedding_location' field: {:?}",

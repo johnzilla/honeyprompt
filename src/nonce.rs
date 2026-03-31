@@ -18,7 +18,9 @@ mod tests {
     fn test_nonce_hex() {
         let nonce = generate_nonce();
         assert!(
-            nonce.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
+            nonce
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
             "Nonce must be lowercase hex: {}",
             nonce
         );

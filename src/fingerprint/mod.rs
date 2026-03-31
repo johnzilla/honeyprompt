@@ -29,7 +29,10 @@ pub fn extract(source_ip: IpAddr, headers: &HeaderMap) -> AgentFingerprint {
     let header_map: HashMap<String, String> = headers
         .iter()
         .filter_map(|(name, value)| -> Option<(String, String)> {
-            value.to_str().ok().map(|v| (name.as_str().to_string(), v.to_string()))
+            value
+                .to_str()
+                .ok()
+                .map(|v| (name.as_str().to_string(), v.to_string()))
         })
         .collect();
 
@@ -73,7 +76,10 @@ mod tests {
         assert_eq!(fp.source_ip.to_string(), "1.2.3.4");
         assert_eq!(fp.user_agent, "Mozilla/5.0");
         assert!(!fp.headers.is_empty(), "headers map should not be empty");
-        assert!(fp.headers.contains_key("accept"), "accept header should be present");
+        assert!(
+            fp.headers.contains_key("accept"),
+            "accept header should be present"
+        );
     }
 
     #[test]
@@ -126,6 +132,9 @@ mod tests {
     fn test_compute_session_id_different_inputs_differ() {
         let sid1 = compute_session_id("1.2.3.4", "Mozilla/5.0");
         let sid2 = compute_session_id("9.9.9.9", "DifferentBot/2.0");
-        assert_ne!(sid1, sid2, "different inputs must produce different session IDs");
+        assert_ne!(
+            sid1, sid2,
+            "different inputs must produce different session IDs"
+        );
     }
 }

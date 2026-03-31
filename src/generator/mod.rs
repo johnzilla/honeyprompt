@@ -1,7 +1,7 @@
 use anyhow::Context;
 use minijinja::{context, Environment};
-use rust_embed::RustEmbed;
 use rusqlite::Connection;
+use rust_embed::RustEmbed;
 use serde::Serialize;
 use std::path::Path;
 
@@ -25,8 +25,8 @@ struct RenderedPayload {
 
 /// Load a template by name from embedded assets and render it with the given context.
 fn render_template(name: &str, ctx: minijinja::Value) -> anyhow::Result<String> {
-    let file = Templates::get(name)
-        .with_context(|| format!("Embedded template not found: {}", name))?;
+    let file =
+        Templates::get(name).with_context(|| format!("Embedded template not found: {}", name))?;
     let source = std::str::from_utf8(file.data.as_ref())
         .with_context(|| format!("Template is not valid UTF-8: {}", name))?;
 
@@ -47,8 +47,8 @@ fn render_template(name: &str, ctx: minijinja::Value) -> anyhow::Result<String> 
 /// Loads payloads from the catalog, assigns nonces, renders all templates,
 /// writes output files to `{project_path}/output/`, and stores nonce mappings in SQLite.
 pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyhow::Result<()> {
-    let payloads = catalog::load_for_tiers(&config.tiers)
-        .context("Failed to load payload catalog")?;
+    let payloads =
+        catalog::load_for_tiers(&config.tiers).context("Failed to load payload catalog")?;
 
     let mut rendered_payloads: Vec<RenderedPayload> = Vec::new();
     let mut nonce_mappings: Vec<NonceMapping> = Vec::new();
@@ -64,7 +64,9 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
                 let rendered = payload.instruction.replace("{callback_url}", &callback_url);
 
                 store::insert_nonce(conn, &nonce, tier_num, &payload.id, &embedding_loc)
-                    .with_context(|| format!("Failed to insert nonce for payload {}", payload.id))?;
+                    .with_context(|| {
+                        format!("Failed to insert nonce for payload {}", payload.id)
+                    })?;
 
                 nonce_mappings.push(NonceMapping {
                     nonce,
@@ -127,7 +129,9 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
                     .replace("{callback_url_base}", &callback_url_base);
 
                 store::insert_nonce(conn, &nonce, tier_num, &payload.id, &embedding_loc)
-                    .with_context(|| format!("Failed to insert nonce for payload {}", payload.id))?;
+                    .with_context(|| {
+                        format!("Failed to insert nonce for payload {}", payload.id)
+                    })?;
 
                 nonce_mappings.push(NonceMapping {
                     nonce,
@@ -155,8 +159,8 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
     )
     .context("Failed to render index.html")?;
 
-    let robots = render_template("robots.txt.jinja", context! {})
-        .context("Failed to render robots.txt")?;
+    let robots =
+        render_template("robots.txt.jinja", context! {}).context("Failed to render robots.txt")?;
 
     let ai_txt = render_template(
         "ai.txt.jinja",
@@ -178,8 +182,7 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
         .context("Failed to write output/index.html")?;
     std::fs::write(output_dir.join("robots.txt"), robots)
         .context("Failed to write output/robots.txt")?;
-    std::fs::write(output_dir.join("ai.txt"), ai_txt)
-        .context("Failed to write output/ai.txt")?;
+    std::fs::write(output_dir.join("ai.txt"), ai_txt).context("Failed to write output/ai.txt")?;
     std::fs::write(output_dir.join("callback-map.json"), callback_map_json)
         .context("Failed to write output/callback-map.json")?;
 

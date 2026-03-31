@@ -43,7 +43,9 @@ pub async fn callback_handler(
 ) -> StatusCode {
     // Validate nonce format: exactly 16 lowercase hex chars (D-03: fail silently)
     let valid_format = nonce.len() == 16
-        && nonce.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase());
+        && nonce
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase());
     if !valid_format {
         return StatusCode::NO_CONTENT; // D-03: never reveal validation
     }
@@ -121,10 +123,8 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
 
     // Open tokio-rusqlite connection and run migrations
     let conn = tokio_rusqlite::Connection::open(&db_path).await?;
-    conn.call(|c| {
-        crate::store::run_migrations(c).map_err(tokio_rusqlite::Error::from)
-    })
-    .await?;
+    conn.call(|c| crate::store::run_migrations(c).map_err(tokio_rusqlite::Error::from))
+        .await?;
 
     // Create event pipeline channels
     let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(256);

@@ -38,7 +38,11 @@ fn init_and_generate() -> tempfile::TempDir {
 fn build_test_state(
     dir: &tempfile::TempDir,
     callback_tx: mpsc::Sender<honeyprompt::types::RawCallbackEvent>,
-) -> (Arc<server::AppState>, std::path::PathBuf, Vec<honeyprompt::types::NonceMapping>) {
+) -> (
+    Arc<server::AppState>,
+    std::path::PathBuf,
+    Vec<honeyprompt::types::NonceMapping>,
+) {
     let path = dir.path();
     let output_dir = path.join("output");
 
@@ -74,15 +78,19 @@ fn build_test_state(
 }
 
 /// Build a router with MockConnectInfo layer for in-process testing.
-fn test_router(state: Arc<server::AppState>, output_dir: std::path::PathBuf) -> impl tower::Service<
+fn test_router(
+    state: Arc<server::AppState>,
+    output_dir: std::path::PathBuf,
+) -> impl tower::Service<
     http::Request<Body>,
     Response = axum::response::Response,
     Error = std::convert::Infallible,
-    Future = impl std::future::Future<Output = Result<axum::response::Response, std::convert::Infallible>>,
+    Future = impl std::future::Future<
+        Output = Result<axum::response::Response, std::convert::Infallible>,
+    >,
 > + Clone {
     let mock_addr: SocketAddr = "127.0.0.1:12345".parse().unwrap();
-    server::build_router(state, output_dir)
-        .layer(MockConnectInfo(mock_addr))
+    server::build_router(state, output_dir).layer(MockConnectInfo(mock_addr))
 }
 
 /// A valid callback request with a known nonce returns 204 No Content.
@@ -207,14 +215,17 @@ async fn test_callback_sends_event_to_channel() {
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     // Receive the RawCallbackEvent from the channel
-    let received = tokio::time::timeout(
-        std::time::Duration::from_millis(500),
-        callback_rx.recv(),
-    )
-    .await
-    .expect("timed out waiting for RawCallbackEvent")
-    .expect("channel was closed unexpectedly");
+    let received = tokio::time::timeout(std::time::Duration::from_millis(500), callback_rx.recv())
+        .await
+        .expect("timed out waiting for RawCallbackEvent")
+        .expect("channel was closed unexpectedly");
 
-    assert_eq!(received.nonce, nonce, "received event must have correct nonce");
-    assert_eq!(received.tier, expected_tier, "received event must have correct tier");
+    assert_eq!(
+        received.nonce, nonce,
+        "received event must have correct nonce"
+    );
+    assert_eq!(
+        received.tier, expected_tier,
+        "received event must have correct tier"
+    );
 }

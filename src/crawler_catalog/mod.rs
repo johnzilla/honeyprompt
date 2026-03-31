@@ -1,6 +1,6 @@
+use anyhow::Context;
 use rust_embed::RustEmbed;
 use serde::Deserialize;
-use anyhow::Context;
 
 use crate::types::AgentClass;
 
@@ -78,7 +78,9 @@ mod tests {
         let result = c.classify("Mozilla/5.0 (compatible; GPTBot/1.0; +https://openai.com/gptbot)");
         assert_eq!(
             result,
-            AgentClass::KnownCrawler { provider: "OpenAI".to_string() }
+            AgentClass::KnownCrawler {
+                provider: "OpenAI".to_string()
+            }
         );
     }
 
@@ -88,7 +90,9 @@ mod tests {
         let result = c.classify("Mozilla/5.0 (compatible; ClaudeBot/1.0; +https://claude.ai/bot)");
         assert_eq!(
             result,
-            AgentClass::KnownCrawler { provider: "Anthropic".to_string() }
+            AgentClass::KnownCrawler {
+                provider: "Anthropic".to_string()
+            }
         );
     }
 
@@ -98,7 +102,9 @@ mod tests {
         let result = c.classify("Mozilla/5.0 (compatible; Googlebot/2.1)");
         assert_eq!(
             result,
-            AgentClass::KnownCrawler { provider: "Google".to_string() }
+            AgentClass::KnownCrawler {
+                provider: "Google".to_string()
+            }
         );
     }
 
@@ -122,7 +128,9 @@ mod tests {
         let result = c.classify("Mozilla/5.0 (compatible; ChatGPT-User/1.0)");
         assert_eq!(
             result,
-            AgentClass::KnownAgent { provider: "OpenAI".to_string() }
+            AgentClass::KnownAgent {
+                provider: "OpenAI".to_string()
+            }
         );
     }
 }

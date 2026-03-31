@@ -8,7 +8,11 @@ pub enum OutputFormat {
 }
 
 #[derive(Parser)]
-#[command(name = "honeyprompt", version, about = "Detect and measure unsafe behavior by AI browsing agents")]
+#[command(
+    name = "honeyprompt",
+    version,
+    about = "Detect and measure unsafe behavior by AI browsing agents"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
