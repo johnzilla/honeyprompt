@@ -36,12 +36,12 @@
 
 | REQ-ID | Phase | Plan | Status |
 |--------|-------|------|--------|
-| IDENT-01 | — | — | Pending |
-| IDENT-02 | — | — | Pending |
-| STATS-01 | — | — | Pending |
-| STATS-02 | — | — | Pending |
-| STATS-03 | — | — | Pending |
-| LAND-01 | — | — | Pending |
-| LAND-02 | — | — | Pending |
-| LAND-03 | — | — | Pending |
-| LAND-04 | — | — | Pending |
+| IDENT-01 | Phase 9 | — | Pending |
+| IDENT-02 | Phase 9 | — | Pending |
+| STATS-01 | Phase 9 | — | Pending |
+| STATS-02 | Phase 9 | — | Pending |
+| STATS-03 | Phase 9 | — | Pending |
+| LAND-01 | Phase 10 | — | Pending |
+| LAND-02 | Phase 10 | — | Pending |
+| LAND-03 | Phase 10 | — | Pending |
+| LAND-04 | Phase 10 | — | Pending |
