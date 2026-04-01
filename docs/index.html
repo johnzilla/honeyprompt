@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HoneyPrompt</title>
+  <meta name="description" content="Honeypot canaries for AI browsing agents. Detect and measure unsafe behavior with graduated, verifiable proof.">
+  <meta property="og:title" content="HoneyPrompt">
+  <meta property="og:description" content="Honeypot canaries for AI browsing agents. Detect and measure unsafe behavior with graduated, verifiable proof.">
+  <meta property="og:url" content="https://honeyprompt.dev">
+  <meta property="og:type" content="website">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #0d1117;
+      color: #e6edf3;
+      line-height: 1.6;
+    }
+
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      padding-top: 4rem;
+      padding-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      color: #e6edf3;
+      font-weight: 700;
+    }
+
+    .tagline {
+      color: #8b949e;
+      margin-top: 0.5rem;
+      font-size: 1rem;
+    }
+
+    h2 {
+      font-size: 1.25rem;
+      color: #e6edf3;
+      margin-bottom: 16px;
+      padding-top: 48px;
+    }
+
+    section {
+      border-top: 1px solid #30363d;
+    }
+
+    footer {
+      border-top: 1px solid #30363d;
+      padding-top: 48px;
+      padding-bottom: 4rem;
+      color: #8b949e;
+    }
+
+    .terminal {
+      background: #161b22;
+      border-radius: 6px;
+      padding: 16px 20px;
+      font-size: 0.9rem;
+      overflow-x: auto;
+    }
+
+    .prompt {
+      color: #8b949e;
+    }
+
+    .prompt::before {
+      content: '$ ';
+      color: #8b949e;
+    }
+
+    .prompt-text {
+      color: #e6edf3;
+    }
+
+    .output {
+      margin-top: 4px;
+      color: #8b949e;
+    }
+
+    .output .val {
+      color: #3fb950;
+      font-weight: 700;
+    }
+
+    .output .err {
+      color: #d29922;
+    }
+
+    pre.pipeline {
+      background: #161b22;
+      border-radius: 6px;
+      padding: 16px 20px;
+      font-size: 0.9rem;
+      overflow-x: auto;
+      color: #e6edf3;
+      white-space: pre;
+    }
+
+    .how-steps {
+      margin-top: 16px;
+    }
+
+    a {
+      color: #3fb950;
+      text-decoration: underline;
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+    }
+
+    a:focus-visible {
+      outline: 2px solid #3fb950;
+      outline-offset: 2px;
+    }
+
+    nav a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+    }
+
+    .sep {
+      color: #8b949e;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    .cursor {
+      animation: blink 1s step-end infinite;
+      color: #3fb950;
+    }
+
+    @media (max-width: 768px) {
+      main {
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>HoneyPrompt</h1>
+      <p class="tagline">Honeypot canaries for AI browsing agents</p>
+    </header>
+
+    <section id="stats">
+      <h2>Live Stats</h2>
+      <div class="terminal" id="stats-display" role="status" aria-live="polite">
+        <div class="prompt"><span class="prompt-text">honeyprompt stats</span></div>
+        <div class="output" id="stats-output">  Connecting...<span class="cursor">_</span></div>
+      </div>
+    </section>
+
+    <section id="how-it-works">
+      <h2>How It Works</h2>
+      <pre class="pipeline">  Generate            Deploy             Detect
+  ─────────           ──────             ──────
+  Create a            Host on any        Watch agents
+  honeypot with       public URL         trigger callbacks
+  embedded canaries                      in real-time
+
+  [init + generate] ──→ [deploy] ──→ [serve + monitor]</pre>
+    </section>
+
+    <section id="quick-start">
+      <h2>Quick Start</h2>
+      <div class="terminal">
+        <div class="prompt"><span class="prompt-text">cargo install honeyprompt</span></div>
+      </div>
+      <p style="margin-top: 16px; color: #8b949e;">Or download a <a href="https://github.com/johnzilla/honeyprompt/releases">pre-built binary</a>.</p>
+    </section>
+
+    <footer>
+      <nav aria-label="Footer links">
+        <a href="https://github.com/johnzilla/honeyprompt">GitHub</a>
+        <span class="sep"> | </span>
+        <a href="https://github.com/johnzilla/honeyprompt/security/advisories">Security</a>
+        <span class="sep"> | </span>
+        <span>MIT License</span>
+      </nav>
+    </footer>
+  </main>
+
+  <script>
+    (async function() {
+      const output = document.getElementById('stats-output');
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch('https://honeyprompt.sh/stats', { signal: controller.signal });
+        clearTimeout(timeout);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const d = await res.json();
+        output.innerHTML =
+          '  sessions: <span class="val">' + d.total_sessions + '</span>' +
+          '  |  url_fetch: <span class="val">' + d.tier1_sessions + '</span>' +
+          '  |  conditional: <span class="val">' + d.tier2_sessions + '</span>' +
+          '  |  composed: <span class="val">' + d.tier3_sessions + '</span>';
+      } catch (e) {
+        output.innerHTML = '  <span class="err">Stats unavailable. Honeypot may be offline.</span> ' +
+          '<a href="https://github.com/johnzilla/honeyprompt">View on GitHub</a>';
+      }
+    })();
+  </script>
+</body>
+</html>
