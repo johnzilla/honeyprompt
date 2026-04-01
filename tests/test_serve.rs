@@ -259,25 +259,45 @@ async fn test_stats_empty_db_returns_json() {
 
     let app = test_router(state, output_dir);
     let response = app
-        .oneshot(Request::builder().uri("/stats").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/stats")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK, "GET /stats must return 200");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "GET /stats must return 200"
+    );
 
-    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let json: serde_json::Value = serde_json::from_slice(&body_bytes)
-        .expect("/stats must return valid JSON");
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value =
+        serde_json::from_slice(&body_bytes).expect("/stats must return valid JSON");
 
     // All counts should be zero on empty DB (STATS-03)
-    assert_eq!(json["total_sessions"], 0, "total_sessions must be 0 on empty DB");
+    assert_eq!(
+        json["total_sessions"], 0,
+        "total_sessions must be 0 on empty DB"
+    );
     assert_eq!(json["detection_sessions"], 0);
     assert_eq!(json["crawler_sessions"], 0);
     assert_eq!(json["tier1_sessions"], 0);
     assert_eq!(json["tier2_sessions"], 0);
     assert_eq!(json["tier3_sessions"], 0);
-    assert!(json["earliest_event"].is_null(), "earliest_event must be null on empty DB");
-    assert!(json["latest_event"].is_null(), "latest_event must be null on empty DB");
+    assert!(
+        json["earliest_event"].is_null(),
+        "earliest_event must be null on empty DB"
+    );
+    assert!(
+        json["latest_event"].is_null(),
+        "latest_event must be null on empty DB"
+    );
 }
 
 /// GET /stats returns correct counts after callback events are inserted (populated DB).
@@ -308,18 +328,34 @@ async fn test_stats_populated_db_returns_counts() {
 
     let app = test_router(state, output_dir);
     let response = app
-        .oneshot(Request::builder().uri("/stats").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/stats")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body_bytes).expect("valid JSON");
 
-    assert!(json["total_sessions"].as_u64().unwrap() >= 1, "total_sessions must be >= 1");
-    assert!(json["detection_sessions"].as_u64().unwrap() >= 1, "detection_sessions must be >= 1");
-    assert!(json["earliest_event"].is_string(), "earliest_event must be a string when events exist");
+    assert!(
+        json["total_sessions"].as_u64().unwrap() >= 1,
+        "total_sessions must be >= 1"
+    );
+    assert!(
+        json["detection_sessions"].as_u64().unwrap() >= 1,
+        "detection_sessions must be >= 1"
+    );
+    assert!(
+        json["earliest_event"].is_string(),
+        "earliest_event must be a string when events exist"
+    );
 }
 
 /// GET /stats includes Access-Control-Allow-Origin: * header (STATS-02).
@@ -331,7 +367,12 @@ async fn test_stats_has_cors_header() {
 
     let app = test_router(state, output_dir);
     let response = app
-        .oneshot(Request::builder().uri("/stats").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/stats")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 

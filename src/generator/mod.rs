@@ -171,8 +171,8 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
     )
     .context("Failed to render ai.txt")?;
 
-    let security_txt =
-        render_template("security.txt.jinja", context! {}).context("Failed to render security.txt")?;
+    let security_txt = render_template("security.txt.jinja", context! {})
+        .context("Failed to render security.txt")?;
 
     let callback_map_json = serde_json::to_string_pretty(&nonce_mappings)
         .context("Failed to serialize callback-map.json")?;
@@ -182,7 +182,8 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
     std::fs::create_dir_all(&output_dir).context("Failed to create output/ directory")?;
 
     let well_known_dir = output_dir.join(".well-known");
-    std::fs::create_dir_all(&well_known_dir).context("Failed to create output/.well-known/ directory")?;
+    std::fs::create_dir_all(&well_known_dir)
+        .context("Failed to create output/.well-known/ directory")?;
 
     std::fs::write(output_dir.join("index.html"), html)
         .context("Failed to write output/index.html")?;

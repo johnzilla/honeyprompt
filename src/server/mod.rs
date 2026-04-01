@@ -85,9 +85,7 @@ pub async fn callback_handler(
 ///
 /// Returns aggregate callback statistics as JSON with CORS header.
 /// Returns 500 on database error.
-pub async fn stats_handler(
-    State(state): State<Arc<AppState>>,
-) -> axum::response::Response {
+pub async fn stats_handler(State(state): State<Arc<AppState>>) -> axum::response::Response {
     match state
         .conn
         .call(|c| crate::store::query_report_summary(c).map_err(tokio_rusqlite::Error::from))
