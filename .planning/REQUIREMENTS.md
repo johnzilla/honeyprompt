@@ -7,9 +7,9 @@
 
 ## Stats API
 
-- [ ] **STATS-01**: GET /stats returns JSON with aggregate callback counts (total_sessions, detection_sessions, crawler_sessions, per-tier counts, earliest/latest event timestamps)
-- [ ] **STATS-02**: /stats response includes Access-Control-Allow-Origin: * header for cross-origin fetch from honeyprompt.dev
-- [ ] **STATS-03**: /stats returns all-zero counts on empty database (not an error response)
+- [x] **STATS-01**: GET /stats returns JSON with aggregate callback counts (total_sessions, detection_sessions, crawler_sessions, per-tier counts, earliest/latest event timestamps)
+- [x] **STATS-02**: /stats response includes Access-Control-Allow-Origin: * header for cross-origin fetch from honeyprompt.dev
+- [x] **STATS-03**: /stats returns all-zero counts on empty database (not an error response)
 
 ## Landing Page
 
