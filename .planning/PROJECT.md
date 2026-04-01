@@ -34,7 +34,19 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 
 ### Active
 
-- None — planning next milestone
+- Footer + security.txt on honeyprompt.sh for verifiable identity
+- /stats JSON endpoint with aggregate callback counts
+- honeyprompt.dev landing page with live stats from /stats
+
+## Current Milestone: v3.0 Public Presence
+
+**Goal:** Give HoneyPrompt a verifiable public identity and prove it works with live data.
+
+**Target features:**
+- honeyprompt.sh footer with project link and disclosure contact
+- /.well-known/security.txt (RFC 9116) served via static generation
+- /stats JSON endpoint returning aggregate counts with open CORS
+- honeyprompt.dev static landing page (GitHub Pages) with live stats counter
 
 ### Out of Scope
 
@@ -127,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-31 after v2.0 Ship & Learn milestone completion*
+*Last updated: 2026-03-31 after v3.0 Public Presence milestone start*

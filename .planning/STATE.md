@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: Ship & Learn
-status: verifying
-stopped_at: "Checkpoint: Task 2 of 08-02 — awaiting Google Search Console submission by user"
-last_updated: "2026-03-31T18:55:29.788Z"
+milestone: v3.0
+milestone_name: Public Presence
+status: planning
+stopped_at: ""
+last_updated: "2026-03-31T20:20:00.000Z"
 last_activity: 2026-03-31
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** Phase 08 — readme-and-public-launch
+**Current focus:** Milestone v3.0 Public Presence — defining requirements
 
 ## Current Position
 
-Phase: 08
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-03-31
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-31 - Milestone v3.0 started
 
 Progress: [░░░░░░░░░░] 0%
 
