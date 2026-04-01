@@ -2,9 +2,9 @@
 
 ## Setup Wizard
 
-- [ ] **SETUP-01**: `honeyprompt setup` interactively prompts for domain, bind address, tiers, and page title, then writes a valid honeyprompt.toml
-- [ ] **SETUP-02**: Setup wizard warns (non-blocking) if DNS does not resolve for the provided domain
-- [ ] **SETUP-03**: Setup wizard exits with a clear error message on write permission failure
+- [x] **SETUP-01**: `honeyprompt setup` interactively prompts for domain, bind address, tiers, and page title, then writes a valid honeyprompt.toml
+- [x] **SETUP-02**: Setup wizard warns (non-blocking) if DNS does not resolve for the provided domain
+- [x] **SETUP-03**: Setup wizard exits with a clear error message on write permission failure
 
 ## Zero-Config Serve
 
