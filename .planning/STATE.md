@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Self-Hosted UX
-status: executing
-stopped_at: Completed 11-01-PLAN.md
-last_updated: "2026-04-01T17:59:08.977Z"
+status: verifying
+stopped_at: Completed 11-02-PLAN.md
+last_updated: "2026-04-01T18:05:04.017Z"
 last_activity: 2026-04-01
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-01)
 
 Phase: 11 (setup-wizard-zero-config-serve) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-01
 
 Progress: [░░░░░░░░░░] 0%
@@ -53,6 +53,8 @@ Recent decisions affecting current work:
 - [v4.0 design]: flag > config file > built-in defaults precedence chain
 - [v4.0 design]: deploy/templates/ with {DOMAIN} placeholder pattern for docker-compose, systemd, Caddyfile
 - [Phase 11-01]: dialoguer crate for interactive CLI prompts; check_dns returns Ok(bool) for non-blocking warning semantics; Setup guard exits with process::exit(1) on existing config
+- [Phase 11-02]: config_with_overrides precedence: flag > domain-defaults > base-config, with domain implying bind=0.0.0.0:8080 and tiers=[1,2,3]
+- [Phase 11-02]: Tempdir mode triggers when --domain set, path=='.', and no honeyprompt.toml present; explicit --path always uses standard mode
 
 ### Pending Todos
 
@@ -64,7 +66,7 @@ None for current phase.
 
 ## Session Continuity
 
-Last session: 2026-04-01T17:59:08.974Z
+Last session: 2026-04-01T18:05:04.014Z
 Last activity: 2026-04-01 — Roadmap written for v4.0 Self-Hosted UX (phases 11-12)
-Stopped at: Completed 11-01-PLAN.md
+Stopped at: Completed 11-02-PLAN.md
 Resume file: None

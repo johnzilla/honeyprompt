@@ -121,7 +121,7 @@ Plans:
 
 Plans:
 - [x] 11-01-PLAN.md — Setup wizard: dialoguer prompts, config generation, DNS check, write validation
-- [ ] 11-02-PLAN.md — --domain flag, tempdir serve mode, config precedence chain, integration tests
+- [x] 11-02-PLAN.md — --domain flag, tempdir serve mode, config precedence chain, integration tests
 
 ### Phase 12: Documentation & Deploy Templates
 **Goal**: A user arriving at the README can follow step-by-step instructions to deploy their own honeypot instance, with ready-to-use deploy files for common platforms
@@ -154,5 +154,5 @@ Phases execute in numeric order: 11 → 12
 | 8. README & Public Launch | v2.0 | 1/1 | Complete | 2026-03-31 |
 | 9. Server-Side Identity & Stats | v3.0 | 2/2 | Complete | 2026-04-01 |
 | 10. Landing Page | v3.0 | 1/1 | Complete | 2026-04-01 |
-| 11. Setup Wizard & Zero-Config Serve | v4.0 | 1/2 | In Progress|  |
+| 11. Setup Wizard & Zero-Config Serve | v4.0 | 2/2 | Complete   | 2026-04-01 |
 | 12. Documentation & Deploy Templates | v4.0 | 0/2 | Not started | - |

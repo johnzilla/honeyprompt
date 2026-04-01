@@ -8,9 +8,9 @@
 
 ## Zero-Config Serve
 
-- [ ] **SERVE-01**: `honeyprompt serve --domain mydomain.com` generates and serves a honeypot in tempdir mode without any config file
-- [ ] **SERVE-02**: `--domain` sets callback_base_url to https://{domain}, bind to 0.0.0.0:8080, and enables all catalog payloads by default
-- [ ] **SERVE-03**: CLI flags take precedence over config file values, which take precedence over built-in defaults
+- [x] **SERVE-01**: `honeyprompt serve --domain mydomain.com` generates and serves a honeypot in tempdir mode without any config file
+- [x] **SERVE-02**: `--domain` sets callback_base_url to https://{domain}, bind to 0.0.0.0:8080, and enables all catalog payloads by default
+- [x] **SERVE-03**: CLI flags take precedence over config file values, which take precedence over built-in defaults
 
 ## Documentation
 
