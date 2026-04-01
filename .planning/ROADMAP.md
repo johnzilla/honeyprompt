@@ -111,8 +111,11 @@ Plans:
   2. The page displays live aggregate callback counts fetched from /stats with descriptive tier labels (URL Fetch, Conditional, Composed)
   3. While stats are loading, a blinking terminal cursor is visible; if the fetch fails, a graceful fallback message appears
   4. The page uses JetBrains Mono font, #0d1117 background, and passes WCAG AA contrast with 44px touch targets and visible focus rings
-**Plans**: TBD
+**Plans**: 1 plan
 **UI hint**: yes
+
+Plans:
+- [ ] 10-01-PLAN.md — Landing page HTML + CSS + JS with live stats, DNS checkpoint (LAND-01, LAND-02, LAND-03, LAND-04)
 
 ## Progress
 
@@ -130,4 +133,4 @@ Phases execute in numeric order: 9 → 10
 | 7. Live Demo Deployment | v2.0 | 2/2 | Complete | 2026-03-31 |
 | 8. README & Public Launch | v2.0 | 1/1 | Complete | 2026-03-31 |
 | 9. Server-Side Identity & Stats | v3.0 | 2/2 | Complete   | 2026-04-01 |
-| 10. Landing Page | v3.0 | 0/TBD | Not started | - |
+| 10. Landing Page | v3.0 | 0/1 | Not started | - |
