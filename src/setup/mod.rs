@@ -45,9 +45,7 @@ pub fn validate_and_write_config(config: &Config, path: &std::path::Path) -> Res
 /// Interactive setup wizard. Prompts the user for domain, bind address, tiers, and page title,
 /// then writes honeyprompt.toml into the given directory.
 pub fn run_setup(path: &std::path::Path) -> Result<()> {
-    let domain: String = Input::new()
-        .with_prompt("Domain")
-        .interact_text()?;
+    let domain: String = Input::new().with_prompt("Domain").interact_text()?;
 
     let bind_address: String = Input::new()
         .with_prompt("Bind address")
@@ -97,12 +95,8 @@ mod tests {
 
     #[test]
     fn test_build_config_from_inputs_basic() {
-        let cfg = build_config_from_inputs(
-            "example.com",
-            "0.0.0.0:8080",
-            vec![1, 2, 3],
-            "My Canary",
-        );
+        let cfg =
+            build_config_from_inputs("example.com", "0.0.0.0:8080", vec![1, 2, 3], "My Canary");
         assert_eq!(cfg.callback_base_url, "https://example.com");
         assert_eq!(cfg.bind_address, "0.0.0.0:8080");
         assert_eq!(cfg.tiers, vec![1u8, 2, 3]);
@@ -154,7 +148,10 @@ mod tests {
         let result = validate_and_write_config(&cfg, &config_path);
         // Restore permissions so tempdir cleanup works
         std::fs::set_permissions(dir.path(), Permissions::from_mode(0o755)).ok();
-        assert!(result.is_err(), "Expected error writing to read-only directory");
+        assert!(
+            result.is_err(),
+            "Expected error writing to read-only directory"
+        );
     }
 
     #[test]

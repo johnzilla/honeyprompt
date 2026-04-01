@@ -87,7 +87,10 @@ fn main() -> Result<()> {
             let path = &args.path;
             let config_path = path.join("honeyprompt.toml");
             if config_path.exists() {
-                eprintln!("honeyprompt.toml already exists at {}", config_path.display());
+                eprintln!(
+                    "honeyprompt.toml already exists at {}",
+                    config_path.display()
+                );
                 eprintln!("Delete it first if you want to re-run setup.");
                 std::process::exit(1);
             }
