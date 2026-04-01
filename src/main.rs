@@ -50,11 +50,67 @@ fn main() -> Result<()> {
             Ok(())
         }
         Commands::Serve(args) => {
-            let path = &args.path;
-            let config_path = path.join("honeyprompt.toml");
-            let cfg = config::load_config(&config_path)?;
-            let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(server::serve(&cfg, path, args.json))?;
+            // Determine if we need tempdir mode:
+            // --domain set AND path is default "." AND no honeyprompt.toml exists at "."
+            let use_tempdir = args.domain.is_some()
+                && args.path.as_os_str() == "."
+                && !std::path::Path::new("./honeyprompt.toml").exists();
+
+            if use_tempdir {
+                // Tempdir mode: generate ephemeral project (reuses test-agent pattern)
+                let domain = args.domain.as_deref().unwrap();
+                let tmp = tempfile::TempDir::new()?;
+                let tmp_path = tmp.path().to_path_buf();
+
+                // Create project structure
+                std::fs::create_dir_all(tmp_path.join(".honeyprompt"))?;
+                std::fs::create_dir_all(tmp_path.join("output"))?;
+
+                // Build config from defaults + overrides
+                let base = config::Config::default();
+                let cfg = config::config_with_overrides(
+                    &base,
+                    Some(domain),
+                    args.bind.as_deref(),
+                    args.tiers.clone(),
+                );
+
+                // Write config to tempdir
+                let config_path = tmp_path.join("honeyprompt.toml");
+                let toml_string = toml::to_string_pretty(&cfg)?;
+                std::fs::write(&config_path, toml_string)?;
+
+                // Open DB and generate
+                let db_path = tmp_path.join(".honeyprompt").join("events.db");
+                let conn = store::open_or_create_db(&db_path)?;
+                generator::generate(&cfg, &conn, &tmp_path)?;
+                drop(conn);
+
+                println!("honeyprompt serve --domain {}", domain);
+                println!("  callback_base_url: {}", cfg.callback_base_url);
+                println!("  bind: {}", cfg.bind_address);
+                println!("  tiers: {:?}", cfg.tiers);
+                println!("  mode: tempdir (ephemeral)");
+
+                // Serve (tmp kept alive by _keep binding until serve exits)
+                let rt = tokio::runtime::Runtime::new()?;
+                let _keep = tmp; // prevent TempDir drop until serve exits
+                rt.block_on(server::serve(&cfg, &tmp_path, args.json))?;
+            } else {
+                // Standard mode: load config from project dir, apply overrides
+                let path = &args.path;
+                let config_path = path.join("honeyprompt.toml");
+                let base_cfg = config::load_config(&config_path)?;
+                let cfg = config::config_with_overrides(
+                    &base_cfg,
+                    args.domain.as_deref(),
+                    args.bind.as_deref(),
+                    args.tiers.clone(),
+                );
+
+                let rt = tokio::runtime::Runtime::new()?;
+                rt.block_on(server::serve(&cfg, path, args.json))?;
+            }
             Ok(())
         }
         Commands::Monitor(args) => {
