@@ -1,58 +1,58 @@
 [
   {
-    "nonce": "b38bd5cf7e288043",
+    "nonce": "95841f356512e09e",
     "tier": "Tier1",
     "payload_id": "t1-html-comment",
     "embedding_location": "html_comment",
-    "callback_url": "https://honeyprompt.sh/cb/b38bd5cf7e288043"
+    "callback_url": "https://honeyprompt.sh/cb/v1/95841f356512e09e"
   },
   {
-    "nonce": "a0f586d2d2824292",
+    "nonce": "15d5949d16ade90f",
     "tier": "Tier1",
     "payload_id": "t1-semantic-prose",
     "embedding_location": "semantic_prose",
-    "callback_url": "https://honeyprompt.sh/cb/a0f586d2d2824292"
+    "callback_url": "https://honeyprompt.sh/cb/v1/15d5949d16ade90f"
   },
   {
-    "nonce": "90b943391eede9a8",
+    "nonce": "8928737aefcf6669",
     "tier": "Tier2",
     "payload_id": "t2-meta-tag",
     "embedding_location": "meta_tag",
-    "callback_url": "https://honeyprompt.sh/cb/90b943391eede9a8"
+    "callback_url": "https://honeyprompt.sh/cb/v1/8928737aefcf6669"
   },
   {
-    "nonce": "6d9c00239a2ad721",
+    "nonce": "fa6c991a971316a8",
     "tier": "Tier2",
     "payload_id": "t2-meta-tag",
     "embedding_location": "meta_tag",
-    "callback_url": "https://honeyprompt.sh/cb/6d9c00239a2ad721"
+    "callback_url": "https://honeyprompt.sh/cb/v1/fa6c991a971316a8"
   },
   {
-    "nonce": "cbd2aef3fe3016cb",
+    "nonce": "6ddd07285dfcf23c",
     "tier": "Tier2",
     "payload_id": "t2-json-ld",
     "embedding_location": "json_ld",
-    "callback_url": "https://honeyprompt.sh/cb/cbd2aef3fe3016cb"
+    "callback_url": "https://honeyprompt.sh/cb/v1/6ddd07285dfcf23c"
   },
   {
-    "nonce": "7b59306560da153e",
+    "nonce": "6f070a6b8c4e0a7c",
     "tier": "Tier2",
     "payload_id": "t2-json-ld",
     "embedding_location": "json_ld",
-    "callback_url": "https://honeyprompt.sh/cb/7b59306560da153e"
+    "callback_url": "https://honeyprompt.sh/cb/v1/6f070a6b8c4e0a7c"
   },
   {
-    "nonce": "239d4db9ccf95287",
+    "nonce": "2d289dc8ed6cd348",
     "tier": "Tier3",
     "payload_id": "t3-invisible-element",
     "embedding_location": "invisible_element",
-    "callback_url": "https://honeyprompt.sh/cb/239d4db9ccf95287"
+    "callback_url": "https://honeyprompt.sh/cb/v1/2d289dc8ed6cd348"
   },
   {
-    "nonce": "562a7f34025fff54",
+    "nonce": "949b8ebd49a25d07",
     "tier": "Tier3",
     "payload_id": "t3-html-comment-compute",
     "embedding_location": "html_comment",
-    "callback_url": "https://honeyprompt.sh/cb/562a7f34025fff54"
+    "callback_url": "https://honeyprompt.sh/cb/v1/949b8ebd49a25d07"
   }
 ]
