@@ -171,12 +171,18 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
     )
     .context("Failed to render ai.txt")?;
 
+    let security_txt =
+        render_template("security.txt.jinja", context! {}).context("Failed to render security.txt")?;
+
     let callback_map_json = serde_json::to_string_pretty(&nonce_mappings)
         .context("Failed to serialize callback-map.json")?;
 
     // Write output files
     let output_dir = project_path.join("output");
     std::fs::create_dir_all(&output_dir).context("Failed to create output/ directory")?;
+
+    let well_known_dir = output_dir.join(".well-known");
+    std::fs::create_dir_all(&well_known_dir).context("Failed to create output/.well-known/ directory")?;
 
     std::fs::write(output_dir.join("index.html"), html)
         .context("Failed to write output/index.html")?;
@@ -185,6 +191,8 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
     std::fs::write(output_dir.join("ai.txt"), ai_txt).context("Failed to write output/ai.txt")?;
     std::fs::write(output_dir.join("callback-map.json"), callback_map_json)
         .context("Failed to write output/callback-map.json")?;
+    std::fs::write(well_known_dir.join("security.txt"), security_txt)
+        .context("Failed to write output/.well-known/security.txt")?;
 
     Ok(())
 }
@@ -216,6 +224,7 @@ mod tests {
         assert!(html.contains("SECURITY RESEARCH CANARY"));
         assert!(html.contains("warning-banner"));
         assert!(html.contains("Notice:"));
+        assert!(html.contains("honeyprompt.dev"));
     }
 
     #[test]
@@ -253,5 +262,6 @@ mod tests {
         assert!(dir.path().join("output/robots.txt").exists());
         assert!(dir.path().join("output/ai.txt").exists());
         assert!(dir.path().join("output/callback-map.json").exists());
+        assert!(dir.path().join("output/.well-known/security.txt").exists());
     }
 }

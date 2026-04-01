@@ -44,6 +44,10 @@ fn test_generate_creates_output_files() {
         path.join("output/callback-map.json").exists(),
         "output/callback-map.json must exist"
     );
+    assert!(
+        path.join("output/.well-known/security.txt").exists(),
+        "output/.well-known/security.txt must exist"
+    );
 }
 
 /// Verify the generated HTML has the hard-coded warning banner and inline notice.
@@ -197,6 +201,29 @@ fn test_generate_ai_txt_exists() {
         ai_txt.contains("Disallow"),
         "ai.txt must contain 'Disallow' policy declarations"
     );
+}
+
+/// Verify security.txt is generated in output/.well-known/ with RFC 9116 fields.
+#[test]
+fn test_generate_security_txt() {
+    let dir = init_and_generate();
+    let security_txt_path = dir.path().join("output/.well-known/security.txt");
+    assert!(security_txt_path.exists(), "output/.well-known/security.txt must exist");
+    let content = std::fs::read_to_string(&security_txt_path)
+        .expect("security.txt must be readable");
+    assert!(content.contains("Contact:"), "security.txt must contain 'Contact:' field");
+    assert!(content.contains("Expires:"), "security.txt must contain 'Expires:' field");
+    assert!(content.contains("Preferred-Languages:"), "security.txt must contain 'Preferred-Languages:' field");
+}
+
+/// Verify index.html renders footer with project link.
+#[test]
+fn test_generate_html_has_footer() {
+    let dir = init_and_generate();
+    let html = std::fs::read_to_string(dir.path().join("output/index.html"))
+        .expect("index.html must be readable");
+    assert!(html.contains("honeyprompt.dev"), "index.html must contain honeyprompt.dev link in footer");
+    assert!(html.contains("<footer"), "index.html must contain a footer element");
 }
 
 /// Verify callback-map.json entries have all required fields.
