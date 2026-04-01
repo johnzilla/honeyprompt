@@ -4,7 +4,7 @@
 
 HoneyPrompt is a terminal-first security tool that detects and measures unsafe behavior by AI browsing agents. It generates honeypot web pages containing visible human warnings and hidden prompt-injection canaries, then records HTTP callbacks that prove varying levels of agent compliance with injected instructions. Built in Rust as a single binary for security researchers, defenders, and platform teams who want evidence of agentic web abuse without collecting secrets or performing harmful actions.
 
-v2.0 ships the complete workflow (`init` → `generate` → `serve` → `monitor` → `report` → `test-agent`) plus CI/CD, cross-platform releases, and a live demo at honeyprompt.sh. 5,300 lines of Rust across 2 milestones, 8 phases.
+v3.0 adds public presence: verifiable identity on honeyprompt.sh (footer, security.txt, /stats API), and honeyprompt.dev landing page with live stats. 4,400+ lines of Rust across 3 milestones, 10 phases.
 
 ## Core Value
 
@@ -32,21 +32,14 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 - ✓ honeyprompt.sh live at DigitalOcean with persistent SQLite — v2.0
 - ✓ README with install guides, ethics section, live demo link — v2.0
 
+- ✓ Honeypot page footer with project identity and disclosure contact — v3.0
+- ✓ /.well-known/security.txt (RFC 9116) via static generation — v3.0
+- ✓ /stats JSON endpoint with aggregate callback counts and CORS — v3.0
+- ✓ honeyprompt.dev landing page (GitHub Pages) with live stats from /stats — v3.0
+
 ### Active
 
-- Footer + security.txt on honeyprompt.sh for verifiable identity
-- /stats JSON endpoint with aggregate callback counts
-- honeyprompt.dev landing page with live stats from /stats
-
-## Current Milestone: v3.0 Public Presence
-
-**Goal:** Give HoneyPrompt a verifiable public identity and prove it works with live data.
-
-**Target features:**
-- honeyprompt.sh footer with project link and disclosure contact
-- /.well-known/security.txt (RFC 9116) served via static generation
-- /stats JSON endpoint returning aggregate counts with open CORS
-- honeyprompt.dev static landing page (GitHub Pages) with live stats counter
+- None — planning next milestone
 
 ### Out of Scope
 
@@ -68,7 +61,8 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 
 - Security research tool in the emerging AI agent detection space
 - No direct competitor does passive, deployable canary tokens specifically for AI browsing agents
-- Shipped v2.0 with 5,300 LOC Rust, single binary distribution
+- Shipped v3.0 with 4,400+ LOC Rust, single binary distribution
+- honeyprompt.dev live with live stats counter fetching from /stats API
 - Tech stack: Clap CLI, Axum HTTP, Ratatui TUI, rusqlite + tokio-rusqlite storage, rust-embed assets
 - Live demo running at honeyprompt.sh on DigitalOcean (Docker + Caddy)
 - CI/CD: GitHub Actions for test/clippy/fmt + cross-platform binary releases
@@ -121,6 +115,10 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 | Docker + Caddy for deployment | Simple docker-compose up, auto-TLS, persistent SQLite volume | ✓ Good — replaced 408-line manual runbook |
 | Manual deploy over auto-deploy | SSH one-liner sufficient for research demo frequency | ✓ Good — no SSH key in GitHub Secrets |
 | KillSignal=SIGINT in systemd | Server shutdown_signal() listens for SIGINT not SIGTERM | ✓ Good — matches code behavior |
+| Clone tokio-rusqlite conn into AppState | /stats handler needs DB read access; conn.clone() is cheap (Arc'd internally) | ✓ Good — simple, WAL handles concurrent readers |
+| Static security.txt via generator | Consistent with robots.txt/ai.txt pattern; ServeDir serves .well-known/ automatically | ✓ Good — no new handler needed |
+| Open CORS (*) on /stats | Stats are public aggregate counts; wider access = more visibility | ✓ Good — landing page fetch works cross-origin |
+| GitHub dark palette for landing page | Security researchers associate #0d1117 with dev tools; boring on purpose | ✓ Good — content does the work |
 
 ## Evolution
 
@@ -139,4 +137,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-31 after v3.0 Public Presence milestone start*
+*Last updated: 2026-04-01 after v3.0 Public Presence milestone completion*

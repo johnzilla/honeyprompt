@@ -1,5 +1,16 @@
 # Milestones
 
+## v3.0 Public Presence (Shipped: 2026-04-01)
+
+**Phases completed:** 2 phases, 3 plans, 3 tasks
+
+**Key accomplishments:**
+
+- `src/store/mod.rs`
+- STATUS: CHECKPOINT PENDING — Task 2 (DNS + GitHub Pages) awaits human action
+
+---
+
 ## v2.0 Ship & Learn (Shipped: 2026-03-31)
 
 **Phases completed:** 4 phases, 9 plans, 15 tasks
