@@ -131,11 +131,11 @@ Plans:
   1. README contains a "Deploy Your Own" section with install, setup, deploy, and verify steps that reference the real `honeyprompt setup` and `honeyprompt serve --domain` commands from Phase 11
   2. README clearly distinguishes the live demo (honeyprompt.sh) persona from the self-hosted deployment persona
   3. deploy/templates/ contains docker-compose, systemd unit, and Caddyfile files with {DOMAIN} or similar placeholders users fill in
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 12-01-PLAN.md: README "Deploy Your Own" rewrite + persona separation (DOCS-01, DOCS-02)
-- [ ] 12-02-PLAN.md: deploy/templates/ with docker-compose, systemd, Caddyfile (DEPLOY-01)
+- [ ] 12-01-PLAN.md — README "Deploy Your Own" rewrite + persona separation (DOCS-01, DOCS-02)
+- [ ] 12-02-PLAN.md — deploy/templates/ with docker-compose, systemd, Caddyfile (DEPLOY-01)
 
 ## Progress
 
