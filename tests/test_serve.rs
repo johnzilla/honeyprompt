@@ -13,6 +13,7 @@ use honeyprompt::{config, generator, server, store};
 use http::Request;
 use tempfile::tempdir;
 use tokio::sync::mpsc;
+use tokio_rusqlite;
 use tower::ServiceExt;
 
 /// Helper: run init + generate in a tempdir, return the dir (kept alive).
@@ -35,7 +36,7 @@ fn init_and_generate() -> tempfile::TempDir {
 }
 
 /// Helper: build AppState loaded from the generated output directory.
-fn build_test_state(
+async fn build_test_state(
     dir: &tempfile::TempDir,
     callback_tx: mpsc::Sender<honeyprompt::types::RawCallbackEvent>,
 ) -> (
@@ -45,6 +46,12 @@ fn build_test_state(
 ) {
     let path = dir.path();
     let output_dir = path.join("output");
+    let db_path = path.join(".honeyprompt").join("events.db");
+
+    // Open async connection to the same DB that init_and_generate created
+    let conn = tokio_rusqlite::Connection::open(&db_path)
+        .await
+        .expect("tokio-rusqlite connection must open");
 
     // Load callback-map.json
     let json_str = std::fs::read_to_string(output_dir.join("callback-map.json"))
@@ -69,6 +76,7 @@ fn build_test_state(
         honeyprompt::crawler_catalog::CrawlerCatalog::load().expect("catalog must load");
 
     let app_state = Arc::new(server::AppState {
+        conn,
         callback_tx,
         nonce_map,
         crawler_catalog,
@@ -98,7 +106,7 @@ fn test_router(
 async fn test_callback_valid_nonce_returns_204() {
     let dir = init_and_generate();
     let (callback_tx, _callback_rx) = mpsc::channel(16);
-    let (state, output_dir, mappings) = build_test_state(&dir, callback_tx);
+    let (state, output_dir, mappings) = build_test_state(&dir, callback_tx).await;
 
     // Pick the first nonce from the generated map
     let nonce = mappings[0].nonce.clone();
@@ -122,7 +130,7 @@ async fn test_callback_valid_nonce_returns_204() {
 async fn test_callback_invalid_nonce_returns_204() {
     let dir = init_and_generate();
     let (callback_tx, _callback_rx) = mpsc::channel(16);
-    let (state, output_dir, _) = build_test_state(&dir, callback_tx);
+    let (state, output_dir, _) = build_test_state(&dir, callback_tx).await;
 
     // "INVALID!abc" has uppercase and a non-hex character — invalid format
     let app = test_router(state, output_dir);
@@ -148,7 +156,7 @@ async fn test_callback_invalid_nonce_returns_204() {
 async fn test_callback_unknown_nonce_returns_204() {
     let dir = init_and_generate();
     let (callback_tx, _callback_rx) = mpsc::channel(16);
-    let (state, output_dir, _) = build_test_state(&dir, callback_tx);
+    let (state, output_dir, _) = build_test_state(&dir, callback_tx).await;
 
     // 16 lowercase hex chars — valid format but not in the generated nonce_map
     let app = test_router(state, output_dir);
@@ -174,7 +182,7 @@ async fn test_callback_unknown_nonce_returns_204() {
 async fn test_static_file_serving() {
     let dir = init_and_generate();
     let (callback_tx, _callback_rx) = mpsc::channel(16);
-    let (state, output_dir, _) = build_test_state(&dir, callback_tx);
+    let (state, output_dir, _) = build_test_state(&dir, callback_tx).await;
 
     let app = test_router(state, output_dir);
     let response = app
@@ -199,7 +207,7 @@ async fn test_static_file_serving() {
 async fn test_callback_sends_event_to_channel() {
     let dir = init_and_generate();
     let (callback_tx, mut callback_rx) = mpsc::channel(16);
-    let (state, output_dir, mappings) = build_test_state(&dir, callback_tx);
+    let (state, output_dir, mappings) = build_test_state(&dir, callback_tx).await;
 
     let first_mapping = &mappings[0];
     let nonce = first_mapping.nonce.clone();
@@ -228,4 +236,110 @@ async fn test_callback_sends_event_to_channel() {
         received.tier, expected_tier,
         "received event must have correct tier"
     );
+}
+
+/// GET /stats returns 200 and valid JSON with correct shape (empty DB — no callback events).
+#[tokio::test]
+async fn test_stats_empty_db_returns_json() {
+    // Use a fresh tempdir with an empty DB (no callback events fired)
+    let dir = tempdir().expect("tempdir must create");
+    let path = dir.path();
+    std::fs::create_dir_all(path.join("output")).expect("output dir must create");
+    std::fs::create_dir_all(path.join(".honeyprompt").join("overrides")).expect("overrides dir");
+    let config_path = path.join("honeyprompt.toml");
+    config::write_default_config(&config_path).expect("write config");
+    let db_path = path.join(".honeyprompt").join("events.db");
+    let sync_conn = store::open_or_create_db(&db_path).expect("open db");
+    let cfg = config::load_config(&config_path).expect("load config");
+    generator::generate(&cfg, &sync_conn, path).expect("generate");
+    drop(sync_conn);
+
+    let (callback_tx, _rx) = mpsc::channel(16);
+    let (state, output_dir, _) = build_test_state(&dir, callback_tx).await;
+
+    let app = test_router(state, output_dir);
+    let response = app
+        .oneshot(Request::builder().uri("/stats").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK, "GET /stats must return 200");
+
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body_bytes)
+        .expect("/stats must return valid JSON");
+
+    // All counts should be zero on empty DB (STATS-03)
+    assert_eq!(json["total_sessions"], 0, "total_sessions must be 0 on empty DB");
+    assert_eq!(json["detection_sessions"], 0);
+    assert_eq!(json["crawler_sessions"], 0);
+    assert_eq!(json["tier1_sessions"], 0);
+    assert_eq!(json["tier2_sessions"], 0);
+    assert_eq!(json["tier3_sessions"], 0);
+    assert!(json["earliest_event"].is_null(), "earliest_event must be null on empty DB");
+    assert!(json["latest_event"].is_null(), "latest_event must be null on empty DB");
+}
+
+/// GET /stats returns correct counts after callback events are inserted (populated DB).
+#[tokio::test]
+async fn test_stats_populated_db_returns_counts() {
+    let dir = init_and_generate();
+    let db_path = dir.path().join(".honeyprompt").join("events.db");
+
+    // Insert a test event directly into the DB
+    let sync_conn = store::open_or_create_db(&db_path).expect("open db");
+    store::insert_nonce(&sync_conn, "statstest00001aa", 1, "t1-html", "html_comment").unwrap();
+    store::insert_callback_event(
+        &sync_conn,
+        "statstest00001aa",
+        1,
+        "t1-html",
+        "html_comment",
+        "sess_stats_1",
+        "10.0.0.1",
+        "TestAgent/1.0",
+        r#"{"classification":"Unknown","headers":{}}"#,
+    )
+    .unwrap();
+    drop(sync_conn);
+
+    let (callback_tx, _rx) = mpsc::channel(16);
+    let (state, output_dir, _) = build_test_state(&dir, callback_tx).await;
+
+    let app = test_router(state, output_dir);
+    let response = app
+        .oneshot(Request::builder().uri("/stats").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body_bytes).expect("valid JSON");
+
+    assert!(json["total_sessions"].as_u64().unwrap() >= 1, "total_sessions must be >= 1");
+    assert!(json["detection_sessions"].as_u64().unwrap() >= 1, "detection_sessions must be >= 1");
+    assert!(json["earliest_event"].is_string(), "earliest_event must be a string when events exist");
+}
+
+/// GET /stats includes Access-Control-Allow-Origin: * header (STATS-02).
+#[tokio::test]
+async fn test_stats_has_cors_header() {
+    let dir = init_and_generate();
+    let (callback_tx, _rx) = mpsc::channel(16);
+    let (state, output_dir, _) = build_test_state(&dir, callback_tx).await;
+
+    let app = test_router(state, output_dir);
+    let response = app
+        .oneshot(Request::builder().uri("/stats").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let cors = response
+        .headers()
+        .get("access-control-allow-origin")
+        .expect("Access-Control-Allow-Origin header must be present");
+    assert_eq!(cors, "*", "CORS header must be '*'");
 }

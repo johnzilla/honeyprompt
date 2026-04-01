@@ -664,6 +664,20 @@ mod tests {
     }
 
     #[test]
+    fn test_query_report_summary_empty_db() {
+        let conn = in_memory_conn();
+        let summary = query_report_summary(&conn).unwrap();
+        assert_eq!(summary.total_sessions, 0);
+        assert_eq!(summary.detection_sessions, 0);
+        assert_eq!(summary.crawler_sessions, 0);
+        assert_eq!(summary.tier1_sessions, 0);
+        assert_eq!(summary.tier2_sessions, 0);
+        assert_eq!(summary.tier3_sessions, 0);
+        assert!(summary.earliest_event.is_none());
+        assert!(summary.latest_event.is_none());
+    }
+
+    #[test]
     fn test_parameterized_insert() {
         let conn = in_memory_conn();
         // SQL injection payload — must be stored literally, not interpreted.
