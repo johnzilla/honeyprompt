@@ -72,8 +72,7 @@ async fn test_domain_tempdir_serves_index() {
     // Build router the same way server::serve does
     let callback_map_path = tmp_path.join("output/callback-map.json");
     let json_str = std::fs::read_to_string(&callback_map_path).unwrap();
-    let mappings: Vec<honeyprompt::types::NonceMapping> =
-        serde_json::from_str(&json_str).unwrap();
+    let mappings: Vec<honeyprompt::types::NonceMapping> = serde_json::from_str(&json_str).unwrap();
 
     let mut nonce_map: HashMap<String, server::NonceMeta> = HashMap::new();
     for m in &mappings {
@@ -87,8 +86,7 @@ async fn test_domain_tempdir_serves_index() {
         );
     }
 
-    let crawler_catalog =
-        honeyprompt::crawler_catalog::CrawlerCatalog::load().unwrap();
+    let crawler_catalog = honeyprompt::crawler_catalog::CrawlerCatalog::load().unwrap();
     let async_conn = tokio_rusqlite::Connection::open(&db_path).await.unwrap();
     let (callback_tx, _rx) = mpsc::channel(256);
 
@@ -100,8 +98,8 @@ async fn test_domain_tempdir_serves_index() {
     });
 
     let mock_addr: SocketAddr = "127.0.0.1:12345".parse().unwrap();
-    let app = server::build_router(state, tmp_path.join("output"))
-        .layer(MockConnectInfo(mock_addr));
+    let app =
+        server::build_router(state, tmp_path.join("output")).layer(MockConnectInfo(mock_addr));
 
     // GET / should return 200
     let response = app
