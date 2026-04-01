@@ -14,8 +14,8 @@
 
 ## Documentation
 
-- [ ] **DOCS-01**: README has a "Deploy Your Own" section with step-by-step guide for self-hosted deployment (install, setup, deploy, verify)
-- [ ] **DOCS-02**: README clearly separates live demo (honeyprompt.sh) persona from self-hosted deployment persona
+- [x] **DOCS-01**: README has a "Deploy Your Own" section with step-by-step guide for self-hosted deployment (install, setup, deploy, verify)
+- [x] **DOCS-02**: README clearly separates live demo (honeyprompt.sh) persona from self-hosted deployment persona
 
 ## Deploy Templates
 
