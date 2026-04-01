@@ -1,0 +1,40 @@
+# HoneyPrompt Docker Compose Template
+# Replace {DOMAIN} with your domain (e.g., honeyprompt.example.com)
+#
+# Usage:
+#   1. Copy this file and the Caddyfile template to your server
+#   2. Replace all occurrences of {DOMAIN} with your actual domain
+#   3. Run: docker compose up -d
+#
+# Requirements:
+#   - Docker Engine 24+ with Compose plugin
+#   - Ports 80 and 443 open in your firewall
+#   - DNS A record pointing {DOMAIN} to this server's IP
+
+services:
+  honeyprompt:
+    image: ghcr.io/johnzilla/honeyprompt:latest
+    # --domain enables zero-config mode: generates site in tempdir, binds 0.0.0.0:8080
+    command: ["serve", "--domain", "{DOMAIN}"]
+    volumes:
+      # hp-db persists SQLite across container restarts and image upgrades
+      - hp-db:/data
+    restart: always
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: always
+
+volumes:
+  # hp-db: named volume for SQLite database persistence
+  # Data survives `docker compose pull && docker compose up -d` upgrades
+  hp-db:
+  caddy-data:
+  caddy-config:

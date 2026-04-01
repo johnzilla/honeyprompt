@@ -1,0 +1,12 @@
+# HoneyPrompt Caddy Reverse Proxy Template
+# Replace {DOMAIN} with your domain (e.g., honeyprompt.example.com)
+#
+# Caddy automatically provisions and renews a Let's Encrypt TLS certificate
+# for {DOMAIN}. No manual certificate management required.
+#
+# The reverse_proxy target `honeyprompt:8080` refers to the Docker service name
+# defined in docker-compose.yml — Caddy and HoneyPrompt share the same network.
+
+{DOMAIN} {
+    reverse_proxy honeyprompt:8080
+}
