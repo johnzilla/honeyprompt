@@ -27,6 +27,7 @@ futures = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tempfile = "3"
+dialoguer = "0.11"
 
 [dev-dependencies]
 tempfile = "3"

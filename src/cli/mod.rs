@@ -30,6 +30,8 @@ pub enum Commands {
     Monitor(MonitorArgs),
     /// Generate a Markdown disclosure report from captured events
     Report(ReportArgs),
+    /// Interactive setup wizard — creates honeyprompt.toml
+    Setup(SetupArgs),
     /// Run a bounded compliance test against an AI agent
     TestAgent(TestAgentArgs),
 }
@@ -82,6 +84,13 @@ pub struct ReportArgs {
     /// Print report to stdout instead of writing a file
     #[arg(long)]
     pub stdout: bool,
+}
+
+#[derive(Parser)]
+pub struct SetupArgs {
+    /// Directory to write honeyprompt.toml into (default: current directory)
+    #[arg(default_value = ".")]
+    pub path: PathBuf,
 }
 
 #[derive(Parser)]

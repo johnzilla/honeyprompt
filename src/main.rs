@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use clap::Parser;
 use honeyprompt::cli::{Cli, Commands};
-use honeyprompt::{config, generator, monitor, report, server, store, test_agent};
+use honeyprompt::{config, generator, monitor, report, server, setup, store, test_agent};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -81,6 +81,17 @@ fn main() -> Result<()> {
                 std::fs::write(&out_path, &markdown)?;
                 println!("Report written to {}", out_path.display());
             }
+            Ok(())
+        }
+        Commands::Setup(args) => {
+            let path = &args.path;
+            let config_path = path.join("honeyprompt.toml");
+            if config_path.exists() {
+                eprintln!("honeyprompt.toml already exists at {}", config_path.display());
+                eprintln!("Delete it first if you want to re-run setup.");
+                std::process::exit(1);
+            }
+            setup::run_setup(path)?;
             Ok(())
         }
         Commands::TestAgent(args) => {
