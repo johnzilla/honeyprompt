@@ -19,7 +19,7 @@
 
 ## Deploy Templates
 
-- [ ] **DEPLOY-01**: Static deploy templates exist in deploy/templates/ for docker-compose, systemd, and Caddyfile with domain placeholders users fill in
+- [x] **DEPLOY-01**: Static deploy templates exist in deploy/templates/ for docker-compose, systemd, and Caddyfile with domain placeholders users fill in
 
 ## Future Requirements
 

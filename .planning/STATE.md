@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Self-Hosted UX
 status: verifying
-stopped_at: Completed 11-02-PLAN.md
-last_updated: "2026-04-01T18:08:29.829Z"
+stopped_at: Completed 12-02-PLAN.md
+last_updated: "2026-04-01T23:12:00.135Z"
 last_activity: 2026-04-01
 progress:
   total_phases: 2
@@ -55,6 +55,8 @@ Recent decisions affecting current work:
 - [Phase 11-01]: dialoguer crate for interactive CLI prompts; check_dns returns Ok(bool) for non-blocking warning semantics; Setup guard exits with process::exit(1) on existing config
 - [Phase 11-02]: config_with_overrides precedence: flag > domain-defaults > base-config, with domain implying bind=0.0.0.0:8080 and tiers=[1,2,3]
 - [Phase 11-02]: Tempdir mode triggers when --domain set, path=='.', and no honeyprompt.toml present; explicit --path always uses standard mode
+- [Phase 12-02]: Templates use {DOMAIN} placeholder that users globally-replace — no templating engine required
+- [Phase 12-02]: honeyprompt.service ExecStart updated to use --domain flag matching v4.0 zero-config UX
 
 ### Pending Todos
 
@@ -66,7 +68,7 @@ None for current phase.
 
 ## Session Continuity
 
-Last session: 2026-04-01T18:05:04.014Z
+Last session: 2026-04-01T23:11:55.305Z
 Last activity: 2026-04-01 — Roadmap written for v4.0 Self-Hosted UX (phases 11-12)
-Stopped at: Completed 11-02-PLAN.md
+Stopped at: Completed 12-02-PLAN.md
 Resume file: None
