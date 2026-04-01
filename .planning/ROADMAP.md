@@ -154,5 +154,5 @@ Phases execute in numeric order: 11 → 12
 | 8. README & Public Launch | v2.0 | 1/1 | Complete | 2026-03-31 |
 | 9. Server-Side Identity & Stats | v3.0 | 2/2 | Complete | 2026-04-01 |
 | 10. Landing Page | v3.0 | 1/1 | Complete | 2026-04-01 |
-| 11. Setup Wizard & Zero-Config Serve | v4.0 | 2/2 | Complete   | 2026-04-01 |
+| 11. Setup Wizard & Zero-Config Serve | v4.0 | 2/2 | Complete    | 2026-04-01 |
 | 12. Documentation & Deploy Templates | v4.0 | 0/2 | Not started | - |
