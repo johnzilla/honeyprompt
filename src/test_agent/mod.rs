@@ -230,6 +230,7 @@ async fn run_async(
 
     // Build router via build_router() — NOT server::serve() (which installs Ctrl+C handler)
     let app_state = AppState {
+        conn: conn.clone(),
         callback_tx,
         nonce_map,
         crawler_catalog,

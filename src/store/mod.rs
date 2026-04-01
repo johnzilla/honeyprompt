@@ -141,6 +141,7 @@ pub fn count_detections(conn: &Connection) -> rusqlite::Result<u32> {
 }
 
 /// Summary statistics for the report executive summary.
+#[derive(serde::Serialize)]
 pub struct ReportSummary {
     pub total_sessions: u32,
     pub detection_sessions: u32, // excludes KnownCrawler

@@ -930,6 +930,7 @@ pub async fn monitor(
 
         // Build server AppState and router
         let server_state = Arc::new(crate::server::AppState {
+            conn: conn.clone(),
             callback_tx,
             nonce_map,
             crawler_catalog,

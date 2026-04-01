@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::extract::{ConnectInfo, Path as AxumPath, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use tokio::sync::mpsc;
@@ -24,6 +25,7 @@ pub struct NonceMeta {
 
 /// Shared application state passed to every Axum handler via Arc<AppState>.
 pub struct AppState {
+    pub conn: tokio_rusqlite::Connection,
     pub callback_tx: mpsc::Sender<RawCallbackEvent>,
     pub nonce_map: HashMap<String, NonceMeta>,
     pub crawler_catalog: CrawlerCatalog,
@@ -79,12 +81,37 @@ pub async fn callback_handler(
     StatusCode::NO_CONTENT
 }
 
+/// Axum handler for GET /stats.
+///
+/// Returns aggregate callback statistics as JSON with CORS header.
+/// Returns 500 on database error.
+pub async fn stats_handler(
+    State(state): State<Arc<AppState>>,
+) -> axum::response::Response {
+    match state
+        .conn
+        .call(|c| crate::store::query_report_summary(c).map_err(tokio_rusqlite::Error::from))
+        .await
+    {
+        Ok(summary) => {
+            let mut response = axum::Json(summary).into_response();
+            response.headers_mut().insert(
+                "access-control-allow-origin",
+                axum::http::HeaderValue::from_static("*"),
+            );
+            response
+        }
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
 /// Build the Axum router given an AppState and output directory.
 ///
 /// Extracted as a public function so integration tests can use it without binding a port.
 pub fn build_router(state: Arc<AppState>, output_dir: PathBuf) -> Router {
     Router::new()
         .route("/cb/v1/{nonce}", get(callback_handler))
+        .route("/stats", get(stats_handler))
         .fallback_service(ServeDir::new(output_dir))
         .with_state(state)
 }
@@ -141,6 +168,7 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
 
     // Build router
     let app_state = AppState {
+        conn: conn.clone(),
         callback_tx,
         nonce_map,
         crawler_catalog,
