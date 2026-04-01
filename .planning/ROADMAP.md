@@ -99,7 +99,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — Footer + security.txt identity artifacts (IDENT-01, IDENT-02)
+- [x] 09-01-PLAN.md — Footer + security.txt identity artifacts (IDENT-01, IDENT-02)
 - [ ] 09-02-PLAN.md — /stats JSON endpoint with CORS (STATS-01, STATS-02, STATS-03)
 
 ### Phase 10: Landing Page
@@ -129,5 +129,5 @@ Phases execute in numeric order: 9 → 10
 | 6. Release Infrastructure | v2.0 | 1/1 | Complete | 2026-03-31 |
 | 7. Live Demo Deployment | v2.0 | 2/2 | Complete | 2026-03-31 |
 | 8. README & Public Launch | v2.0 | 1/1 | Complete | 2026-03-31 |
-| 9. Server-Side Identity & Stats | v3.0 | 0/2 | In progress | - |
+| 9. Server-Side Identity & Stats | v3.0 | 1/2 | In Progress|  |
 | 10. Landing Page | v3.0 | 0/TBD | Not started | - |

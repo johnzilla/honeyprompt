@@ -2,8 +2,8 @@
 
 ## Identity & Disclosure
 
-- [ ] **IDENT-01**: Honeypot page includes a footer with project name, honeyprompt.dev link, and disclosure contact visible to human visitors
-- [ ] **IDENT-02**: /.well-known/security.txt served from honeyprompt.sh with valid RFC 9116 fields (Contact, Expires, Preferred-Languages)
+- [x] **IDENT-01**: Honeypot page includes a footer with project name, honeyprompt.dev link, and disclosure contact visible to human visitors
+- [x] **IDENT-02**: /.well-known/security.txt served from honeyprompt.sh with valid RFC 9116 fields (Contact, Expires, Preferred-Languages)
 
 ## Stats API
 

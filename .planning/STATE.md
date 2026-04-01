@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Public Presence
-status: ready_to_plan
-stopped_at: ""
-last_updated: "2026-03-31T20:30:00.000Z"
-last_activity: 2026-03-31
+status: executing
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-04-01T01:49:21.710Z"
+last_activity: 2026-04-01
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** Milestone v3.0 Public Presence — Phase 9 ready to plan
+**Current focus:** Phase 09 — server-side-identity-stats
 
 ## Current Position
 
-Phase: 9 of 10 (Server-Side Identity & Stats)
-Plan: —
-Status: Ready to plan
-Last activity: 2026-03-31 — Roadmap created for v3.0, phases 9-10 defined
+Phase: 09 (server-side-identity-stats) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-04-01
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -56,6 +56,8 @@ Recent decisions affecting current work:
 - [v3.0 design review]: Stats section above How It Works in info hierarchy
 - [v3.0 design review]: Descriptive tier labels — "URL Fetch", "Conditional", "Composed" (not "Tier 1/2/3")
 - [v3.0 design review]: Terminal cursor loading animation, graceful error fallback message
+- [Phase 09]: security.txt generated as static file to output/.well-known/ by generator (not served dynamically)
+- [Phase 09]: GitHub Security Advisories URL used as Contact field in security.txt
 
 ### Pending Todos
 
@@ -67,7 +69,7 @@ None for current phase.
 
 ## Session Continuity
 
-Last session: 2026-03-31T20:30:00Z
+Last session: 2026-04-01T01:49:21.707Z
 Last activity: 2026-03-31 - Roadmap written for v3.0 Public Presence (phases 9-10)
-Stopped at: Roadmap created — ready to plan Phase 9
+Stopped at: Completed 09-01-PLAN.md
 Resume file: None
