@@ -4,12 +4,12 @@ milestone: v4.0
 milestone_name: Self-Hosted UX
 status: planning
 stopped_at: ""
-last_updated: "2026-04-01T13:00:00.000Z"
+last_updated: "2026-04-01T13:30:00.000Z"
 last_activity: 2026-04-01
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
-  total_plans: 0
+  total_plans: 4
   completed_plans: 0
   percent: 0
 ---
@@ -18,25 +18,24 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-31)
+See: .planning/PROJECT.md (updated 2026-04-01)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** Milestone v4.0 Self-Hosted UX — defining requirements
+**Current focus:** Milestone v4.0 Self-Hosted UX — roadmap written, ready to plan Phase 11
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 11 of 12 (Setup Wizard & Zero-Config Serve)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-01 — Milestone v4.0 started
+Status: Ready to plan
+Last activity: 2026-04-01 — Roadmap written for v4.0 (phases 11-12)
 
 Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
-
-- Total plans completed: 0 (v3.0) / 14 (v1.0 + v2.0 combined)
+- Total plans completed: 0 (v4.0) / 17 (v1.0–v3.0 combined)
 - Average duration: ~25 min/plan (v2.0 baseline)
 - Total execution time: —
 
@@ -47,19 +46,11 @@ Progress: [░░░░░░░░░░] 0%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [v3.0 eng review]: DB access for /stats — clone tokio-rusqlite Connection into AppState
-- [v3.0 eng review]: security.txt generated as static file in output/.well-known/ by generator
-- [v3.0 eng review]: CORS on /stats — Access-Control-Allow-Origin: * header
-- [v3.0 eng review]: ReportSummary needs #[derive(Serialize)] for /stats JSON
-- [v3.0 design review]: Landing page in docs/ folder on main branch (GitHub Pages)
-- [v3.0 design review]: JetBrains Mono, #0d1117 bg, #e6edf3 text, #3fb950 green, #d29922 amber, 720px max-width
-- [v3.0 design review]: Stats section above How It Works in info hierarchy
-- [v3.0 design review]: Descriptive tier labels — "URL Fetch", "Conditional", "Composed" (not "Tier 1/2/3")
-- [v3.0 design review]: Terminal cursor loading animation, graceful error fallback message
-- [Phase 09]: security.txt generated as static file to output/.well-known/ by generator (not served dynamically)
-- [Phase 09]: GitHub Security Advisories URL used as Contact field in security.txt
-- [Phase 09]: Clone tokio-rusqlite Connection into AppState.conn so stats_handler can query DB without a separate connection
-- [Phase 10-landing-page]: Landing page uses single-file HTML with inline CSS/JS — no build step required for GitHub Pages; tier labels url_fetch/conditional/composed map from tier1/2/3_sessions in /stats JSON
+- [v4.0 design]: `dialoguer` crate for interactive CLI prompts in setup wizard
+- [v4.0 design]: tempdir serve mode reuses existing generate pipeline (same pattern as test-agent)
+- [v4.0 design]: --domain flag sets callback_base_url, bind 0.0.0.0:8080, all payloads enabled
+- [v4.0 design]: flag > config file > built-in defaults precedence chain
+- [v4.0 design]: deploy/templates/ with {DOMAIN} placeholder pattern for docker-compose, systemd, Caddyfile
 
 ### Pending Todos
 
@@ -71,7 +62,7 @@ None for current phase.
 
 ## Session Continuity
 
-Last session: 2026-04-01T11:54:12.353Z
-Last activity: 2026-03-31 - Roadmap written for v3.0 Public Presence (phases 9-10)
-Stopped at: Checkpoint: Task 2 of 10-01-PLAN.md — DNS + GitHub Pages awaiting human action
+Last session: 2026-04-01T13:30:00.000Z
+Last activity: 2026-04-01 — Roadmap written for v4.0 Self-Hosted UX (phases 11-12)
+Stopped at: Roadmap created — ready to plan Phase 11
 Resume file: None

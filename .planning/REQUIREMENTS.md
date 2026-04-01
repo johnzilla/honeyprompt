@@ -39,12 +39,12 @@
 
 | REQ-ID | Phase | Plan | Status |
 |--------|-------|------|--------|
-| SETUP-01 | — | — | Pending |
-| SETUP-02 | — | — | Pending |
-| SETUP-03 | — | — | Pending |
-| SERVE-01 | — | — | Pending |
-| SERVE-02 | — | — | Pending |
-| SERVE-03 | — | — | Pending |
-| DOCS-01 | — | — | Pending |
-| DOCS-02 | — | — | Pending |
-| DEPLOY-01 | — | — | Pending |
+| SETUP-01 | Phase 11 | 11-01 | Pending |
+| SETUP-02 | Phase 11 | 11-01 | Pending |
+| SETUP-03 | Phase 11 | 11-01 | Pending |
+| SERVE-01 | Phase 11 | 11-02 | Pending |
+| SERVE-02 | Phase 11 | 11-02 | Pending |
+| SERVE-03 | Phase 11 | 11-02 | Pending |
+| DOCS-01 | Phase 12 | 12-01 | Pending |
+| DOCS-02 | Phase 12 | 12-01 | Pending |
+| DEPLOY-01 | Phase 12 | 12-02 | Pending |
