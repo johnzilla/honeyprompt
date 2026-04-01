@@ -44,5 +44,10 @@
   {% for p in payloads %}{% if p.embedding_location == "json_ld" %}
   <script type="application/ld+json">{{ p.rendered_instruction | safe }}</script>
   {% endif %}{% endfor %}
+
+  <footer style="margin-top: 3rem; padding: 1rem 0; border-top: 1px solid #ccc; text-align: center; font-size: 0.85rem; color: #666;">
+    <a href="https://honeyprompt.dev" style="color: #666;">HoneyPrompt</a> &mdash;
+    <a href="https://github.com/johnzilla/honeyprompt/security/advisories" style="color: #666;">Report a Security Issue</a>
+  </footer>
 </body>
 </html>
