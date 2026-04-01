@@ -53,11 +53,22 @@ pub struct GenerateArgs {
 #[derive(Parser)]
 pub struct ServeArgs {
     /// Project directory containing honeyprompt.toml and output/
+    /// When --domain is used without --path, a tempdir is created automatically
     #[arg(default_value = ".")]
     pub path: PathBuf,
     /// Output events as JSON lines instead of structured text
     #[arg(long)]
     pub json: bool,
+    /// Domain for zero-config serve: sets callback_base_url=https://{domain},
+    /// bind=0.0.0.0:8080, enables all tiers. Generates in tempdir if no --path.
+    #[arg(long)]
+    pub domain: Option<String>,
+    /// Override bind address (e.g., 0.0.0.0:9090)
+    #[arg(long)]
+    pub bind: Option<String>,
+    /// Override which tiers to enable (e.g., --tiers 1 2 3)
+    #[arg(long, num_args = 1..)]
+    pub tiers: Option<Vec<u8>>,
 }
 
 #[derive(Parser)]

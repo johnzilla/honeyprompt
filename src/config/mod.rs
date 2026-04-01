@@ -53,9 +53,95 @@ pub fn write_default_config(path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Apply CLI flag overrides to a base config.
+///
+/// Precedence: flag value (Some) > base config value (when flag is None).
+/// When domain is provided, sets callback_base_url to `https://{domain}`,
+/// defaults bind_address to `0.0.0.0:8080`, and defaults tiers to `[1, 2, 3]`.
+/// Explicit `bind` or `tiers` flags are applied after domain defaults, taking
+/// highest precedence (SERVE-03).
+pub fn config_with_overrides(
+    base: &Config,
+    domain: Option<&str>,
+    bind: Option<&str>,
+    tiers: Option<Vec<u8>>,
+) -> Config {
+    let mut cfg = base.clone();
+
+    if let Some(d) = domain {
+        cfg.callback_base_url = format!("https://{}", d);
+        // Domain implies these defaults unless explicitly overridden below
+        cfg.bind_address = "0.0.0.0:8080".to_string();
+        cfg.tiers = vec![1, 2, 3];
+    }
+
+    // Explicit flag overrides (applied after domain defaults — highest precedence)
+    if let Some(b) = bind {
+        cfg.bind_address = b.to_string();
+    }
+    if let Some(t) = tiers {
+        cfg.tiers = t;
+    }
+
+    cfg
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---- config_with_overrides precedence tests (SERVE-02, SERVE-03) ----
+
+    #[test]
+    fn test_config_with_overrides_domain_sets_url_bind_tiers() {
+        let base = Config::default();
+        let cfg = config_with_overrides(&base, Some("example.com"), None, None);
+        assert_eq!(cfg.callback_base_url, "https://example.com");
+        assert_eq!(cfg.bind_address, "0.0.0.0:8080");
+        assert_eq!(cfg.tiers, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_config_with_overrides_flags_override_domain_defaults() {
+        let base = Config::default();
+        let cfg = config_with_overrides(
+            &base,
+            Some("example.com"),
+            Some("127.0.0.1:9090"),
+            Some(vec![1, 2]),
+        );
+        assert_eq!(cfg.callback_base_url, "https://example.com");
+        assert_eq!(cfg.bind_address, "127.0.0.1:9090");
+        assert_eq!(cfg.tiers, vec![1, 2]);
+    }
+
+    #[test]
+    fn test_config_with_overrides_no_flags_preserves_base() {
+        let loaded = Config {
+            callback_base_url: "https://my.server.io".to_string(),
+            bind_address: "10.0.0.1:9000".to_string(),
+            tiers: vec![2, 3],
+            page_title: "Custom Title".to_string(),
+            theme: "dark".to_string(),
+        };
+        let cfg = config_with_overrides(&loaded, None, None, None);
+        assert_eq!(cfg, loaded);
+    }
+
+    #[test]
+    fn test_config_with_overrides_partial_bind_only() {
+        let base = Config {
+            bind_address: "127.0.0.1:8080".to_string(),
+            ..Config::default()
+        };
+        let cfg = config_with_overrides(&base, None, Some("0.0.0.0:9090"), None);
+        assert_eq!(cfg.bind_address, "0.0.0.0:9090");
+        // callback_base_url and tiers stay as base
+        assert_eq!(cfg.callback_base_url, base.callback_base_url);
+        assert_eq!(cfg.tiers, base.tiers);
+    }
+
+    // ---- existing tests ----
 
     #[test]
     fn test_config_roundtrip() {
