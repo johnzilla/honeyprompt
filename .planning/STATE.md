@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Public Presence
 status: verifying
-stopped_at: Phase 10 context gathered
-last_updated: "2026-04-01T02:09:43.203Z"
+stopped_at: "Checkpoint: Task 2 of 10-01-PLAN.md — DNS + GitHub Pages awaiting human action"
+last_updated: "2026-04-01T11:54:17.555Z"
 last_activity: 2026-04-01
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 2
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -59,6 +59,7 @@ Recent decisions affecting current work:
 - [Phase 09]: security.txt generated as static file to output/.well-known/ by generator (not served dynamically)
 - [Phase 09]: GitHub Security Advisories URL used as Contact field in security.txt
 - [Phase 09]: Clone tokio-rusqlite Connection into AppState.conn so stats_handler can query DB without a separate connection
+- [Phase 10-landing-page]: Landing page uses single-file HTML with inline CSS/JS — no build step required for GitHub Pages; tier labels url_fetch/conditional/composed map from tier1/2/3_sessions in /stats JSON
 
 ### Pending Todos
 
@@ -70,7 +71,7 @@ None for current phase.
 
 ## Session Continuity
 
-Last session: 2026-04-01T02:09:43.199Z
+Last session: 2026-04-01T11:54:12.353Z
 Last activity: 2026-03-31 - Roadmap written for v3.0 Public Presence (phases 9-10)
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-landing-page/10-CONTEXT.md
+Stopped at: Checkpoint: Task 2 of 10-01-PLAN.md — DNS + GitHub Pages awaiting human action
+Resume file: None
