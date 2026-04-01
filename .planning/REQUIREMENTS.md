@@ -1,0 +1,50 @@
+# Requirements: v4.0 Self-Hosted UX
+
+## Setup Wizard
+
+- [ ] **SETUP-01**: `honeyprompt setup` interactively prompts for domain, bind address, tiers, and page title, then writes a valid honeyprompt.toml
+- [ ] **SETUP-02**: Setup wizard warns (non-blocking) if DNS does not resolve for the provided domain
+- [ ] **SETUP-03**: Setup wizard exits with a clear error message on write permission failure
+
+## Zero-Config Serve
+
+- [ ] **SERVE-01**: `honeyprompt serve --domain mydomain.com` generates and serves a honeypot in tempdir mode without any config file
+- [ ] **SERVE-02**: `--domain` sets callback_base_url to https://{domain}, bind to 0.0.0.0:8080, and enables all catalog payloads by default
+- [ ] **SERVE-03**: CLI flags take precedence over config file values, which take precedence over built-in defaults
+
+## Documentation
+
+- [ ] **DOCS-01**: README has a "Deploy Your Own" section with step-by-step guide for self-hosted deployment (install, setup, deploy, verify)
+- [ ] **DOCS-02**: README clearly separates live demo (honeyprompt.sh) persona from self-hosted deployment persona
+
+## Deploy Templates
+
+- [ ] **DEPLOY-01**: Static deploy templates exist in deploy/templates/ for docker-compose, systemd, and Caddyfile with domain placeholders users fill in
+
+## Future Requirements
+
+- Hosted canary page generator (honeyprompt.sh/generate) for zero-install deployment
+- Aggregation endpoint for distributed honeypot network (opt-in stats reporting)
+- Embeddable middleware (Caddy plugin, Cloudflare Worker) for instrumenting real sites
+
+## Out of Scope
+
+- Hosted SaaS (infrastructure costs, account management, not aligned with open source priority)
+- Auto-TLS in the binary (users bring their own reverse proxy)
+- Web-based setup UI (terminal wizard only)
+- New payload types or tiers (existing catalog is sufficient)
+- Per-agent dashboard or Wall of Shame (trust/evidence chain unresolved)
+
+## Traceability
+
+| REQ-ID | Phase | Plan | Status |
+|--------|-------|------|--------|
+| SETUP-01 | — | — | Pending |
+| SETUP-02 | — | — | Pending |
+| SETUP-03 | — | — | Pending |
+| SERVE-01 | — | — | Pending |
+| SERVE-02 | — | — | Pending |
+| SERVE-03 | — | — | Pending |
+| DOCS-01 | — | — | Pending |
+| DOCS-02 | — | — | Pending |
+| DEPLOY-01 | — | — | Pending |
