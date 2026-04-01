@@ -13,7 +13,6 @@ use honeyprompt::{config, generator, server, store};
 use http::Request;
 use tempfile::tempdir;
 use tokio::sync::mpsc;
-use tokio_rusqlite;
 use tower::ServiceExt;
 
 /// Helper: run init + generate in a tempdir, return the dir (kept alive).
