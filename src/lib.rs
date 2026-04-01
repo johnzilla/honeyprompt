@@ -9,6 +9,7 @@ pub mod monitor;
 pub mod nonce;
 pub mod report;
 pub mod server;
+pub mod setup;
 pub mod store;
 pub mod test_agent;
 pub mod types;
