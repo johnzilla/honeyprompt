@@ -1,0 +1,47 @@
+# HoneyPrompt Systemd Service Template
+# Replace {DOMAIN} with your domain (e.g., honeyprompt.example.com)
+#
+# Usage:
+#   1. Replace {DOMAIN} with your actual domain
+#   2. Copy to /etc/systemd/system/honeyprompt.service
+#   3. Create the service user and working directory:
+#        useradd --system --no-create-home --shell /sbin/nologin honeyprompt
+#        mkdir -p /var/lib/honeyprompt
+#        chown honeyprompt:honeyprompt /var/lib/honeyprompt
+#   4. Enable and start:
+#        systemctl daemon-reload
+#        systemctl enable --now honeyprompt
+
+[Unit]
+Description=HoneyPrompt honeypot server
+Documentation=https://github.com/johnzilla/honeyprompt
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=honeyprompt
+Group=honeyprompt
+WorkingDirectory=/var/lib/honeyprompt
+# --domain enables zero-config mode: generates site in tempdir, binds 0.0.0.0:8080
+# Add --path /var/lib/honeyprompt/landing to persist the generated site on disk
+ExecStart=/usr/local/bin/honeyprompt serve --domain {DOMAIN}
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+# Graceful shutdown: the server listens for SIGINT (Ctrl+C), not SIGTERM.
+# Without KillSignal=SIGINT, `systemctl stop` sends SIGTERM which bypasses
+# the graceful shutdown path and may lose in-flight events from the mpsc channel.
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+# Sandbox hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/honeyprompt
+
+[Install]
+WantedBy=multi-user.target
