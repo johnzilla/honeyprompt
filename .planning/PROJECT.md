@@ -39,7 +39,14 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 
 ### Active
 
-- None — planning next milestone
+- Interactive setup wizard (`honeyprompt setup`) for guided config creation
+- Zero-config serve mode (`honeyprompt serve --domain`) with tempdir generation
+- README "Deploy Your Own" guide with persona separation
+- Deploy templates (docker-compose, systemd, Caddyfile) for common platforms
+
+## Current Milestone: v4.0 Self-Hosted UX
+
+**Goal:** Make HoneyPrompt easy to deploy on your own domain. Caddy-style zero-config for the common case, config file for advanced users.
 
 ### Out of Scope
 
@@ -137,4 +144,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-01 after v3.0 Public Presence milestone completion*
+*Last updated: 2026-04-01 after v4.0 Self-Hosted UX milestone start*

@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Public Presence
-status: executing
-stopped_at: "Checkpoint: Task 2 of 10-01-PLAN.md — DNS + GitHub Pages awaiting human action"
-last_updated: "2026-04-01T12:10:40.602Z"
+milestone: v4.0
+milestone_name: Self-Hosted UX
+status: planning
+stopped_at: ""
+last_updated: "2026-04-01T13:00:00.000Z"
 last_activity: 2026-04-01
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** Phase 10 — landing-page
+**Current focus:** Milestone v4.0 Self-Hosted UX — defining requirements
 
 ## Current Position
 
-Phase: 10
-Plan: Not started
-Status: Executing Phase 10
-Last activity: 2026-04-01
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-01 — Milestone v4.0 started
 
 Progress: [░░░░░░░░░░] 0%
 
