@@ -117,11 +117,11 @@ Plans:
   3. When `--domain` is used, callback_base_url is set to https://{domain}, bind defaults to 0.0.0.0:8080, and all catalog payloads are enabled
   4. CLI flags override config file values, which override built-in defaults (precedence chain verified)
   5. Setup wizard shows a non-fatal DNS warning when the domain does not resolve, and exits with a clear message on write permission failure
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 11-01-PLAN.md: `honeyprompt setup` subcommand with dialoguer prompts and honeyprompt.toml write
-- [ ] 11-02-PLAN.md: `--domain` flag, tempdir serve mode, and flag-over-config precedence
+- [ ] 11-01-PLAN.md — Setup wizard: dialoguer prompts, config generation, DNS check, write validation
+- [ ] 11-02-PLAN.md — --domain flag, tempdir serve mode, config precedence chain, integration tests
 
 ### Phase 12: Documentation & Deploy Templates
 **Goal**: A user arriving at the README can follow step-by-step instructions to deploy their own honeypot instance, with ready-to-use deploy files for common platforms
