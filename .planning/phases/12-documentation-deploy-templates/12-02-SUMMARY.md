@@ -97,6 +97,14 @@ None - no external service configuration required.
 - A user can: copy the three files, run `sed -i 's/{DOMAIN}/my.domain.com/g' *`, and have working configs
 - Phase 12 is now complete (both plans executed)
 
+## Self-Check: PASSED
+
+- FOUND: deploy/templates/docker-compose.yml
+- FOUND: deploy/templates/Caddyfile
+- FOUND: deploy/templates/honeyprompt.service
+- FOUND: commit 97895cf (feat task commit)
+- FOUND: commit 8e4ad87 (docs metadata commit)
+
 ---
 *Phase: 12-documentation-deploy-templates*
 *Completed: 2026-04-01*
