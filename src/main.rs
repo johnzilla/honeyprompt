@@ -108,6 +108,14 @@ fn main() -> Result<()> {
                     args.tiers.clone(),
                 );
 
+                // Regenerate output if --domain changed the callback_base_url
+                if args.domain.is_some() && cfg.callback_base_url != base_cfg.callback_base_url {
+                    let db_path = path.join(".honeyprompt").join("events.db");
+                    let conn = store::open_or_create_db(&db_path)?;
+                    generator::generate(&cfg, &conn, path)?;
+                    drop(conn);
+                }
+
                 let rt = tokio::runtime::Runtime::new()?;
                 rt.block_on(server::serve(&cfg, path, args.json))?;
             }
