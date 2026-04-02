@@ -1,5 +1,18 @@
 # Milestones
 
+## v4.0 Self-Hosted UX (Shipped: 2026-04-02)
+
+**Phases completed:** 2 phases, 4 plans, 7 tasks
+
+**Key accomplishments:**
+
+- `honeyprompt setup` interactive wizard with dialoguer prompts for domain/bind/tiers/title, DNS warning, and TOML write with permission error handling
+- `--domain` flag on `honeyprompt serve` generates an ephemeral tempdir honeypot and serves it immediately with https://{domain} callback URLs, bind 0.0.0.0:8080, and all tiers enabled — no init/generate steps required
+- README rewritten with four-subsection Deploy Your Own guide, clear persona separation between honeyprompt.sh demo and self-hosted path, and Project Status table extended through Phase 12.
+- Three parameterized deployment templates in deploy/templates/ — Docker Compose + Caddy + systemd — each using {DOMAIN} placeholder users replace once to get a working self-hosted honeyprompt instance
+
+---
+
 ## v3.0 Public Presence (Shipped: 2026-04-01)
 
 **Phases completed:** 2 phases, 3 plans, 3 tasks
