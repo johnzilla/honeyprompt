@@ -174,21 +174,24 @@
 
     <section id="how-it-works">
       <h2>How It Works</h2>
-      <pre class="pipeline">  Generate            Deploy             Detect
-  ─────────           ──────             ──────
-  Create a            Host on any        Watch agents
-  honeypot with       public URL         trigger callbacks
-  embedded canaries                      in real-time
+      <pre class="pipeline">  Setup               Serve              Detect
+  ─────               ─────              ──────
+  One command          One command         Agents trigger
+  configures your      launches the        graduated canaries,
+  honeypot             server              callbacks recorded
 
-  [init + generate] ──→ [deploy] ──→ [serve + monitor]</pre>
+  [honeyprompt setup] ──→ [serve --domain] ──→ [monitor]</pre>
     </section>
 
     <section id="quick-start">
       <h2>Quick Start</h2>
       <div class="terminal">
         <div class="prompt"><span class="prompt-text">cargo install honeyprompt</span></div>
+        <div class="prompt"><span class="prompt-text">honeyprompt serve --domain your-domain.com</span></div>
       </div>
-      <p style="margin-top: 16px; color: #8b949e;">Or download a <a href="https://github.com/johnzilla/honeyprompt/releases">pre-built binary</a>.</p>
+      <p style="margin-top: 16px; color: #8b949e;">That's it. Zero-config mode generates and serves a honeypot automatically.<br>
+      Or run <code style="color: #3fb950;">honeyprompt setup</code> for an interactive wizard. <a href="https://github.com/johnzilla/honeyprompt#deploy-your-own">Full deploy guide</a>.</p>
+      <p style="margin-top: 8px; color: #8b949e;">Download a <a href="https://github.com/johnzilla/honeyprompt/releases">pre-built binary</a> if you don't have Rust.</p>
     </section>
 
     <footer>
