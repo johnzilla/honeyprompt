@@ -132,7 +132,7 @@ impl AppState {
 
         match self.sort {
             SortField::Time => {
-                result.sort_by(|a, b| b.received_at.cmp(&a.received_at));
+                result.sort_by_key(|b| std::cmp::Reverse(b.received_at));
             }
             SortField::Tier => {
                 result.sort_by(|a, b| {
