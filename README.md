@@ -10,6 +10,14 @@ HoneyPrompt generates static honeypot web pages with visible human warnings and 
 
 Security researchers and platform defenders deploy HoneyPrompt pages to gather evidence of agentic web abuse without collecting secrets, credentials, or user data.
 
+### Why This Matters for Product Security Teams
+
+This tool helps security and product teams mature their **AI risk registers** by providing measurable, auditable evidence of agent behavior in the wild. It supports:
+- Automated compliance testing in CI/CD pipelines
+- Evidence for coordinated vulnerability disclosure
+- Better threat modeling for agentic features
+- "Paved road" controls that let teams ship AI features faster while reducing risk
+
 ## Proof Levels
 
 HoneyPrompt uses a five-tier graduated evidence model:
