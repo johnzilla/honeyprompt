@@ -308,4 +308,4 @@ HoneyPrompt is designed to produce evidence, not to exploit or surveil:
 
 ## License
 
-See LICENSE.
+[MIT](https://github.com/johnzilla/honeyprompt/LICENSE)
