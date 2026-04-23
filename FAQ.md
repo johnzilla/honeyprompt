@@ -87,7 +87,7 @@ Perfect for watching agents interact with your honeypot live.
 <details>
 <summary>Is HoneyPrompt production-ready?</summary>
 
-Yes. Version 4.0 is stable with complete generation, serving, monitoring, reporting, and deployment tooling. It is already running live at [honeyprompt.sh](https://honeyprompt.sh).
+Yes. Version 4.0 is stable with complete generation, serving, monitoring, reporting, and deployment tooling. It is already running live at [honeyprompt.sh](https://honeyprompt.sh) with additional info at [honeyprompt.dev](https://honeyprompt.dev).
 
 </details>
 
