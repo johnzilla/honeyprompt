@@ -30,6 +30,10 @@ HoneyPrompt uses a five-tier graduated evidence model:
 
 Each tier's callback URL carries only a unique cryptographic nonce, the prompt ID, and the tier level — no secrets or sensitive data.
 
+## FAQ
+
+Check the [FAQ](https://github.com/johnzilla/honeyprompt/FAQ.md): and find additional info below. 
+
 ## Deploy Your Own
 
 Run a honeypot on your own domain. All steps below use `your-domain.com` as the example — replace it with your actual domain throughout.
