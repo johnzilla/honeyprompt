@@ -2,7 +2,9 @@
 
 Terminal-first security tool that detects unsafe AI browsing agent behavior using honeypot pages and prompt-injection canaries.
 
-**Live Demo:** [honeyprompt.sh](https://honeyprompt.sh) — a live honeypot serving canary payloads to AI agents right now. Want to run your own? See [Deploy Your Own](#deploy-your-own) below.
+**Live Demo:** [honeyprompt.sh](https://honeyprompt.sh) — a live honeypot serving canary payloads to AI agents right now. Want to run your own? 
+
+See [Deploy Your Own](#deploy-your-own) below.
 
 ## What This Is
 
