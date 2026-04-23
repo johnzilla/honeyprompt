@@ -32,7 +32,7 @@ Each tier's callback URL carries only a unique cryptographic nonce, the prompt I
 
 ## FAQ
 
-Check the [FAQ](https://github.com/johnzilla/honeyprompt/FAQ.md): and find additional info below. 
+Check the [FAQ](https://github.com/johnzilla/honeyprompt/FAQ.md) and find additional info below. 
 
 ## Deploy Your Own
 
