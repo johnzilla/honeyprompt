@@ -777,7 +777,7 @@ A brand-new DB runs `CREATE TABLE IF NOT EXISTS events ( ... )` with the v4.0 sc
 ### Risk 6 — Replay semantics on `ON CONFLICT DO UPDATE` (LOW)
 Per D-13-19 replay semantics are tier-agnostic — same `ON CONFLICT DO UPDATE` clause. The existing clause only updates `last_seen_at`, `fire_count`, `is_replay`. It does NOT overwrite `payload_id`, `embedding_loc`, etc. The same should apply to `t4_capability` / `t5_proof` — first-write wins. Planner must ensure the new columns are also NOT in the `DO UPDATE SET` clause, which requires explicit attention since adding columns is easy to forget here.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 *(Nothing here should re-open a D-13-01..19 decision.)*
 
