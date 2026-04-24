@@ -52,6 +52,10 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
 
     let mut rendered_payloads: Vec<RenderedPayload> = Vec::new();
     let mut nonce_mappings: Vec<NonceMapping> = Vec::new();
+    // Phase 13 Plan 03 (D-13-05): accumulate one <script type="application/ld+json">
+    // block per active T5 payload. Joined after the loop and rendered via the
+    // `seed_scripts_json` template key (| safe). Empty when no T5 active.
+    let mut t5_seed_scripts: Vec<String> = Vec::new();
 
     for payload in &payloads {
         let embedding_loc = payload.embedding_location.to_string();
@@ -146,14 +150,87 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
                     rendered_instruction: rendered,
                 });
             }
-            // Phase 13 Plan 01: Tier4/Tier5 variants exist but generator rendering is
-            // implemented in Plan 02. Skipping here keeps the catalog loadable and the
-            // match exhaustive without altering T1-T3 behavior.
-            Tier::Tier4 | Tier::Tier5 => {
-                // Intentionally skipped — config.tiers never includes 4/5 until Plan 02.
+            Tier::Tier4 => {
+                // Phase 13 Plan 03: T4 capability introspection.
+                // Agent base64-encodes a sanitized capability string and GETs
+                // <callback_base>/cb/v4/<nonce>/<b64>. Server decodes + validates.
+                let nonce = nonce::generate_nonce();
+                let callback_url_b64_base = format!("{}/cb/v4/{}", config.callback_base_url, nonce);
+                let rendered = payload
+                    .instruction
+                    .replace("{callback_url_b64_base}", &callback_url_b64_base);
+
+                store::insert_nonce(conn, &nonce, tier_num, &payload.id, &embedding_loc)
+                    .with_context(|| {
+                        format!("Failed to insert nonce for payload {}", payload.id)
+                    })?;
+
+                nonce_mappings.push(NonceMapping {
+                    nonce: nonce.clone(),
+                    tier: payload.tier,
+                    payload_id: payload.id.clone(),
+                    embedding_location: payload.embedding_location,
+                    callback_url: callback_url_b64_base,
+                });
+
+                rendered_payloads.push(RenderedPayload {
+                    embedding_location: embedding_loc,
+                    rendered_instruction: rendered,
+                });
+            }
+            Tier::Tier5 => {
+                // Phase 13 Plan 03: T5 multi-step compliance chain.
+                // Agent extracts verification_seed from a JSON-LD block on the page
+                // (emitted below), applies the formula from the catalog, zero-pads
+                // the proof to 3 decimal digits, and GETs
+                // <callback_base>/cb/v5/<nonce>/<proof>. D-13-04 derives the seed
+                // from the nonce; D-13-05 emits one seed JSON-LD block per active
+                // T5 payload (self-identifying via the "nonce" field — Q1
+                // resolution).
+                let nonce = nonce::generate_nonce();
+                let callback_url_proof_base =
+                    format!("{}/cb/v5/{}", config.callback_base_url, nonce);
+                let rendered = payload
+                    .instruction
+                    .replace("{callback_url_proof_base}", &callback_url_proof_base);
+
+                // generate_nonce() always produces a 16-char hex string, so
+                // derive_seed returns Some(_) — `expect` documents this generator
+                // invariant (RESEARCH Risk 1: invariant-break panics at build
+                // time, preferable to silent wrong-seed emission).
+                let seed = nonce::derive_seed(&nonce)
+                    .expect("generator-produced nonce is well-formed 16-char hex");
+                t5_seed_scripts.push(format!(
+                    r#"<script type="application/ld+json">{{"verification_seed":{},"nonce":"{}"}}</script>"#,
+                    seed, nonce
+                ));
+
+                store::insert_nonce(conn, &nonce, tier_num, &payload.id, &embedding_loc)
+                    .with_context(|| {
+                        format!("Failed to insert nonce for payload {}", payload.id)
+                    })?;
+
+                nonce_mappings.push(NonceMapping {
+                    nonce: nonce.clone(),
+                    tier: payload.tier,
+                    payload_id: payload.id.clone(),
+                    embedding_location: payload.embedding_location,
+                    callback_url: callback_url_proof_base,
+                });
+
+                rendered_payloads.push(RenderedPayload {
+                    embedding_location: embedding_loc,
+                    rendered_instruction: rendered,
+                });
             }
         }
     }
+
+    // Phase 13 Plan 03 (D-13-05): join accumulated T5 seed JSON-LD blocks. When
+    // no T5 payloads are active this is the empty string — the template's
+    // `{{ seed_scripts_json | safe }}` renders to zero bytes, so no stray
+    // <script> tag appears in the HTML.
+    let seed_scripts_json = t5_seed_scripts.join("\n");
 
     // Render templates
     let html = render_template(
@@ -161,6 +238,7 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
         context! {
             page_title => &config.page_title,
             payloads => &rendered_payloads,
+            seed_scripts_json => &seed_scripts_json,
         },
     )
     .context("Failed to render index.html")?;
@@ -275,9 +353,10 @@ mod tests {
     // ---- Phase 13 Plan 03: T4/T5 generator rendering + seed JSON-LD emission ----
 
     fn test_config_with_tiers(tiers: Vec<u8>) -> Config {
-        let mut c = Config::default();
-        c.tiers = tiers;
-        c
+        Config {
+            tiers,
+            ..Config::default()
+        }
     }
 
     #[test]

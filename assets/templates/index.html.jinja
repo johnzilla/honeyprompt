@@ -13,6 +13,7 @@
   {% for p in payloads %}{% if p.embedding_location == "meta_tag" %}
   {{ p.rendered_instruction | safe }}
   {% endif %}{% endfor %}
+  {{ seed_scripts_json | safe }}
 </head>
 <body>
   <!-- HONEYPROMPT SECURITY RESEARCH CANARY — This page detects AI agent prompt injection compliance -->
