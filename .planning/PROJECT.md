@@ -65,14 +65,15 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 - ✓ README "Deploy Your Own" guide with persona separation — v4.0
 - ✓ Deploy templates (docker-compose, systemd, Caddyfile) with {DOMAIN} placeholders — v4.0
 
+- ✓ Tier 4 payload templates (3) with base64-encoded capability list — v5.0 (Phase 13)
+- ✓ Tier 5 payload templates (3) with multi-step compliance chain and verifiable proof — v5.0 (Phase 13)
+- ✓ `/cb/v4/{nonce}/{b64_payload}` route — decode, sanitize, store, always-204 — v5.0 (Phase 13)
+- ✓ `/cb/v5/{nonce}/{proof}` route — store + server-side proof verification from deterministic seed — v5.0 (Phase 13)
+- ✓ SQLite schema additive migration for T4 capability summary and T5 proof + `proof_valid` — v5.0 (Phase 13)
+- ✓ Payload catalog extension covering 5 embedding locations for T4/T5 — v5.0 (Phase 13)
+
 ### Active
 
-- Tier 4 payload templates (2–3) with base64-encoded capability list — v5.0
-- Tier 5 payload templates (2–3) with multi-step compliance chain and verifiable proof — v5.0
-- `/cb/v4/{nonce}/{b64_list}` route — decode, sanitize, store — v5.0
-- `/cb/v5/{nonce}/{proof}` route — store + server-side proof verification when seed is deterministic — v5.0
-- SQLite schema fields for T4 capability summary and T5 proof + `proof_valid` — v5.0
-- Payload catalog extension covering 5 embedding locations for T4/T5 — v5.0
 - Monitor TUI renders T4 capability lists and T5 chain proofs — v5.0
 - Markdown disclosure report shows T4/T5 evidence alongside T1–T3 — v5.0
 - test-agent scorecard and CI exit codes extend to T4/T5 — v5.0
@@ -113,8 +114,8 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 1. **Arbitrary callback** — Agent executed an injected outbound request
 2. **Conditional callback** — Agent evaluated a condition and selected the correct branch
 3. **Computed callback** — Agent performed a non-sensitive computation and returned the result
-4. **Capability introspection** — future (agent self-reports tools)
-5. **Multi-step compliance chain** — future (agent follows dependency sequence)
+4. **Capability introspection** — agent self-reports tools via T4 payload → `/cb/v4/{nonce}/{b64_payload}` (backend shipped in Phase 13; TUI/report surfacing in Phase 14)
+5. **Multi-step compliance chain** — agent follows dependency sequence and computes deterministic proof via T5 payload → `/cb/v5/{nonce}/{proof}` (backend shipped in Phase 13; TUI/report surfacing in Phase 14)
 
 ### Safety Model
 
@@ -179,4 +180,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 — v5.0 Tiers 4 & 5 milestone started*
+*Last updated: 2026-04-24 — Phase 13 complete: T4/T5 backend shipped (payloads, routes, store, proof verification). Next: Phase 14 (Monitor TUI + Markdown report + test-agent scorecard surfacing).*
