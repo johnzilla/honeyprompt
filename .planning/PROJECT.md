@@ -72,10 +72,13 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 - ✓ SQLite schema additive migration for T4 capability summary and T5 proof + `proof_valid` — v5.0 (Phase 13)
 - ✓ Payload catalog extension covering 5 embedding locations for T4/T5 — v5.0 (Phase 13)
 
+- ✓ Monitor TUI renders T4 capability lists and T5 proof+validity (EVIDENCE column + detail pane, 5-tier stats header, 6-state filter cycle) — v5.0 (Phase 14)
+- ✓ Markdown disclosure report adds `Evidence` column (T4 tool lists, T5 `NNN ✓/✗ VALID/INVALID`) interleaved with T1–T3 — v5.0 (Phase 14)
+- ✓ Executive summary extends to Tier 4 (Capability Introspection) and Tier 5 (Multi-step Compliance) rows — v5.0 (Phase 14)
+- ✓ Backward compat preserved — v4.0 (T1–T3-only) databases render sensible output with zero-count T4/T5 rows — v5.0 (Phase 14)
+
 ### Active
 
-- Monitor TUI renders T4 capability lists and T5 chain proofs — v5.0
-- Markdown disclosure report shows T4/T5 evidence alongside T1–T3 — v5.0
 - test-agent scorecard and CI exit codes extend to T4/T5 — v5.0
 - README Proof Levels section documents 5-tier model; TODOS.md updated — v5.0
 
@@ -180,4 +183,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 — Phase 13 complete: T4/T5 backend shipped (payloads, routes, store, proof verification). Next: Phase 14 (Monitor TUI + Markdown report + test-agent scorecard surfacing).*
+*Last updated: 2026-04-24 — Phase 14 complete: Monitor TUI + Markdown report surfacing shipped (EVIDENCE column, detail pane, 5-tier chrome, exec summary T4/T5 rows). Gap fixes folded in for setup-wizard 5-tier menu, DB parent dir auto-create, attach-mode SELECT, and TUI contrast. Next: Phase 15 (test-agent scorecard + README + TODOS.md).*
