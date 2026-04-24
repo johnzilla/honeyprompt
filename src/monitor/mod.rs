@@ -931,9 +931,12 @@ async fn run_loop_attach(
                 terminal.draw(|f| render(f, app))?;
             }
             _ = poll.tick() => {
-                // Poll DB for new events since last_seen_id
+                // Poll DB for new events since last_seen_id.
+                // Read t5_proof_valid as Option<i64> and convert to Option<bool> in Rust —
+                // Option<bool> via rusqlite FromSql can silently swallow NULL rows in some
+                // tokio-rusqlite paths; manual conversion is robust.
                 let since_id = last_seen_id;
-                type EventRow = (i64, String, u8, String, String, String, String, String, u32, bool, Option<String>, u64, Option<String>, Option<String>, Option<bool>);
+                type EventRow = (i64, String, u8, String, String, String, String, String, u32, bool, Option<String>, u64, Option<String>, Option<String>, Option<i64>);
                 let rows: Result<Vec<EventRow>, _> = conn.call(move |c| {
                     let mut stmt = c.prepare(
                         "SELECT id, nonce, tier, payload_id, embedding_loc, session_id, remote_addr, user_agent, fire_count, is_replay, extra_headers, first_seen_at, t4_capability, t5_proof, t5_proof_valid \
@@ -955,14 +958,21 @@ async fn run_loop_attach(
                             row.get::<_, u64>(11).unwrap_or(0),
                             row.get::<_, Option<String>>(12)?,
                             row.get::<_, Option<String>>(13)?,
-                            row.get::<_, Option<bool>>(14)?,
+                            row.get::<_, Option<i64>>(14)?,
                         ))
                     })?.collect();
                     rows.map_err(tokio_rusqlite::Error::from)
                 }).await;
 
-                if let Ok(event_rows) = rows {
-                    for (id, nonce, tier, payload_id, embedding_loc, session_id, remote_addr, user_agent, fire_count, is_replay, extra_headers, first_seen_at, t4_capability, t5_proof, t5_proof_valid) in event_rows {
+                match rows {
+                    Err(e) => {
+                        // Surface DB errors to the status line so they are visible
+                        // in the TUI instead of being silently swallowed.
+                        app.status_line = format!("attach-mode DB read error: {}", e);
+                    }
+                    Ok(event_rows) => {
+                    for (id, nonce, tier, payload_id, embedding_loc, session_id, remote_addr, user_agent, fire_count, is_replay, extra_headers, first_seen_at, t4_capability, t5_proof, t5_proof_valid_int) in event_rows {
+                        let t5_proof_valid: Option<bool> = t5_proof_valid_int.map(|v| v != 0);
                         // Parse classification from extra_headers JSON
                         let classification = parse_classification_from_extra(&extra_headers);
                         let source_ip: std::net::IpAddr = remote_addr.parse()
@@ -999,6 +1009,7 @@ async fn run_loop_attach(
                         if id > last_seen_id {
                             last_seen_id = id;
                         }
+                    }
                     }
                 }
             }
