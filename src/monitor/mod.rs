@@ -271,14 +271,14 @@ fn validity_glyph(valid: Option<bool>) -> (&'static str, Color) {
     match valid {
         Some(true) => ("✓", Color::Green),
         Some(false) => ("✗", Color::Red),
-        None => ("?", Color::DarkGray),
+        None => ("?", Color::Gray),
     }
 }
 
 /// Phase 14 (UI-01, UI-02, D-14-03, D-14-04, D-14-13): EVIDENCE column cell builder.
 /// Tier 4 -> truncated capability list styled with tier_color(4).
-/// Tier 5 -> "{proof} glyph" styled Green/Red/DarkGray per validity.
-/// Tier 1/2/3 -> em-dash "—" styled DarkGray.
+/// Tier 5 -> "{proof} glyph" styled Green/Red/Gray per validity.
+/// Tier 1/2/3 -> em-dash "—" styled Gray.
 fn tier_evidence_cell(ev: &AppEvent) -> Cell<'static> {
     match ev.tier {
         4 => {
@@ -293,7 +293,7 @@ fn tier_evidence_cell(ev: &AppEvent) -> Cell<'static> {
             let (glyph, color) = validity_glyph(ev.t5_proof_valid);
             Cell::from(format!("{} {}", proof, glyph)).style(Style::default().fg(color))
         }
-        _ => Cell::from("—").style(Style::default().fg(Color::DarkGray)),
+        _ => Cell::from("—").style(Style::default().fg(Color::Gray)),
     }
 }
 
@@ -353,7 +353,7 @@ fn render_event_table(frame: &mut Frame, area: Rect, app: &mut AppState) {
         frame.render_widget(block, area);
         let para = Paragraph::new(msg)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::DarkGray));
+            .style(Style::default().fg(Color::Gray));
         // Center vertically
         let vert_offset = inner.height / 2;
         let centered_area = Rect {
@@ -417,7 +417,7 @@ fn render_detail_pane(frame: &mut Frame, area: Rect, app: &AppState) {
     let detail_lines: Vec<Line<'static>> = match visible.get(selected_idx) {
         None => vec![Line::from(Span::styled(
             "(no selection)",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(Color::Gray),
         ))],
         Some(ev) => match ev.tier {
             4 => {
@@ -437,7 +437,7 @@ fn render_detail_pane(frame: &mut Frame, area: Rect, app: &AppState) {
                         Span::raw(caps),
                     ]),
                     Line::from(vec![
-                        Span::styled("payload: ", Style::default().fg(Color::DarkGray)),
+                        Span::styled("payload: ", Style::default().fg(Color::Gray)),
                         Span::raw(ev.payload_id.clone()),
                     ]),
                 ]
@@ -471,22 +471,19 @@ fn render_detail_pane(frame: &mut Frame, area: Rect, app: &AppState) {
                         Span::raw(" "),
                         Span::styled(label.to_string(), Style::default().fg(color)),
                     ]),
-                    Line::from(Span::styled(
-                        formula_line,
-                        Style::default().fg(Color::DarkGray),
-                    )),
+                    Line::from(Span::styled(formula_line, Style::default().fg(Color::Gray))),
                 ]
             }
             _ => vec![
                 Line::from(vec![
-                    Span::styled("payload: ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("payload: ", Style::default().fg(Color::Gray)),
                     Span::raw(ev.payload_id.clone()),
                     Span::raw("   "),
-                    Span::styled("loc: ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("loc: ", Style::default().fg(Color::Gray)),
                     Span::raw(ev.embedding_loc.clone()),
                 ]),
                 Line::from(vec![
-                    Span::styled("nonce: ", Style::default().fg(Color::DarkGray)),
+                    Span::styled("nonce: ", Style::default().fg(Color::Gray)),
                     Span::raw(ev.nonce.clone()),
                 ]),
             ],
@@ -559,7 +556,7 @@ fn render(frame: &mut Frame, app: &mut AppState) {
         Span::styled("  T5: ", Style::default().add_modifier(Modifier::BOLD)),
         Span::styled(t5.to_string(), Style::default().fg(tier_color(5))), // NEW Phase 14 (LightBlue per D-14-05)
         Span::raw("  "),
-        Span::styled(replay_indicator, Style::default().fg(Color::DarkGray)),
+        Span::styled(replay_indicator, Style::default().fg(Color::Gray)),
     ];
 
     let status_line = app.status_line.clone();
@@ -592,7 +589,7 @@ fn render(frame: &mut Frame, app: &mut AppState) {
     let mut filter_spans: Vec<Span> = vec![Span::raw("Filter: ")];
     for (i, (f, label)) in filter_labels.iter().enumerate() {
         if i > 0 {
-            filter_spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+            filter_spans.push(Span::styled(" | ", Style::default().fg(Color::Gray)));
         }
         if *f == app.filter {
             filter_spans.push(Span::styled(
@@ -602,14 +599,14 @@ fn render(frame: &mut Frame, app: &mut AppState) {
                     .fg(Color::Cyan),
             ));
         } else {
-            filter_spans.push(Span::styled(*label, Style::default().fg(Color::DarkGray)));
+            filter_spans.push(Span::styled(*label, Style::default().fg(Color::Gray)));
         }
     }
 
     filter_spans.push(Span::raw("   Sort: "));
     for (i, (s, label)) in sort_labels.iter().enumerate() {
         if i > 0 {
-            filter_spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+            filter_spans.push(Span::styled(" | ", Style::default().fg(Color::Gray)));
         }
         if *s == app.sort {
             filter_spans.push(Span::styled(
@@ -619,7 +616,7 @@ fn render(frame: &mut Frame, app: &mut AppState) {
                     .fg(Color::Cyan),
             ));
         } else {
-            filter_spans.push(Span::styled(*label, Style::default().fg(Color::DarkGray)));
+            filter_spans.push(Span::styled(*label, Style::default().fg(Color::Gray)));
         }
     }
 
@@ -663,13 +660,13 @@ fn render(frame: &mut Frame, app: &mut AppState) {
                 frame.render_widget(err_para, chunks[4]);
             } else {
                 let hint = "j/k scroll  Tab filter  s sort  r replays  : cmd  ? help  q quit";
-                let hint_para = Paragraph::new(hint).style(Style::default().fg(Color::DarkGray));
+                let hint_para = Paragraph::new(hint).style(Style::default().fg(Color::Gray));
                 frame.render_widget(hint_para, chunks[4]);
             }
         }
         UiMode::Help => {
             let hint = "j/k scroll  Tab filter  s sort  r replays  : cmd  ? help  q quit";
-            let hint_para = Paragraph::new(hint).style(Style::default().fg(Color::DarkGray));
+            let hint_para = Paragraph::new(hint).style(Style::default().fg(Color::Gray));
             frame.render_widget(hint_para, chunks[4]);
         }
     }
@@ -727,7 +724,7 @@ fn render(frame: &mut Frame, app: &mut AppState) {
             Line::from(""),
             Line::from(vec![Span::styled(
                 "  Press any key to close",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(Color::Gray),
             )]),
         ];
 
@@ -1563,7 +1560,7 @@ mod tests {
     fn test_validity_glyph_mapping() {
         assert_eq!(validity_glyph(Some(true)), ("✓", Color::Green));
         assert_eq!(validity_glyph(Some(false)), ("✗", Color::Red));
-        assert_eq!(validity_glyph(None), ("?", Color::DarkGray));
+        assert_eq!(validity_glyph(None), ("?", Color::Gray));
     }
 
     // Phase 14 Pitfall 3: detail pane must not panic in attach mode (t5_formula: None).
