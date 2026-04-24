@@ -67,6 +67,7 @@ async fn build_test_state(
                 tier: u8::from(m.tier),
                 payload_id: m.payload_id.clone(),
                 embedding_loc: m.embedding_location.to_string(),
+                t5_formula: None,
             },
         );
     }

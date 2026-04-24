@@ -82,6 +82,7 @@ async fn test_domain_tempdir_serves_index() {
                 tier: u8::from(m.tier),
                 payload_id: m.payload_id.clone(),
                 embedding_loc: m.embedding_location.to_string(),
+                t5_formula: None,
             },
         );
     }

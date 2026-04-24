@@ -15,13 +15,17 @@ use tower_http::services::ServeDir;
 
 use crate::config::Config;
 use crate::crawler_catalog::CrawlerCatalog;
-use crate::types::{NonceMapping, RawCallbackEvent};
+use crate::types::{NonceMapping, RawCallbackEvent, T5Formula, Tier};
 
 /// Metadata stored in memory for each nonce, derived from callback-map.json at startup.
 pub struct NonceMeta {
     pub tier: u8,
     pub payload_id: String,
     pub embedding_loc: String,
+    /// Some only for tier-5 nonces; carries the formula constants from the catalog.
+    /// Loaded once at serve() startup by joining catalog payloads against callback-map.json
+    /// by payload_id (RESEARCH Q3 — avoids a callback-map schema change).
+    pub t5_formula: Option<T5Formula>,
 }
 
 /// Shared application state passed to every Axum handler via Arc<AppState>.
@@ -85,6 +89,112 @@ pub async fn callback_handler(
     StatusCode::NO_CONTENT
 }
 
+/// Axum handler for GET /cb/v4/{nonce}/{b64_payload}.
+///
+/// D-13-14, D-13-15: Always returns 204 No Content. Any validation failure is silent.
+/// On happy path: decodes URL-safe base64, sanitizes (D-13-09), and sends a
+/// RawCallbackEvent with `t4_capability = Some(sanitized)`.
+pub async fn t4_callback_handler(
+    AxumPath((nonce, b64_payload)): AxumPath<(String, String)>,
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> StatusCode {
+    // D-13-16: reuse the same nonce validation as /cb/v1/
+    if !crate::nonce::is_valid_nonce(&nonce) {
+        return StatusCode::NO_CONTENT;
+    }
+    let meta = match state.nonce_map.get(&nonce) {
+        Some(m) => m,
+        None => return StatusCode::NO_CONTENT,
+    };
+    if meta.tier != 4 {
+        // Wrong tier for this route — silent 204 (D-13-15)
+        return StatusCode::NO_CONTENT;
+    }
+    let sanitized = match decode_t4_payload(&b64_payload) {
+        Some(s) => s,
+        None => return StatusCode::NO_CONTENT, // D-13-09/D-13-15: nothing stored
+    };
+
+    let fingerprint = crate::fingerprint::extract(peer_addr.ip(), &headers);
+    let classification = state.crawler_catalog.classify(&fingerprint.user_agent);
+
+    let event = RawCallbackEvent {
+        nonce,
+        tier: meta.tier,
+        payload_id: meta.payload_id.clone(),
+        embedding_loc: meta.embedding_loc.clone(),
+        fingerprint,
+        classification,
+        received_at: now_unix_secs(),
+        t4_capability: Some(sanitized),
+        t5_proof: None,
+        t5_proof_valid: None,
+    };
+    let _ = state.callback_tx.try_send(event);
+    StatusCode::NO_CONTENT
+}
+
+/// Axum handler for GET /cb/v5/{nonce}/{proof}.
+///
+/// D-13-02 / D-13-15: Always returns 204 No Content. On happy path: validates the
+/// proof is exactly 3 ASCII digits, derives seed from nonce, computes expected proof
+/// via `compute_expected_proof`, and sends RawCallbackEvent with `t5_proof_valid`.
+pub async fn t5_callback_handler(
+    AxumPath((nonce, proof_str)): AxumPath<(String, String)>,
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> StatusCode {
+    if !crate::nonce::is_valid_nonce(&nonce) {
+        return StatusCode::NO_CONTENT;
+    }
+    let meta = match state.nonce_map.get(&nonce) {
+        Some(m) => m,
+        None => return StatusCode::NO_CONTENT,
+    };
+    if meta.tier != 5 {
+        return StatusCode::NO_CONTENT;
+    }
+    let formula = match meta.t5_formula.as_ref() {
+        Some(f) => f,
+        None => return StatusCode::NO_CONTENT, // misconfigured catalog — silent 204
+    };
+    // D-13-02: proof must be exactly 3 ASCII digits (zero-padded)
+    if proof_str.len() != 3 || !proof_str.bytes().all(|b| b.is_ascii_digit()) {
+        return StatusCode::NO_CONTENT;
+    }
+    let submitted = match proof_str.parse::<u32>() {
+        Ok(p) => p,
+        Err(_) => return StatusCode::NO_CONTENT,
+    };
+    let seed = match crate::nonce::derive_seed(&nonce) {
+        Some(s) => s,
+        None => return StatusCode::NO_CONTENT,
+    };
+    let expected = compute_expected_proof(seed, formula.a, formula.b, formula.modulus);
+    let proof_valid = submitted == expected;
+
+    let fingerprint = crate::fingerprint::extract(peer_addr.ip(), &headers);
+    let classification = state.crawler_catalog.classify(&fingerprint.user_agent);
+
+    let event = RawCallbackEvent {
+        nonce,
+        tier: meta.tier,
+        payload_id: meta.payload_id.clone(),
+        embedding_loc: meta.embedding_loc.clone(),
+        fingerprint,
+        classification,
+        received_at: now_unix_secs(),
+        t4_capability: None,
+        t5_proof: Some(proof_str),
+        t5_proof_valid: Some(proof_valid),
+    };
+    let _ = state.callback_tx.try_send(event);
+    StatusCode::NO_CONTENT
+}
+
 /// Axum handler for GET /stats.
 ///
 /// Returns aggregate callback statistics as JSON with CORS header.
@@ -112,7 +222,9 @@ pub async fn stats_handler(State(state): State<Arc<AppState>>) -> axum::response
 /// Extracted as a public function so integration tests can use it without binding a port.
 pub fn build_router(state: Arc<AppState>, output_dir: PathBuf) -> Router {
     Router::new()
-        .route("/cb/v1/{nonce}", get(callback_handler))
+        .route("/cb/v1/{nonce}", get(callback_handler)) // UNCHANGED (D-13-18)
+        .route("/cb/v4/{nonce}/{b64_payload}", get(t4_callback_handler)) // NEW (D-13-14)
+        .route("/cb/v5/{nonce}/{proof}", get(t5_callback_handler)) // NEW (D-13-14)
         .route("/stats", get(stats_handler))
         .fallback_service(ServeDir::new(output_dir))
         .with_state(state)
@@ -134,14 +246,29 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
     let mappings: Vec<NonceMapping> = serde_json::from_str(&json_str)
         .map_err(|e| anyhow::anyhow!("Failed to parse callback-map.json: {}", e))?;
 
+    // Load catalog once for T5 formula lookup (RESEARCH Q3).
+    // MUST happen before the nonce_map construction loop below, which depends on
+    // this HashMap to populate NonceMeta.t5_formula for tier-5 entries.
+    let all_payloads = crate::catalog::load_catalog()?;
+    let t5_formulas_by_payload_id: HashMap<String, T5Formula> = all_payloads
+        .iter()
+        .filter_map(|p| p.t5_formula.map(|f| (p.id.clone(), f)))
+        .collect();
+
     let mut nonce_map: HashMap<String, NonceMeta> = HashMap::new();
     for m in &mappings {
+        let t5_formula = if m.tier == Tier::Tier5 {
+            t5_formulas_by_payload_id.get(&m.payload_id).copied()
+        } else {
+            None
+        };
         nonce_map.insert(
             m.nonce.clone(),
             NonceMeta {
                 tier: u8::from(m.tier),
                 payload_id: m.payload_id.clone(),
                 embedding_loc: m.embedding_location.to_string(),
+                t5_formula,
             },
         );
     }
@@ -231,7 +358,6 @@ fn now_unix_secs() -> u64 {
 /// refactor that changes this to `(seed + (a * b)) % m` would silently
 /// produce wrong proofs on ALL nonzero seeds. Guarded by
 /// `test_compute_expected_proof_seed_zero_nontrivial_a_b`.
-#[cfg_attr(not(test), allow(dead_code))]
 fn compute_expected_proof(seed: u32, formula_a: u32, formula_b: u32, formula_mod: u32) -> u32 {
     let s = seed as u64;
     let a = formula_a as u64;
@@ -242,7 +368,6 @@ fn compute_expected_proof(seed: u32, formula_a: u32, formula_b: u32, formula_mod
 
 /// D-13-09 hand-rolled sanitizer: `^[a-z0-9_,.\-]{1,256}$`
 /// No `regex` crate dependency -- auditable byte scan (RESEARCH "Don't Hand-Roll" line 461).
-#[cfg_attr(not(test), allow(dead_code))]
 fn is_valid_t4_payload(s: &str) -> bool {
     let len = s.len();
     if len == 0 || len > 256 {
@@ -255,7 +380,6 @@ fn is_valid_t4_payload(s: &str) -> bool {
 
 /// URL-safe base64 decode with D-13-09 sanitization. Returns None on any failure.
 /// Oversize check BEFORE decode to avoid wasteful decoding (RESEARCH line 308).
-#[cfg_attr(not(test), allow(dead_code))]
 fn decode_t4_payload(b64: &str) -> Option<String> {
     // URL-safe base64 of 256 bytes = ceil(256 * 4/3) ~= 344; allow slack to 400.
     if b64.len() > 400 {
