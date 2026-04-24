@@ -835,6 +835,7 @@ dependencies = [
  "anyhow",
  "axum",
  "axum-client-ip",
+ "base64",
  "chrono",
  "clap",
  "crossterm",

@@ -13,6 +13,7 @@ rust-embed = { version = "8.11", features = ["debug-embed"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
 getrandom = "0.4"
 hex = "0.4"
+base64 = "0.22"
 thiserror = "2"
 anyhow = "1"
 tokio = { version = "1", features = ["full"] }
