@@ -146,6 +146,12 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
                     rendered_instruction: rendered,
                 });
             }
+            // Phase 13 Plan 01: Tier4/Tier5 variants exist but generator rendering is
+            // implemented in Plan 02. Skipping here keeps the catalog loadable and the
+            // match exhaustive without altering T1-T3 behavior.
+            Tier::Tier4 | Tier::Tier5 => {
+                // Intentionally skipped — config.tiers never includes 4/5 until Plan 02.
+            }
         }
     }
 

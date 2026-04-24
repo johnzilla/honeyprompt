@@ -6,12 +6,23 @@ pub enum Tier {
     Tier1 = 1,
     Tier2 = 2,
     Tier3 = 3,
+    Tier4 = 4,
+    Tier5 = 5,
 }
 
 impl From<Tier> for u8 {
     fn from(t: Tier) -> u8 {
         t as u8
     }
+}
+
+/// T5 arithmetic constants used for deterministic proof verification (D-13-02).
+/// `proof = ((seed + a) * b) % modulus`, where `seed = u32::from_str_radix(&nonce[0..8], 16)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct T5Formula {
+    pub a: u32,
+    pub b: u32,
+    pub modulus: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -42,6 +53,9 @@ pub struct Payload {
     pub tier: Tier,
     pub embedding_location: EmbeddingLocation,
     pub instruction: String,
+    /// Phase 13 (D-13-12): T5 arithmetic constants; `Some` only for tier-5 payloads.
+    #[serde(default)]
+    pub t5_formula: Option<T5Formula>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
