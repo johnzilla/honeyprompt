@@ -27,8 +27,8 @@ HoneyPrompt uses a five-tier graduated evidence model:
 - **Tier 1: Arbitrary callback** — Agent executed an injected outbound request
 - **Tier 2: Conditional callback** — Agent evaluated a condition and selected the correct branch
 - **Tier 3: Computed callback** — Agent performed a non-sensitive computation and returned the result
-- **Tier 4: Capability introspection** — Agent inspected its own tools or permissions and encoded non-sensitive metadata (planned)
-- **Tier 5: Multi-step compliance chain** — Agent completed a sequence of dependent harmless actions (planned)
+- **Tier 4: Capability introspection** — Agent self-reported a sorted list of its own tools or scopes as a base64-encoded payload on the callback path (no secrets)
+- **Tier 5: Multi-step compliance chain** — Agent extracted a page-visible seed, applied a small deterministic formula, and submitted a 3-digit proof that the server re-verifies against the expected value
 
 Each tier's callback URL carries only a unique cryptographic nonce, the prompt ID, and the tier level — no secrets or sensitive data.
 
@@ -249,7 +249,7 @@ honeyprompt monitor
 honeyprompt monitor --dir /path/to/project
 ```
 
-Opens the TUI live event viewer. Displays incoming callbacks as they arrive with agent fingerprinting, tier breakdown, and session grouping. Vim-style navigation. Can attach to a running server or start integrated mode.
+Opens the TUI live event viewer. Displays incoming callbacks as they arrive with agent fingerprinting, 5-tier breakdown, and session grouping. The `EVIDENCE` column shows the decoded T4 capability list and T5 proof with a validity glyph (`✓`/`✗`), while an always-visible detail pane below the table renders the full capability list, T5 formula, or payload metadata for the currently selected row. Vim-style navigation, Tab cycles through all six tier filters (All → T1 → T2 → T3 → T4 → T5 → All). Can attach to a running server (`--attach`) or start integrated mode.
 
 ### Generate a disclosure report
 
@@ -258,7 +258,7 @@ honeyprompt report
 honeyprompt report --output report.md
 ```
 
-Generates a Markdown disclosure report from captured events, including an executive summary, per-session tier breakdown, agent fingerprints, and full request metadata.
+Generates a Markdown disclosure report from captured events. The executive summary lists session counts for all 5 tiers. The evidence table includes an `Evidence` column that renders the decoded T4 tool list for Tier 4 events and the submitted proof plus server-verified validity (`NNN ✓ VALID` / `NNN ✗ INVALID`) for Tier 5 events, interleaved with T1–T3 rows in the same format. Output includes agent fingerprints and full request metadata.
 
 ### Test an AI agent
 
@@ -273,7 +273,7 @@ Runs a self-contained compliance test: spins up a honeypot server, waits for cal
 
 1. `honeyprompt setup` (or `init`) creates a config with your domain and desired settings.
 2. `honeyprompt serve --domain your-domain.com` (or `serve` with a config) generates and serves the honeypot in one step.
-3. `generate` reads the config, loads the payload catalog (Tiers 1-3), and assigns a unique cryptographic nonce to each payload instance.
+3. `generate` reads the config, loads the payload catalog (Tiers 1–5), and assigns a unique cryptographic nonce to each payload instance. Tier 5 payloads also embed a deterministic `verification_seed` (derived from the nonce) in a JSON-LD script block for the agent to extract.
 4. The generator renders `index.html` using a built-in template that embeds payloads in: HTML comments, `<meta>` tags, invisible `<span>` elements, JSON-LD structured data, and natural-language prose.
 5. Every generated page includes a visible human warning so real users know the page is a security research instrument.
 6. `robots.txt` and `ai.txt` are generated with disallow rules, creating a detectable signal when compliant crawlers respect them but non-compliant agents do not.
@@ -295,6 +295,8 @@ Runs a self-contained compliance test: spins up a honeypot server, waits for cal
 | Phase 10 | Landing Page — honeyprompt.dev with live stats from /stats API | Complete |
 | Phase 11 | Setup Wizard & Zero-Config Serve — `honeyprompt setup`, `--domain` flag, tempdir mode | Complete |
 | Phase 12 | Documentation & Deploy Templates — Deploy Your Own guide, deploy/templates/ for all platforms | Complete |
+| Phase 13 | Tiers 4 & 5 Backend — payload catalog extension, `/cb/v4/` + `/cb/v5/` routes, server-side proof verification, additive SQLite migration | Complete |
+| Phase 14 | Tiers 4 & 5 Surfacing — Monitor TUI EVIDENCE column + detail pane, 5-tier stats header, 6-state filter cycle, Markdown report Evidence column, executive summary T4/T5 rows | Complete |
 
 ## Ethics and Safety
 

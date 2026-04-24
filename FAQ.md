@@ -30,8 +30,8 @@ HoneyPrompt uses a graduated 5-tier model:
 - **Tier 1**: Arbitrary callback (basic outbound request)
 - **Tier 2**: Conditional callback (evaluated a condition)
 - **Tier 3**: Computed callback (performed a simple computation)
-- **Tier 4**: Capability introspection (planned)
-- **Tier 5**: Multi-step compliance chain (planned)
+- **Tier 4**: Capability introspection (agent self-reports a sorted, base64-encoded list of its tools or scopes — no secrets)
+- **Tier 5**: Multi-step compliance chain (agent extracts a page-visible seed, applies a deterministic formula, submits a 3-digit proof that the server re-verifies)
 
 Higher tiers provide stronger evidence of agentic behavior.
 

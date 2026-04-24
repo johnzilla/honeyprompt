@@ -4,5 +4,9 @@
 # Runtime state — never commit event databases
 .honeyprompt/
 
+# Root-level user sandbox — `landing/` has its own committed copies
+/output/
+/honeyprompt.toml
+
 # OS files
 .DS_Store
