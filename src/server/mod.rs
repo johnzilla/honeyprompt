@@ -284,6 +284,13 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
     // Load crawler catalog
     let crawler_catalog = CrawlerCatalog::load()?;
 
+    // Ensure the DB parent directory exists before SQLite tries to open the file.
+    if let Some(parent) = db_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            anyhow::anyhow!("Failed to create DB directory {}: {}", parent.display(), e)
+        })?;
+    }
+
     // Open tokio-rusqlite connection and run migrations
     let conn = tokio_rusqlite::Connection::open(&db_path).await?;
     conn.call(|c| crate::store::run_migrations(c).map_err(tokio_rusqlite::Error::from))
