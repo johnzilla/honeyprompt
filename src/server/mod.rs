@@ -81,6 +81,8 @@ pub async fn callback_handler(
         t4_capability: None,
         t5_proof: None,
         t5_proof_valid: None,
+        // Phase 14: T1 handler does not know about T5 formulas.
+        t5_formula: None,
     };
 
     // Non-blocking send — drop if channel is full (best-effort delivery)
@@ -131,6 +133,8 @@ pub async fn t4_callback_handler(
         t4_capability: Some(sanitized),
         t5_proof: None,
         t5_proof_valid: None,
+        // Phase 14: T4 handler does not know about T5 formulas.
+        t5_formula: None,
     };
     let _ = state.callback_tx.try_send(event);
     StatusCode::NO_CONTENT
@@ -190,6 +194,9 @@ pub async fn t5_callback_handler(
         t4_capability: None,
         t5_proof: Some(proof_str),
         t5_proof_valid: Some(proof_valid),
+        // Phase 14: propagate the server-verified formula so the Monitor detail
+        // pane can render `formula=(seed+A)*B % M` (D-14-02). T5Formula is Copy.
+        t5_formula: Some(*formula),
     };
     let _ = state.callback_tx.try_send(event);
     StatusCode::NO_CONTENT

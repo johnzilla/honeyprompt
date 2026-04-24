@@ -103,6 +103,11 @@ pub struct RawCallbackEvent {
     /// Phase 13 (T5): whether `t5_proof` matched the expected value derived from
     /// `nonce::derive_seed` and the payload's `T5Formula`.
     pub t5_proof_valid: Option<bool>,
+    /// Phase 14: server-verified T5 formula constants (`(seed + a) * b % modulus`),
+    /// propagated from the payload catalog so the Monitor detail pane can render
+    /// `formula=(seed+A)*B % M`. `None` for non-T5 events and for attach-mode
+    /// reads of legacy DBs with no catalog context.
+    pub t5_formula: Option<T5Formula>,
 }
 
 /// Enriched event after broker processing (with session info, replay detection)
@@ -124,6 +129,11 @@ pub struct AppEvent {
     pub t5_proof: Option<String>,
     /// Phase 13 (T5): propagated from `RawCallbackEvent.t5_proof_valid`.
     pub t5_proof_valid: Option<bool>,
+    /// Phase 14: server-verified T5 formula constants (`(seed + a) * b % modulus`),
+    /// propagated from the payload catalog so the Monitor detail pane can render
+    /// `formula=(seed+A)*B % M`. `None` for non-T5 events and for attach-mode
+    /// reads of legacy DBs with no catalog context.
+    pub t5_formula: Option<T5Formula>,
 }
 
 #[cfg(test)]
@@ -197,6 +207,7 @@ mod tests {
             t4_capability: None,
             t5_proof: None,
             t5_proof_valid: None,
+            t5_formula: None,
         };
         assert_eq!(ev.nonce, "abc123");
         assert_eq!(ev.tier, 1u8);
@@ -227,9 +238,44 @@ mod tests {
             t4_capability: None,
             t5_proof: None,
             t5_proof_valid: None,
+            t5_formula: None,
         };
         assert_eq!(ev.session_id, "aabbccdd11223344");
         assert!(!ev.is_replay);
         assert_eq!(ev.fire_count, 1);
+    }
+
+    #[test]
+    fn test_app_event_t5_formula_accessible() {
+        let f = T5Formula {
+            a: 7,
+            b: 13,
+            modulus: 1000,
+        };
+        let ev = AppEvent {
+            nonce: "deadbeefcafebabe".to_string(),
+            tier: 5,
+            payload_id: "t5-test".to_string(),
+            embedding_loc: "html_comment".to_string(),
+            fingerprint: AgentFingerprint {
+                source_ip: IpAddr::V4(std::net::Ipv4Addr::new(1, 2, 3, 4)),
+                user_agent: "ua".to_string(),
+                headers: HashMap::new(),
+                received_at: 0,
+            },
+            classification: AgentClass::Unknown,
+            session_id: "s".to_string(),
+            is_replay: false,
+            fire_count: 1,
+            received_at: 0,
+            t4_capability: None,
+            t5_proof: Some("123".to_string()),
+            t5_proof_valid: Some(true),
+            t5_formula: Some(f),
+        };
+        assert_eq!(ev.t5_formula, Some(f));
+        assert_eq!(ev.t5_formula.unwrap().a, 7);
+        assert_eq!(ev.t5_formula.unwrap().b, 13);
+        assert_eq!(ev.t5_formula.unwrap().modulus, 1000);
     }
 }
