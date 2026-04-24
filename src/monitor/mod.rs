@@ -28,6 +28,8 @@ pub enum TierFilter {
     T1,
     T2,
     T3,
+    T4, // NEW (Phase 14, D-14-06)
+    T5, // NEW (Phase 14, D-14-06)
 }
 
 impl TierFilter {
@@ -36,7 +38,9 @@ impl TierFilter {
             TierFilter::All => TierFilter::T1,
             TierFilter::T1 => TierFilter::T2,
             TierFilter::T2 => TierFilter::T3,
-            TierFilter::T3 => TierFilter::All,
+            TierFilter::T3 => TierFilter::T4, // NEW
+            TierFilter::T4 => TierFilter::T5, // NEW
+            TierFilter::T5 => TierFilter::All, // NEW (cycle wraps)
         }
     }
 }
@@ -126,6 +130,8 @@ impl AppState {
                     TierFilter::T1 => e.tier == 1,
                     TierFilter::T2 => e.tier == 2,
                     TierFilter::T3 => e.tier == 3,
+                    TierFilter::T4 => e.tier == 4, // NEW
+                    TierFilter::T5 => e.tier == 5, // NEW
                 }
             })
             .collect();
@@ -169,12 +175,15 @@ impl AppState {
         unique.len()
     }
 
-    pub fn tier_counts(&self) -> (usize, usize, usize) {
+    pub fn tier_counts(&self) -> [usize; 5] {
         let non_replays: Vec<&AppEvent> = self.events.iter().filter(|e| !e.is_replay).collect();
-        let t1 = non_replays.iter().filter(|e| e.tier == 1).count();
-        let t2 = non_replays.iter().filter(|e| e.tier == 2).count();
-        let t3 = non_replays.iter().filter(|e| e.tier == 3).count();
-        (t1, t2, t3)
+        [
+            non_replays.iter().filter(|e| e.tier == 1).count(),
+            non_replays.iter().filter(|e| e.tier == 2).count(),
+            non_replays.iter().filter(|e| e.tier == 3).count(),
+            non_replays.iter().filter(|e| e.tier == 4).count(),
+            non_replays.iter().filter(|e| e.tier == 5).count(),
+        ]
     }
 
     pub fn replay_count(&self) -> usize {
@@ -250,6 +259,8 @@ fn tier_color(tier: u8) -> Color {
         1 => Color::Cyan,
         2 => Color::Green,
         3 => Color::Yellow,
+        4 => Color::Magenta,   // NEW (Phase 14, D-14-05 Claude's Discretion)
+        5 => Color::LightBlue, // NEW (Phase 14, D-14-05 Claude's Discretion)
         _ => Color::White,
     }
 }
@@ -382,7 +393,9 @@ fn render(frame: &mut Frame, app: &mut AppState) {
     .split(frame.area());
 
     // --- Panel A: Stats header ---
-    let (t1, t2, t3) = app.tier_counts();
+    let counts = app.tier_counts();
+    let (t1, t2, t3, t4, t5) = (counts[0], counts[1], counts[2], counts[3], counts[4]);
+    let _ = (t4, t5); // Task 3 wires these into stats_spans; keep bindings live to avoid unused warning
     let replay_count = app.replay_count();
     let replay_indicator = if app.show_replays {
         format!("{} replays shown", replay_count)
@@ -1184,11 +1197,11 @@ mod tests {
         state.push_event(make_test_event(1, false, "2.3.4.5", "sess2", 2000));
         state.push_event(make_test_event(2, false, "3.4.5.6", "sess3", 3000));
         state.push_event(make_test_event(3, false, "4.5.6.7", "sess4", 4000));
-        state.push_event(make_test_event(1, true, "5.6.7.8", "sess5", 5000)); // replay
-        let (t1, t2, t3) = state.tier_counts();
-        assert_eq!(t1, 2);
-        assert_eq!(t2, 1);
-        assert_eq!(t3, 1);
+        state.push_event(make_test_event(4, false, "5.6.7.8", "sess5", 5000)); // NEW T4
+        state.push_event(make_test_event(5, false, "6.7.8.9", "sess6", 6000)); // NEW T5
+        state.push_event(make_test_event(1, true, "7.8.9.10", "sess7", 7000)); // replay
+        let counts = state.tier_counts();
+        assert_eq!(counts, [2, 1, 1, 1, 1]); // [T1, T2, T3, T4, T5]
     }
 
     #[test]
@@ -1210,6 +1223,10 @@ mod tests {
         assert_eq!(state.filter, TierFilter::T2);
         state.cycle_filter();
         assert_eq!(state.filter, TierFilter::T3);
+        state.cycle_filter();
+        assert_eq!(state.filter, TierFilter::T4); // NEW (Phase 14)
+        state.cycle_filter();
+        assert_eq!(state.filter, TierFilter::T5); // NEW (Phase 14)
         state.cycle_filter();
         assert_eq!(state.filter, TierFilter::All);
     }
@@ -1261,7 +1278,9 @@ mod tests {
         assert_eq!(tier_color(1), Color::Cyan);
         assert_eq!(tier_color(2), Color::Green);
         assert_eq!(tier_color(3), Color::Yellow);
-        assert_eq!(tier_color(4), Color::White);
+        assert_eq!(tier_color(4), Color::Magenta); // NEW (Phase 14)
+        assert_eq!(tier_color(5), Color::LightBlue); // NEW (Phase 14)
+        assert_eq!(tier_color(99), Color::White); // fallback preserved
     }
 
     #[test]
