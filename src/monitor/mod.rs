@@ -933,10 +933,10 @@ async fn run_loop_attach(
             _ = poll.tick() => {
                 // Poll DB for new events since last_seen_id
                 let since_id = last_seen_id;
-                type EventRow = (i64, String, u8, String, String, String, String, String, u32, bool, Option<String>, u64);
+                type EventRow = (i64, String, u8, String, String, String, String, String, u32, bool, Option<String>, u64, Option<String>, Option<String>, Option<bool>);
                 let rows: Result<Vec<EventRow>, _> = conn.call(move |c| {
                     let mut stmt = c.prepare(
-                        "SELECT id, nonce, tier, payload_id, embedding_loc, session_id, remote_addr, user_agent, fire_count, is_replay, extra_headers, first_seen_at \
+                        "SELECT id, nonce, tier, payload_id, embedding_loc, session_id, remote_addr, user_agent, fire_count, is_replay, extra_headers, first_seen_at, t4_capability, t5_proof, t5_proof_valid \
                          FROM events WHERE id > ?1 ORDER BY id ASC"
                     )?;
                     let rows: rusqlite::Result<Vec<_>> = stmt.query_map(rusqlite::params![since_id], |row| {
@@ -953,13 +953,16 @@ async fn run_loop_attach(
                             row.get::<_, bool>(9)?,
                             row.get::<_, Option<String>>(10)?,
                             row.get::<_, u64>(11).unwrap_or(0),
+                            row.get::<_, Option<String>>(12)?,
+                            row.get::<_, Option<String>>(13)?,
+                            row.get::<_, Option<bool>>(14)?,
                         ))
                     })?.collect();
                     rows.map_err(tokio_rusqlite::Error::from)
                 }).await;
 
                 if let Ok(event_rows) = rows {
-                    for (id, nonce, tier, payload_id, embedding_loc, session_id, remote_addr, user_agent, fire_count, is_replay, extra_headers, first_seen_at) in event_rows {
+                    for (id, nonce, tier, payload_id, embedding_loc, session_id, remote_addr, user_agent, fire_count, is_replay, extra_headers, first_seen_at, t4_capability, t5_proof, t5_proof_valid) in event_rows {
                         // Parse classification from extra_headers JSON
                         let classification = parse_classification_from_extra(&extra_headers);
                         let source_ip: std::net::IpAddr = remote_addr.parse()
@@ -981,14 +984,15 @@ async fn run_loop_attach(
                             is_replay,
                             fire_count,
                             received_at: first_seen_at,
-                            // Phase 13: monitor does not yet surface T4/T5 payload
-                            // details (Phase 14 — UI-01..05); load as None for now.
-                            t4_capability: None,
-                            t5_proof: None,
-                            t5_proof_valid: None,
-                            // Phase 14: attach mode reads from an arbitrary DB with no
-                            // catalog context; detail pane falls back to
-                            // "formula=(unavailable — legacy db)" when None (Pitfall 3).
+                            // Phase 14: surface Phase-13 persisted T4/T5 columns so
+                            // attach-mode renders EVIDENCE cell + detail pane the same
+                            // as integrated mode (UI-01, UI-02).
+                            t4_capability,
+                            t5_proof,
+                            t5_proof_valid,
+                            // t5_formula is NOT persisted in the DB (in-memory only),
+                            // so attach mode always renders detail pane with the
+                            // "formula=(unavailable — legacy db)" fallback per Pitfall 3.
                             t5_formula: None,
                         };
                         app.push_event(ev);
