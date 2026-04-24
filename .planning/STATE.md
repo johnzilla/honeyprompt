@@ -4,12 +4,12 @@ milestone: v5.0
 milestone_name: Tiers 4 & 5
 status: planning
 stopped_at: Phase 13 context gathered
-last_updated: "2026-04-24T12:54:38.752Z"
+last_updated: "2026-04-24T13:51:49.132Z"
 last_activity: 2026-04-24 — Roadmap written for v5.0 (phases 13-15)
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
+  total_plans: 4
   completed_plans: 0
   percent: 0
 ---
@@ -78,3 +78,5 @@ None for current phase.
 Last session: --stopped-at
 Stopped at: Phase 13 context gathered
 Resume file: --resume-file
+
+**Planned Phase:** 13 (Tiers 4 & 5 Backend (Payloads + Routes + Store)) — 4 plans — 2026-04-24T13:51:49.126Z
