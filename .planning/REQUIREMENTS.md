@@ -11,26 +11,26 @@ Requirements for the v5.0 milestone. Each maps to exactly one roadmap phase.
 
 ### Payloads (catalog extension)
 
-- [ ] **PAYLOAD-01**: Catalog contains 2–3 Tier 4 introspection payload templates that instruct agent to return a sorted, base64-encoded tool/capability list
-- [ ] **PAYLOAD-02**: Tier 4 payload templates use distinct phrasings and cover different capability dimensions (tools, permissions, or similar agent-chosen safe menu)
-- [ ] **PAYLOAD-03**: Catalog contains 2–3 Tier 5 multi-step compliance payload templates with numbered dependent steps ending in a computed verifiable proof
+- [x] **PAYLOAD-01**: Catalog contains 2–3 Tier 4 introspection payload templates that instruct agent to return a sorted, base64-encoded tool/capability list
+- [x] **PAYLOAD-02**: Tier 4 payload templates use distinct phrasings and cover different capability dimensions (tools, permissions, or similar agent-chosen safe menu)
+- [x] **PAYLOAD-03**: Catalog contains 2–3 Tier 5 multi-step compliance payload templates with numbered dependent steps ending in a computed verifiable proof
 - [x] **PAYLOAD-04
 **: Tier 5 payload templates embed a deterministic `verification_seed` in JSON-LD so the server can recompute and verify the submitted proof
-- [ ] **PAYLOAD-05**: All new T4/T5 payloads render across the existing 5 embedding locations (HTML comment, meta tag, hidden span, JSON-LD, prose) without regressing T1–T3 coverage
+- [x] **PAYLOAD-05**: All new T4/T5 payloads render across the existing 5 embedding locations (HTML comment, meta tag, hidden span, JSON-LD, prose) without regressing T1–T3 coverage
 
 ### Server (callback routes)
 
-- [ ] **SERVER-01**: New route `/cb/v4/{nonce}/{b64_list}` decodes base64, sanitizes tool list, stores metadata, returns 204
-- [ ] **SERVER-02**: New route `/cb/v5/{nonce}/{proof}` stores the submitted proof and computes expected proof from the deterministic seed for verification
-- [ ] **SERVER-03**: Existing `/cb/v1/{nonce}` route behavior is unchanged (frozen for backward compatibility)
-- [ ] **SERVER-04**: T4/T5 routes reject malformed inputs (oversized payload, non-base64, non-numeric proof) without returning 5xx — always 204 to avoid leaking diagnostics
+- [x] **SERVER-01**: New route `/cb/v4/{nonce}/{b64_list}` decodes base64, sanitizes tool list, stores metadata, returns 204
+- [x] **SERVER-02**: New route `/cb/v5/{nonce}/{proof}` stores the submitted proof and computes expected proof from the deterministic seed for verification
+- [x] **SERVER-03**: Existing `/cb/v1/{nonce}` route behavior is unchanged (frozen for backward compatibility)
+- [x] **SERVER-04**: T4/T5 routes reject malformed inputs (oversized payload, non-base64, non-numeric proof) without returning 5xx — always 204 to avoid leaking diagnostics
 
 ### Store (SQLite schema)
 
-- [ ] **STORE-01**: Schema gains columns for Tier 4 events — capability summary (decoded tool list as text)
-- [ ] **STORE-02**: Schema gains columns for Tier 5 events — submitted proof value and `proof_valid` boolean from server-side verification
-- [ ] **STORE-03**: Migration from existing v4.0 schema is additive and non-destructive — existing T1–T3 rows readable without transformation
-- [ ] **STORE-04**: Replay detection and session grouping behave identically for T4/T5 events as for T1–T3
+- [x] **STORE-01**: Schema gains columns for Tier 4 events — capability summary (decoded tool list as text)
+- [x] **STORE-02**: Schema gains columns for Tier 5 events — submitted proof value and `proof_valid` boolean from server-side verification
+- [x] **STORE-03**: Migration from existing v4.0 schema is additive and non-destructive — existing T1–T3 rows readable without transformation
+- [x] **STORE-04**: Replay detection and session grouping behave identically for T4/T5 events as for T1–T3
 
 ### Monitor & Reports
 
@@ -88,19 +88,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PAYLOAD-01 | Phase 13 | Pending |
-| PAYLOAD-02 | Phase 13 | Pending |
-| PAYLOAD-03 | Phase 13 | Pending |
-| PAYLOAD-04 | Phase 13 | Pending |
-| PAYLOAD-05 | Phase 13 | Pending |
-| SERVER-01 | Phase 13 | Pending |
-| SERVER-02 | Phase 13 | Pending |
-| SERVER-03 | Phase 13 | Pending |
-| SERVER-04 | Phase 13 | Pending |
-| STORE-01 | Phase 13 | Pending |
-| STORE-02 | Phase 13 | Pending |
-| STORE-03 | Phase 13 | Pending |
-| STORE-04 | Phase 13 | Pending |
+| PAYLOAD-01 | Phase 13 | Complete |
+| PAYLOAD-02 | Phase 13 | Complete |
+| PAYLOAD-03 | Phase 13 | Complete |
+| PAYLOAD-04 | Phase 13 | Complete |
+| PAYLOAD-05 | Phase 13 | Complete |
+| SERVER-01 | Phase 13 | Complete |
+| SERVER-02 | Phase 13 | Complete |
+| SERVER-03 | Phase 13 | Complete |
+| SERVER-04 | Phase 13 | Complete |
+| STORE-01 | Phase 13 | Complete |
+| STORE-02 | Phase 13 | Complete |
+| STORE-03 | Phase 13 | Complete |
+| STORE-04 | Phase 13 | Complete |
 | UI-01 | Phase 14 | Pending |
 | UI-02 | Phase 14 | Pending |
 | UI-03 | Phase 14 | Pending |
