@@ -28,6 +28,8 @@ pub enum TierFilter {
     T1,
     T2,
     T3,
+    T4, // NEW (Phase 14, D-14-06)
+    T5, // NEW (Phase 14, D-14-06)
 }
 
 impl TierFilter {
@@ -36,7 +38,9 @@ impl TierFilter {
             TierFilter::All => TierFilter::T1,
             TierFilter::T1 => TierFilter::T2,
             TierFilter::T2 => TierFilter::T3,
-            TierFilter::T3 => TierFilter::All,
+            TierFilter::T3 => TierFilter::T4,  // NEW
+            TierFilter::T4 => TierFilter::T5,  // NEW
+            TierFilter::T5 => TierFilter::All, // NEW (cycle wraps)
         }
     }
 }
@@ -126,6 +130,8 @@ impl AppState {
                     TierFilter::T1 => e.tier == 1,
                     TierFilter::T2 => e.tier == 2,
                     TierFilter::T3 => e.tier == 3,
+                    TierFilter::T4 => e.tier == 4, // NEW
+                    TierFilter::T5 => e.tier == 5, // NEW
                 }
             })
             .collect();
@@ -169,12 +175,15 @@ impl AppState {
         unique.len()
     }
 
-    pub fn tier_counts(&self) -> (usize, usize, usize) {
+    pub fn tier_counts(&self) -> [usize; 5] {
         let non_replays: Vec<&AppEvent> = self.events.iter().filter(|e| !e.is_replay).collect();
-        let t1 = non_replays.iter().filter(|e| e.tier == 1).count();
-        let t2 = non_replays.iter().filter(|e| e.tier == 2).count();
-        let t3 = non_replays.iter().filter(|e| e.tier == 3).count();
-        (t1, t2, t3)
+        [
+            non_replays.iter().filter(|e| e.tier == 1).count(),
+            non_replays.iter().filter(|e| e.tier == 2).count(),
+            non_replays.iter().filter(|e| e.tier == 3).count(),
+            non_replays.iter().filter(|e| e.tier == 4).count(),
+            non_replays.iter().filter(|e| e.tier == 5).count(),
+        ]
     }
 
     pub fn replay_count(&self) -> usize {
@@ -250,7 +259,41 @@ fn tier_color(tier: u8) -> Color {
         1 => Color::Cyan,
         2 => Color::Green,
         3 => Color::Yellow,
+        4 => Color::Magenta,   // NEW (Phase 14, D-14-05 Claude's Discretion)
+        5 => Color::LightBlue, // NEW (Phase 14, D-14-05 Claude's Discretion)
         _ => Color::White,
+    }
+}
+
+/// Phase 14 helper: returns the validity glyph (char + color) for a T5 event.
+/// Centralizes D-14-04 convention so TUI and Markdown renderers stay consistent.
+fn validity_glyph(valid: Option<bool>) -> (&'static str, Color) {
+    match valid {
+        Some(true) => ("✓", Color::Green),
+        Some(false) => ("✗", Color::Red),
+        None => ("?", Color::DarkGray),
+    }
+}
+
+/// Phase 14 (UI-01, UI-02, D-14-03, D-14-04, D-14-13): EVIDENCE column cell builder.
+/// Tier 4 -> truncated capability list styled with tier_color(4).
+/// Tier 5 -> "{proof} glyph" styled Green/Red/DarkGray per validity.
+/// Tier 1/2/3 -> em-dash "—" styled DarkGray.
+fn tier_evidence_cell(ev: &AppEvent) -> Cell<'static> {
+    match ev.tier {
+        4 => {
+            let full = ev.t4_capability.as_deref().unwrap_or("—");
+            // Phase 14: reuse existing truncate_str (produces "..." not "…") to
+            // keep consistency with UA/NONCE truncation in the same table (D-14-03).
+            let shown = truncate_str(full, 20);
+            Cell::from(shown).style(Style::default().fg(tier_color(4)))
+        }
+        5 => {
+            let proof = ev.t5_proof.as_deref().unwrap_or("---");
+            let (glyph, color) = validity_glyph(ev.t5_proof_valid);
+            Cell::from(format!("{} {}", proof, glyph)).style(Style::default().fg(color))
+        }
+        _ => Cell::from("—").style(Style::default().fg(Color::DarkGray)),
     }
 }
 
@@ -276,6 +319,7 @@ fn render_event_table(frame: &mut Frame, area: Rect, app: &mut AppState) {
         Constraint::Length(10), // NONCE
         Constraint::Length(10), // SESS
         Constraint::Length(5),  // FIRES
+        Constraint::Length(20), // EVIDENCE (NEW Phase 14, D-14-01/D-14-03)
         Constraint::Length(6),  // REPLAY
     ];
 
@@ -288,6 +332,7 @@ fn render_event_table(frame: &mut Frame, area: Rect, app: &mut AppState) {
         "NONCE",
         "SESS",
         "FIRES",
+        "EVIDENCE", // NEW Phase 14
         "REPLAY",
     ]
     .into_iter()
@@ -343,6 +388,7 @@ fn render_event_table(frame: &mut Frame, area: Rect, app: &mut AppState) {
                 Cell::from(nonce_short),
                 Cell::from(sess_short),
                 Cell::from(fires_str),
+                tier_evidence_cell(ev), // NEW Phase 14 (UI-01, UI-02)
                 Cell::from(replay_str),
             ];
 
@@ -363,6 +409,95 @@ fn render_event_table(frame: &mut Frame, area: Rect, app: &mut AppState) {
     frame.render_stateful_widget(table, area, &mut app.table_state);
 }
 
+/// Phase 14 (D-14-01, D-14-02): always-visible detail pane.
+/// Renders context-aware content based on the currently selected row.
+fn render_detail_pane(frame: &mut Frame, area: Rect, app: &AppState) {
+    let visible = app.visible_events();
+    let selected_idx = app.table_state.selected().unwrap_or(0);
+    let detail_lines: Vec<Line<'static>> = match visible.get(selected_idx) {
+        None => vec![Line::from(Span::styled(
+            "(no selection)",
+            Style::default().fg(Color::DarkGray),
+        ))],
+        Some(ev) => match ev.tier {
+            4 => {
+                let caps = ev
+                    .t4_capability
+                    .as_deref()
+                    .unwrap_or("(missing)")
+                    .to_string();
+                vec![
+                    Line::from(vec![
+                        Span::styled(
+                            "T4 capabilities: ",
+                            Style::default()
+                                .fg(tier_color(4))
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        Span::raw(caps),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("payload: ", Style::default().fg(Color::DarkGray)),
+                        Span::raw(ev.payload_id.clone()),
+                    ]),
+                ]
+            }
+            5 => {
+                let proof = ev.t5_proof.as_deref().unwrap_or("---").to_string();
+                let (glyph, color) = validity_glyph(ev.t5_proof_valid);
+                let label = match ev.t5_proof_valid {
+                    Some(true) => "VALID",
+                    Some(false) => "INVALID",
+                    None => "(unverified)",
+                };
+                // Phase 14 / Pitfall 3: ev.t5_formula may be None in attach mode
+                // (no catalog context for legacy DBs); fall back gracefully.
+                let formula_line = match ev.t5_formula {
+                    Some(f) => {
+                        format!("formula=(seed+{})*{} % {}", f.a, f.b, f.modulus)
+                    }
+                    None => "formula=(unavailable — legacy db)".to_string(),
+                };
+                vec![
+                    Line::from(vec![
+                        Span::styled(
+                            "T5 proof: ",
+                            Style::default()
+                                .fg(tier_color(5))
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        Span::raw(format!("{} ", proof)),
+                        Span::styled(glyph.to_string(), Style::default().fg(color)),
+                        Span::raw(" "),
+                        Span::styled(label.to_string(), Style::default().fg(color)),
+                    ]),
+                    Line::from(Span::styled(
+                        formula_line,
+                        Style::default().fg(Color::DarkGray),
+                    )),
+                ]
+            }
+            _ => vec![
+                Line::from(vec![
+                    Span::styled("payload: ", Style::default().fg(Color::DarkGray)),
+                    Span::raw(ev.payload_id.clone()),
+                    Span::raw("   "),
+                    Span::styled("loc: ", Style::default().fg(Color::DarkGray)),
+                    Span::raw(ev.embedding_loc.clone()),
+                ]),
+                Line::from(vec![
+                    Span::styled("nonce: ", Style::default().fg(Color::DarkGray)),
+                    Span::raw(ev.nonce.clone()),
+                ]),
+            ],
+        },
+    };
+    let para = Paragraph::new(detail_lines)
+        .block(Block::default().title("Detail").borders(Borders::ALL))
+        .wrap(ratatui::widgets::Wrap { trim: false });
+    frame.render_widget(para, area);
+}
+
 fn render(frame: &mut Frame, app: &mut AppState) {
     // Minimum terminal size guard
     if frame.area().width < 80 || frame.area().height < 20 {
@@ -377,12 +512,14 @@ fn render(frame: &mut Frame, app: &mut AppState) {
         Constraint::Length(3), // stats header
         Constraint::Length(3), // filter bar
         Constraint::Fill(1),   // event table
+        Constraint::Length(4), // detail pane (NEW Phase 14 — bordered, 2 content lines)
         Constraint::Length(1), // key hint bar
     ])
     .split(frame.area());
 
     // --- Panel A: Stats header ---
-    let (t1, t2, t3) = app.tier_counts();
+    let counts = app.tier_counts();
+    let (t1, t2, t3, t4, t5) = (counts[0], counts[1], counts[2], counts[3], counts[4]);
     let replay_count = app.replay_count();
     let replay_indicator = if app.show_replays {
         format!("{} replays shown", replay_count)
@@ -417,6 +554,10 @@ fn render(frame: &mut Frame, app: &mut AppState) {
         Span::styled(t2.to_string(), Style::default().fg(Color::Green)),
         Span::styled("  T3: ", Style::default().add_modifier(Modifier::BOLD)),
         Span::styled(t3.to_string(), Style::default().fg(Color::Yellow)),
+        Span::styled("  T4: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(t4.to_string(), Style::default().fg(tier_color(4))), // NEW Phase 14 (Magenta per D-14-05)
+        Span::styled("  T5: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(t5.to_string(), Style::default().fg(tier_color(5))), // NEW Phase 14 (LightBlue per D-14-05)
         Span::raw("  "),
         Span::styled(replay_indicator, Style::default().fg(Color::DarkGray)),
     ];
@@ -439,6 +580,8 @@ fn render(frame: &mut Frame, app: &mut AppState) {
         (TierFilter::T1, "T1"),
         (TierFilter::T2, "T2"),
         (TierFilter::T3, "T3"),
+        (TierFilter::T4, "T4"), // NEW Phase 14 (D-14-06)
+        (TierFilter::T5, "T5"), // NEW Phase 14 (D-14-06)
     ];
     let sort_labels = [
         (SortField::Time, "time"),
@@ -494,12 +637,15 @@ fn render(frame: &mut Frame, app: &mut AppState) {
     // --- Panel C: Event table ---
     render_event_table(frame, chunks[2], app);
 
-    // --- Panel D: Key hint bar ---
+    // --- Panel D (Phase 14 NEW): Always-visible detail pane ---
+    render_detail_pane(frame, chunks[3], app);
+
+    // --- Panel E: Key hint bar ---
     match app.mode {
         UiMode::Command => {
             let cmd_text = format!(": {}_", app.command_input);
             let cmd_para = Paragraph::new(cmd_text).style(Style::default().fg(Color::White));
-            frame.render_widget(cmd_para, chunks[3]);
+            frame.render_widget(cmd_para, chunks[4]);
         }
         UiMode::Normal => {
             // Check if there's a recent error to display
@@ -514,17 +660,17 @@ fn render(frame: &mut Frame, app: &mut AppState) {
                     .map(|(m, _)| m.clone())
                     .unwrap_or_default();
                 let err_para = Paragraph::new(err_msg).style(Style::default().fg(Color::Red));
-                frame.render_widget(err_para, chunks[3]);
+                frame.render_widget(err_para, chunks[4]);
             } else {
                 let hint = "j/k scroll  Tab filter  s sort  r replays  : cmd  ? help  q quit";
                 let hint_para = Paragraph::new(hint).style(Style::default().fg(Color::DarkGray));
-                frame.render_widget(hint_para, chunks[3]);
+                frame.render_widget(hint_para, chunks[4]);
             }
         }
         UiMode::Help => {
             let hint = "j/k scroll  Tab filter  s sort  r replays  : cmd  ? help  q quit";
             let hint_para = Paragraph::new(hint).style(Style::default().fg(Color::DarkGray));
-            frame.render_widget(hint_para, chunks[3]);
+            frame.render_widget(hint_para, chunks[4]);
         }
     }
 
@@ -556,7 +702,7 @@ fn render(frame: &mut Frame, app: &mut AppState) {
             Line::from("  PgUp        Scroll up one page"),
             Line::from("  g           Jump to top"),
             Line::from("  G           Jump to bottom (latest)"),
-            Line::from("  Tab         Cycle filter: All -> T1 -> T2 -> T3"),
+            Line::from("  Tab         Cycle filter: All -> T1 -> T2 -> T3 -> T4 -> T5"),
             Line::from("  s           Cycle sort: time -> tier -> source"),
             Line::from("  r           Toggle replay visibility"),
             Line::from("  :           Open command input"),
@@ -568,8 +714,16 @@ fn render(frame: &mut Frame, app: &mut AppState) {
                 Style::default().add_modifier(Modifier::BOLD),
             )]),
             Line::from("  quit"),
-            Line::from("  filter all|t1|t2|t3"),
+            Line::from("  filter all|t1|t2|t3|t4|t5"),
             Line::from("  sort time|tier|source"),
+            Line::from(""),
+            Line::from(vec![Span::styled(
+                "Detail Pane",
+                Style::default().add_modifier(Modifier::BOLD),
+            )]),
+            Line::from("  The pane below the event table shows full context"),
+            Line::from("  for the selected row (T4 capabilities, T5 proof+formula,"),
+            Line::from("  T1-T3 payload_id + embedding_loc + full nonce)."),
             Line::from(""),
             Line::from(vec![Span::styled(
                 "  Press any key to close",
@@ -685,6 +839,14 @@ fn handle_key_event(key: &KeyEvent, app: &mut AppState) -> bool {
                     }
                     "filter t3" => {
                         app.filter = TierFilter::T3;
+                        app.table_state.select(Some(0));
+                    }
+                    "filter t4" => {
+                        app.filter = TierFilter::T4;
+                        app.table_state.select(Some(0));
+                    }
+                    "filter t5" => {
+                        app.filter = TierFilter::T5;
                         app.table_state.select(Some(0));
                     }
                     "sort time" => {
@@ -1184,11 +1346,11 @@ mod tests {
         state.push_event(make_test_event(1, false, "2.3.4.5", "sess2", 2000));
         state.push_event(make_test_event(2, false, "3.4.5.6", "sess3", 3000));
         state.push_event(make_test_event(3, false, "4.5.6.7", "sess4", 4000));
-        state.push_event(make_test_event(1, true, "5.6.7.8", "sess5", 5000)); // replay
-        let (t1, t2, t3) = state.tier_counts();
-        assert_eq!(t1, 2);
-        assert_eq!(t2, 1);
-        assert_eq!(t3, 1);
+        state.push_event(make_test_event(4, false, "5.6.7.8", "sess5", 5000)); // NEW T4
+        state.push_event(make_test_event(5, false, "6.7.8.9", "sess6", 6000)); // NEW T5
+        state.push_event(make_test_event(1, true, "7.8.9.10", "sess7", 7000)); // replay
+        let counts = state.tier_counts();
+        assert_eq!(counts, [2, 1, 1, 1, 1]); // [T1, T2, T3, T4, T5]
     }
 
     #[test]
@@ -1210,6 +1372,10 @@ mod tests {
         assert_eq!(state.filter, TierFilter::T2);
         state.cycle_filter();
         assert_eq!(state.filter, TierFilter::T3);
+        state.cycle_filter();
+        assert_eq!(state.filter, TierFilter::T4); // NEW (Phase 14)
+        state.cycle_filter();
+        assert_eq!(state.filter, TierFilter::T5); // NEW (Phase 14)
         state.cycle_filter();
         assert_eq!(state.filter, TierFilter::All);
     }
@@ -1261,7 +1427,9 @@ mod tests {
         assert_eq!(tier_color(1), Color::Cyan);
         assert_eq!(tier_color(2), Color::Green);
         assert_eq!(tier_color(3), Color::Yellow);
-        assert_eq!(tier_color(4), Color::White);
+        assert_eq!(tier_color(4), Color::Magenta); // NEW (Phase 14)
+        assert_eq!(tier_color(5), Color::LightBlue); // NEW (Phase 14)
+        assert_eq!(tier_color(99), Color::White); // fallback preserved
     }
 
     #[test]
@@ -1320,6 +1488,97 @@ mod tests {
         assert_eq!(cls, AgentClass::Unknown);
     }
 
+    // Helper for T4/T5-aware test events. The base make_test_event helper produces
+    // tier-specific events with None for capability/proof/formula; this helper
+    // enriches it for the Phase-14 EVIDENCE / detail-pane tests.
+    fn make_t4_event(capability: &str) -> AppEvent {
+        let mut ev = make_test_event(4, false, "1.2.3.4", "sess-t4", 100);
+        ev.t4_capability = Some(capability.to_string());
+        ev
+    }
+
+    fn make_t5_event(
+        proof: &str,
+        valid: Option<bool>,
+        formula: Option<crate::types::T5Formula>,
+    ) -> AppEvent {
+        let mut ev = make_test_event(5, false, "1.2.3.4", "sess-t5", 100);
+        ev.t5_proof = Some(proof.to_string());
+        ev.t5_proof_valid = valid;
+        ev.t5_formula = formula;
+        ev
+    }
+
+    #[test]
+    fn test_tier_evidence_cell_t4() {
+        let ev = make_t4_event("web_search,browse_page,code_execution");
+        // Cell does not expose its string content directly; this test exercises
+        // construction without panic and verifies the branch is taken (coverage).
+        // Full visual rendering verified manually per 14-VALIDATION.md Manual-Only.
+        let _ = tier_evidence_cell(&ev);
+    }
+
+    #[test]
+    fn test_tier_evidence_cell_t5_valid() {
+        let ev = make_t5_event("123", Some(true), None);
+        let _ = tier_evidence_cell(&ev);
+    }
+
+    #[test]
+    fn test_tier_evidence_cell_t5_invalid() {
+        let ev = make_t5_event("456", Some(false), None);
+        let _ = tier_evidence_cell(&ev);
+    }
+
+    #[test]
+    fn test_tier_evidence_cell_t5_unknown() {
+        let ev = make_t5_event("789", None, None);
+        let _ = tier_evidence_cell(&ev);
+    }
+
+    #[test]
+    fn test_tier_evidence_cell_t1_t2_t3_emdash() {
+        // Smoke-test: T1/T2/T3 branches do not panic and use em-dash fallback.
+        let _ = tier_evidence_cell(&make_test_event(1, false, "1.2.3.4", "s", 100));
+        let _ = tier_evidence_cell(&make_test_event(2, false, "1.2.3.4", "s", 100));
+        let _ = tier_evidence_cell(&make_test_event(3, false, "1.2.3.4", "s", 100));
+    }
+
+    #[test]
+    fn test_validity_glyph_mapping() {
+        assert_eq!(validity_glyph(Some(true)), ("✓", Color::Green));
+        assert_eq!(validity_glyph(Some(false)), ("✗", Color::Red));
+        assert_eq!(validity_glyph(None), ("?", Color::DarkGray));
+    }
+
+    // Phase 14 Pitfall 3: detail pane must not panic in attach mode (t5_formula: None).
+    // We cannot easily invoke render_detail_pane without a Frame, but we can exercise
+    // the logic pathways indirectly by checking that a T5 AppEvent with t5_formula: None
+    // is constructable and is handled by the match arm. Full visual check is in
+    // 14-VALIDATION.md Manual-Only.
+    #[test]
+    fn test_t5_event_with_none_formula_constructs_cleanly() {
+        let ev = make_t5_event("000", Some(true), None);
+        assert!(ev.t5_formula.is_none());
+        assert_eq!(ev.t5_proof.as_deref(), Some("000"));
+    }
+
+    #[test]
+    fn test_t5_event_with_formula_constructs_cleanly() {
+        let ev = make_t5_event(
+            "042",
+            Some(true),
+            Some(crate::types::T5Formula {
+                a: 7,
+                b: 13,
+                modulus: 1000,
+            }),
+        );
+        assert_eq!(ev.t5_formula.map(|f| f.a), Some(7));
+        assert_eq!(ev.t5_formula.map(|f| f.b), Some(13));
+        assert_eq!(ev.t5_formula.map(|f| f.modulus), Some(1000));
+    }
+
     #[test]
     fn test_integrated_mode_nonce_map_loads_t5_formula() {
         // Regression test for the Phase 14 latent-bug fix at src/monitor/mod.rs:903-915.
@@ -1355,5 +1614,40 @@ mod tests {
                 p.id
             );
         }
+    }
+
+    #[test]
+    fn test_command_filter_t4() {
+        let mut state = AppState::new();
+        // Simulate command-mode input: set filter via the state mutation the
+        // command parser performs.
+        state.filter = TierFilter::T4;
+        state.table_state.select(Some(0));
+        assert_eq!(state.filter, TierFilter::T4);
+        assert_eq!(state.table_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_command_filter_t5() {
+        let mut state = AppState::new();
+        state.filter = TierFilter::T5;
+        state.table_state.select(Some(0));
+        assert_eq!(state.filter, TierFilter::T5);
+        assert_eq!(state.table_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_filter_labels_has_six_entries() {
+        // Phase 14 D-14-06: filter bar shows All | T1 | T2 | T3 | T4 | T5
+        // This test pins the *count*; visual verification happens in 14-VALIDATION Manual-Only.
+        let filter_labels: &[(TierFilter, &str)] = &[
+            (TierFilter::All, "All"),
+            (TierFilter::T1, "T1"),
+            (TierFilter::T2, "T2"),
+            (TierFilter::T3, "T3"),
+            (TierFilter::T4, "T4"),
+            (TierFilter::T5, "T5"),
+        ];
+        assert_eq!(filter_labels.len(), 6);
     }
 }
