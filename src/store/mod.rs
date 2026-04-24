@@ -200,6 +200,8 @@ pub struct ReportSummary {
     pub tier1_sessions: u32,
     pub tier2_sessions: u32,
     pub tier3_sessions: u32,
+    pub tier4_sessions: u32,            // NEW Phase 14 (D-14-12 always-show)
+    pub tier5_sessions: u32,            // NEW Phase 14 (D-14-12 always-show)
     pub earliest_event: Option<String>, // epoch seconds string
     pub latest_event: Option<String>,   // epoch seconds string
 }
@@ -216,6 +218,12 @@ pub struct ReportSession {
     pub remote_addr: String,
     pub user_agent: String,
     pub classification: String, // parsed from extra_headers JSON
+    /// Phase 14 (D-14-08, D-14-10): decoded T4 capability list; None for non-T4 sessions or legacy rows.
+    pub t4_capability: Option<String>,
+    /// Phase 14 (D-14-08, D-14-11): submitted T5 proof; None for non-T5 sessions or legacy rows.
+    pub t5_proof: Option<String>,
+    /// Phase 14 (D-14-08, D-14-11): server-verified T5 proof validity; None for non-T5 sessions or legacy rows.
+    pub t5_proof_valid: Option<bool>,
 }
 
 /// Query aggregate summary statistics from the events table for the report.
@@ -263,6 +271,20 @@ pub fn query_report_summary(conn: &Connection) -> rusqlite::Result<ReportSummary
         |row| row.get(0),
     )?;
 
+    let tier4_sessions: u32 = conn.query_row(
+        "SELECT COUNT(DISTINCT session_id) FROM events
+         WHERE tier = 4 AND extra_headers NOT LIKE '%\"classification\":\"KnownCrawler%'",
+        [],
+        |row| row.get(0),
+    )?;
+
+    let tier5_sessions: u32 = conn.query_row(
+        "SELECT COUNT(DISTINCT session_id) FROM events
+         WHERE tier = 5 AND extra_headers NOT LIKE '%\"classification\":\"KnownCrawler%'",
+        [],
+        |row| row.get(0),
+    )?;
+
     let (earliest_event, latest_event): (Option<String>, Option<String>) = conn.query_row(
         "SELECT MIN(first_seen_at), MAX(last_seen_at) FROM events",
         [],
@@ -276,6 +298,8 @@ pub fn query_report_summary(conn: &Connection) -> rusqlite::Result<ReportSummary
         tier1_sessions,
         tier2_sessions,
         tier3_sessions,
+        tier4_sessions, // NEW Phase 14
+        tier5_sessions, // NEW Phase 14
         earliest_event,
         latest_event,
     })
@@ -293,7 +317,10 @@ pub fn query_report_sessions(conn: &Connection) -> rusqlite::Result<Vec<ReportSe
                 SUM(fire_count) as total_fires,
                 MAX(remote_addr) as remote_addr,
                 MAX(user_agent) as user_agent,
-                MAX(extra_headers) as extra_headers
+                MAX(extra_headers) as extra_headers,
+                MAX(t4_capability) as t4_capability,
+                MAX(t5_proof) as t5_proof,
+                MAX(t5_proof_valid) as t5_proof_valid
          FROM events
          GROUP BY session_id, tier
          ORDER BY MIN(first_seen_at) DESC",
@@ -314,6 +341,11 @@ pub fn query_report_sessions(conn: &Connection) -> rusqlite::Result<Vec<ReportSe
                 remote_addr: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
                 user_agent: row.get::<_, Option<String>>(8)?.unwrap_or_default(),
                 classification,
+                // Phase 14: NULL-safe Option<T> mapping. Per D-14-14 we always SELECT the columns;
+                // legacy rows and non-T4/T5 sessions return NULL -> None.
+                t4_capability: row.get::<_, Option<String>>(10)?,
+                t5_proof: row.get::<_, Option<String>>(11)?,
+                t5_proof_valid: row.get::<_, Option<bool>>(12)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -763,8 +795,34 @@ mod tests {
         assert_eq!(summary.tier1_sessions, 0);
         assert_eq!(summary.tier2_sessions, 0);
         assert_eq!(summary.tier3_sessions, 0);
+        assert_eq!(summary.tier4_sessions, 0);
+        assert_eq!(summary.tier5_sessions, 0);
         assert!(summary.earliest_event.is_none());
         assert!(summary.latest_event.is_none());
+    }
+
+    #[test]
+    fn test_query_report_sessions_null_t4_t5_for_legacy_rows() {
+        // Phase 14 D-14-14: always SELECT T4/T5 columns; Option<T> mapping returns None
+        // for rows that never wrote those columns (Phase 13 migration guarantees they exist).
+        let conn = in_memory_conn();
+        // Insert a T1 row (no t4_capability / t5_proof / t5_proof_valid)
+        conn.execute(
+            "INSERT OR IGNORE INTO nonce_map (nonce, tier, payload_id, embedding_loc, generated_at) \
+             VALUES ('n1', 1, 'p1', 'html_comment', '1700000000')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO events (nonce, tier, payload_id, embedding_loc, first_seen_at, last_seen_at, fire_count, is_replay, session_id, remote_addr, user_agent, extra_headers) \
+             VALUES ('n1', 1, 'p1', 'html_comment', '1700000000', '1700000000', 1, 0, 'sess1', '1.2.3.4', 'ua', '{\"classification\":\"Unknown\",\"headers\":{}}')",
+            [],
+        ).unwrap();
+        let sessions = query_report_sessions(&conn).unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].tier, 1);
+        assert_eq!(sessions[0].t4_capability, None);
+        assert_eq!(sessions[0].t5_proof, None);
+        assert_eq!(sessions[0].t5_proof_valid, None);
     }
 
     #[test]
