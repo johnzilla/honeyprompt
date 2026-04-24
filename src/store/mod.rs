@@ -200,8 +200,8 @@ pub struct ReportSummary {
     pub tier1_sessions: u32,
     pub tier2_sessions: u32,
     pub tier3_sessions: u32,
-    pub tier4_sessions: u32, // NEW Phase 14 (D-14-12 always-show)
-    pub tier5_sessions: u32, // NEW Phase 14 (D-14-12 always-show)
+    pub tier4_sessions: u32,            // NEW Phase 14 (D-14-12 always-show)
+    pub tier5_sessions: u32,            // NEW Phase 14 (D-14-12 always-show)
     pub earliest_event: Option<String>, // epoch seconds string
     pub latest_event: Option<String>,   // epoch seconds string
 }

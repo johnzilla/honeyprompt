@@ -42,6 +42,67 @@ fn insert_event(
     .unwrap();
 }
 
+/// Phase 14: insert a Tier-4 event with a decoded capability string.
+#[allow(clippy::too_many_arguments)]
+fn insert_event_t4(
+    conn: &rusqlite::Connection,
+    nonce: &str,
+    payload_id: &str,
+    embedding_loc: &str,
+    session_id: &str,
+    remote_addr: &str,
+    user_agent: &str,
+    classification: &str,
+    capability: &str,
+    first_seen_epoch: Option<u64>,
+) {
+    let ts = first_seen_epoch.unwrap_or(1_700_000_000);
+    conn.execute(
+        "INSERT OR IGNORE INTO nonce_map (nonce, tier, payload_id, embedding_loc, generated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![nonce, 4_u8, payload_id, embedding_loc, ts.to_string()],
+    ).unwrap();
+    let extra = format!(
+        r#"{{"classification":"{}","headers":{{}}}}"#,
+        classification
+    );
+    conn.execute(
+        "INSERT INTO events (nonce, tier, payload_id, embedding_loc, first_seen_at, last_seen_at, fire_count, is_replay, session_id, remote_addr, user_agent, extra_headers, t4_capability) \
+         VALUES (?1, 4, ?2, ?3, ?4, ?4, 1, 0, ?5, ?6, ?7, ?8, ?9)",
+        rusqlite::params![nonce, payload_id, embedding_loc, ts.to_string(), session_id, remote_addr, user_agent, extra, capability],
+    ).unwrap();
+}
+
+/// Phase 14: insert a Tier-5 event with a submitted proof + server-computed validity.
+#[allow(clippy::too_many_arguments)]
+fn insert_event_t5(
+    conn: &rusqlite::Connection,
+    nonce: &str,
+    payload_id: &str,
+    embedding_loc: &str,
+    session_id: &str,
+    remote_addr: &str,
+    user_agent: &str,
+    classification: &str,
+    proof: &str,
+    proof_valid: bool,
+    first_seen_epoch: Option<u64>,
+) {
+    let ts = first_seen_epoch.unwrap_or(1_700_000_000);
+    conn.execute(
+        "INSERT OR IGNORE INTO nonce_map (nonce, tier, payload_id, embedding_loc, generated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![nonce, 5_u8, payload_id, embedding_loc, ts.to_string()],
+    ).unwrap();
+    let extra = format!(
+        r#"{{"classification":"{}","headers":{{}}}}"#,
+        classification
+    );
+    conn.execute(
+        "INSERT INTO events (nonce, tier, payload_id, embedding_loc, first_seen_at, last_seen_at, fire_count, is_replay, session_id, remote_addr, user_agent, extra_headers, t5_proof, t5_proof_valid) \
+         VALUES (?1, 5, ?2, ?3, ?4, ?4, 1, 0, ?5, ?6, ?7, ?8, ?9, ?10)",
+        rusqlite::params![nonce, payload_id, embedding_loc, ts.to_string(), session_id, remote_addr, user_agent, extra, proof, proof_valid as i32],
+    ).unwrap();
+}
+
 // ---------- md_escape tests ----------
 
 #[test]
@@ -273,5 +334,289 @@ fn test_report_timestamp_formatting() {
     assert!(
         md.contains("2023"),
         "report must contain human-readable year 2023"
+    );
+}
+
+// ---------- Phase 14 Executive Summary extension tests ----------
+
+#[test]
+fn test_report_summary_tier4_tier5_counts() {
+    let (_tmp, conn) = temp_conn();
+    insert_event_t4(
+        &conn,
+        "aaaaaaaaaaaaaaaa",
+        "t4-tools-01",
+        "html_comment",
+        "sess-t4-1",
+        "1.2.3.4",
+        "ua-a",
+        "Unknown",
+        "web_search,browse_page,code_execution",
+        None,
+    );
+    insert_event_t5(
+        &conn,
+        "bbbbbbbbbbbbbbbb",
+        "t5-chain-01",
+        "json_ld",
+        "sess-t5-1",
+        "1.2.3.5",
+        "ua-b",
+        "Unknown",
+        "123",
+        true,
+        None,
+    );
+    let md = report::generate_report(&conn).expect("report must render");
+    assert!(
+        md.contains("| Tier 4 (Capability Introspection) | 1 |"),
+        "exec summary missing Tier 4 row:\n{}",
+        md
+    );
+    assert!(
+        md.contains("| Tier 5 (Multi-step Compliance) | 1 |"),
+        "exec summary missing Tier 5 row:\n{}",
+        md
+    );
+}
+
+// ---------- Phase 14 backward-compat (v4.0-style legacy DB) tests ----------
+
+#[test]
+fn test_report_backward_compat_v40_db() {
+    // Legacy: only T1 events (no T4/T5 rows written).
+    // D-14-12: Tier 4 / Tier 5 rows still present with count=0.
+    // D-14-13: Evidence cells for T1 rows show em-dash.
+    let (_tmp, conn) = temp_conn();
+    insert_event(
+        &conn,
+        "1111111111111111",
+        1,
+        "t1-payload-01",
+        "html_comment",
+        "sess-legacy-1",
+        "1.2.3.4",
+        "ua-legacy",
+        "Unknown",
+        None,
+    );
+    let md = report::generate_report(&conn).expect("report must render");
+
+    // Exec summary always-show (D-14-12)
+    assert!(
+        md.contains("| Tier 4 (Capability Introspection) | 0 |"),
+        "legacy DB exec summary missing Tier 4 | 0:\n{}",
+        md
+    );
+    assert!(
+        md.contains("| Tier 5 (Multi-step Compliance) | 0 |"),
+        "legacy DB exec summary missing Tier 5 | 0:\n{}",
+        md
+    );
+
+    // Evidence column on T1 row shows em-dash (D-14-13).
+    // The row format is "| sess | 1 | Arbitrary Callback | ... | Unknown | — | t1-payload-01 |"
+    // — we assert the em-dash appears between Classification and Payload.
+    assert!(
+        md.contains("| Unknown | — | t1-payload-01 |"),
+        "T1 row should have em-dash in Evidence column:\n{}",
+        md
+    );
+}
+
+// ---------- Phase 14 Evidence column per-tier tests ----------
+
+#[test]
+fn test_report_evidence_column_t4() {
+    let (_tmp, conn) = temp_conn();
+    insert_event_t4(
+        &conn,
+        "cccccccccccccccc",
+        "t4-tools-01",
+        "html_comment",
+        "sess-t4-x",
+        "1.2.3.4",
+        "ua-x",
+        "Unknown",
+        "web_search,browse_page",
+        None,
+    );
+    let md = report::generate_report(&conn).expect("report must render");
+    assert!(
+        md.contains("web_search,browse_page"),
+        "T4 row should surface the capability string in Evidence column:\n{}",
+        md
+    );
+    // The cell appears BETWEEN Classification (Unknown) and Payload (t4-tools-01).
+    assert!(
+        md.contains("| Unknown | web_search,browse_page | t4-tools-01 |"),
+        "T4 row column ordering mismatch:\n{}",
+        md
+    );
+}
+
+#[test]
+fn test_report_evidence_column_t5_valid() {
+    let (_tmp, conn) = temp_conn();
+    insert_event_t5(
+        &conn,
+        "dddddddddddddddd",
+        "t5-chain-01",
+        "json_ld",
+        "sess-t5-v",
+        "1.2.3.4",
+        "ua-v",
+        "Unknown",
+        "123",
+        true,
+        None,
+    );
+    let md = report::generate_report(&conn).expect("report must render");
+    assert!(
+        md.contains("| Unknown | 123 ✓ VALID | t5-chain-01 |"),
+        "T5 valid row should render '123 ✓ VALID' in Evidence column:\n{}",
+        md
+    );
+}
+
+#[test]
+fn test_report_evidence_column_t5_invalid() {
+    let (_tmp, conn) = temp_conn();
+    insert_event_t5(
+        &conn,
+        "eeeeeeeeeeeeeeee",
+        "t5-chain-02",
+        "json_ld",
+        "sess-t5-i",
+        "1.2.3.4",
+        "ua-i",
+        "Unknown",
+        "456",
+        false,
+        None,
+    );
+    let md = report::generate_report(&conn).expect("report must render");
+    assert!(
+        md.contains("| Unknown | 456 ✗ INVALID | t5-chain-02 |"),
+        "T5 invalid row should render '456 ✗ INVALID' in Evidence column:\n{}",
+        md
+    );
+}
+
+// ---------- Phase 14 full 5-tier end-to-end test ----------
+
+#[test]
+fn test_report_full_5tier_markdown() {
+    let (_tmp, conn) = temp_conn();
+    insert_event(
+        &conn,
+        "1111111111111111",
+        1,
+        "t1-p",
+        "html_comment",
+        "sess-1",
+        "1.2.3.4",
+        "ua",
+        "Unknown",
+        None,
+    );
+    insert_event(
+        &conn,
+        "2222222222222222",
+        2,
+        "t2-p",
+        "meta_tag",
+        "sess-2",
+        "1.2.3.5",
+        "ua",
+        "Unknown",
+        None,
+    );
+    insert_event(
+        &conn,
+        "3333333333333333",
+        3,
+        "t3-p",
+        "invisible_element",
+        "sess-3",
+        "1.2.3.6",
+        "ua",
+        "Unknown",
+        None,
+    );
+    insert_event_t4(
+        &conn,
+        "4444444444444444",
+        "t4-p",
+        "json_ld",
+        "sess-4",
+        "1.2.3.7",
+        "ua",
+        "Unknown",
+        "web_search,code_execution",
+        None,
+    );
+    insert_event_t5(
+        &conn,
+        "5555555555555555",
+        "t5-p",
+        "semantic_prose",
+        "sess-5",
+        "1.2.3.8",
+        "ua",
+        "Unknown",
+        "789",
+        true,
+        None,
+    );
+    let md = report::generate_report(&conn).expect("report must render");
+
+    // Executive summary has all 5 tier rows with count=1.
+    assert!(
+        md.contains("| Tier 1 (Arbitrary Callback) | 1 |"),
+        "T1 exec row:\n{}",
+        md
+    );
+    assert!(
+        md.contains("| Tier 2 (Conditional Branch) | 1 |"),
+        "T2 exec row:\n{}",
+        md
+    );
+    assert!(
+        md.contains("| Tier 3 (Computed Callback) | 1 |"),
+        "T3 exec row:\n{}",
+        md
+    );
+    assert!(
+        md.contains("| Tier 4 (Capability Introspection) | 1 |"),
+        "T4 exec row:\n{}",
+        md
+    );
+    assert!(
+        md.contains("| Tier 5 (Multi-step Compliance) | 1 |"),
+        "T5 exec row:\n{}",
+        md
+    );
+
+    // Evidence column renders per tier.
+    assert!(md.contains("| Unknown | — | t1-p |"), "T1 em-dash:\n{}", md);
+    assert!(md.contains("| Unknown | — | t2-p |"), "T2 em-dash:\n{}", md);
+    assert!(md.contains("| Unknown | — | t3-p |"), "T3 em-dash:\n{}", md);
+    assert!(
+        md.contains("| Unknown | web_search,code_execution | t4-p |"),
+        "T4 cell:\n{}",
+        md
+    );
+    assert!(
+        md.contains("| Unknown | 789 ✓ VALID | t5-p |"),
+        "T5 cell:\n{}",
+        md
+    );
+
+    // Evidence Table header has the new Evidence column.
+    assert!(
+        md.contains("| Session | Tier | Proof Level | First Seen | Source IP | User Agent | Fire Count | Classification | Evidence | Payload |"),
+        "Evidence Table header missing Evidence column:\n{}",
+        md
     );
 }
