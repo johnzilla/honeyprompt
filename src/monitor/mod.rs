@@ -824,6 +824,10 @@ async fn run_loop_attach(
                             t4_capability: None,
                             t5_proof: None,
                             t5_proof_valid: None,
+                            // Phase 14: attach mode reads from an arbitrary DB with no
+                            // catalog context; detail pane falls back to
+                            // "formula=(unavailable — legacy db)" when None (Pitfall 3).
+                            t5_formula: None,
                         };
                         app.push_event(ev);
                         if id > last_seen_id {
@@ -1019,6 +1023,7 @@ mod tests {
             t4_capability: None,
             t5_proof: None,
             t5_proof_valid: None,
+            t5_formula: None,
         }
     }
 

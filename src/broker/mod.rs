@@ -32,6 +32,9 @@ pub async fn broker_task(
             t4_capability: raw.t4_capability,
             t5_proof: raw.t5_proof,
             t5_proof_valid: raw.t5_proof_valid,
+            // Phase 14: propagate server-supplied t5_formula so the monitor
+            // detail pane can render `formula=(seed+A)*B % M` (D-14-02).
+            t5_formula: raw.t5_formula,
         };
         // Ignore send errors — no receivers means events are dropped safely.
         let _ = event_tx.send(app_event);
@@ -179,7 +182,7 @@ mod tests {
     use std::net::IpAddr;
     use tokio::sync::{broadcast, mpsc};
 
-    use crate::types::{AgentClass, AgentFingerprint, RawCallbackEvent};
+    use crate::types::{AgentClass, AgentFingerprint, RawCallbackEvent, T5Formula};
 
     fn make_raw_event(nonce: &str, tier: u8) -> RawCallbackEvent {
         let ip: IpAddr = "1.2.3.4".parse().unwrap();
@@ -200,6 +203,9 @@ mod tests {
             t4_capability: None,
             t5_proof: None,
             t5_proof_valid: None,
+            // Phase 14: helper defaults to None; tier-5-specific tests construct
+            // their own RawCallbackEvent literal with Some(T5Formula { ... }).
+            t5_formula: None,
         }
     }
 
@@ -263,6 +269,7 @@ mod tests {
             t4_capability: Some("web_search,browse_page".to_string()),
             t5_proof: None,
             t5_proof_valid: None,
+            t5_formula: None,
         };
         callback_tx.send(raw).await.unwrap();
 
@@ -309,6 +316,12 @@ mod tests {
             t4_capability: None,
             t5_proof: Some("731".to_string()),
             t5_proof_valid: Some(true),
+            // Phase 14: broker must propagate the server-supplied formula.
+            t5_formula: Some(T5Formula {
+                a: 7,
+                b: 13,
+                modulus: 1000,
+            }),
         };
         callback_tx.send(raw).await.unwrap();
 
@@ -322,6 +335,32 @@ mod tests {
         assert_eq!(app_event.t5_proof, Some("731".to_string()));
         assert_eq!(app_event.t5_proof_valid, Some(true));
         assert_eq!(app_event.tier, 5);
+        assert_eq!(
+            app_event.t5_formula,
+            Some(T5Formula {
+                a: 7,
+                b: 13,
+                modulus: 1000
+            })
+        );
+    }
+
+    /// Phase 14: broker_task must also propagate `t5_formula: None` faithfully.
+    /// This covers attach-mode callers and T1/T4 handlers (all produce None).
+    #[tokio::test]
+    async fn test_broker_task_t5_formula_none_when_raw_is_none() {
+        let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(8);
+        let (event_tx, mut event_rx) = broadcast::channel::<AppEvent>(8);
+        tokio::spawn(broker_task(callback_rx, event_tx));
+        // Helper defaults `t5_formula: None`; (nonce, tier) = ("n1", 1).
+        let raw = make_raw_event("n1", 1);
+        callback_tx.send(raw).await.unwrap();
+        let received =
+            tokio::time::timeout(std::time::Duration::from_millis(500), event_rx.recv())
+                .await
+                .expect("broker must broadcast within 500ms")
+                .expect("broadcast must succeed");
+        assert_eq!(received.t5_formula, None);
     }
 
     #[tokio::test]
@@ -368,6 +407,7 @@ mod tests {
             t4_capability: None,
             t5_proof: None,
             t5_proof_valid: None,
+            t5_formula: None,
         };
         event_tx.send(app_event).unwrap();
 
@@ -417,6 +457,7 @@ mod tests {
             t4_capability: None,
             t5_proof: None,
             t5_proof_valid: None,
+            t5_formula: None,
         };
         // Send should succeed (receiver exists in spawned task)
         assert!(event_tx.send(app_event).is_ok());
