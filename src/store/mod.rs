@@ -694,4 +694,91 @@ mod tests {
             "SQL injection attempt must be stored literally"
         );
     }
+
+    // --- Phase 13 STORE-01 / STORE-02 / STORE-03 migration tests ---
+
+    #[test]
+    fn test_schema_t4_columns() {
+        let conn = in_memory_conn();
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(events)")
+            .expect("pragma must prepare");
+        let column_rows: Vec<(String, String)> = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+            })
+            .expect("query must execute")
+            .filter_map(|r| r.ok())
+            .collect();
+        let t4 = column_rows
+            .iter()
+            .find(|(n, _)| n == "t4_capability")
+            .expect("events must have t4_capability column (STORE-01)");
+        assert_eq!(
+            t4.1.to_uppercase(),
+            "TEXT",
+            "t4_capability must be TEXT"
+        );
+    }
+
+    #[test]
+    fn test_schema_t5_columns() {
+        let conn = in_memory_conn();
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(events)")
+            .expect("pragma must prepare");
+        let column_rows: Vec<(String, String)> = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+            })
+            .expect("query must execute")
+            .filter_map(|r| r.ok())
+            .collect();
+        let proof = column_rows
+            .iter()
+            .find(|(n, _)| n == "t5_proof")
+            .expect("events must have t5_proof column (STORE-02)");
+        assert_eq!(
+            proof.1.to_uppercase(),
+            "TEXT",
+            "t5_proof must be TEXT"
+        );
+        let valid = column_rows
+            .iter()
+            .find(|(n, _)| n == "t5_proof_valid")
+            .expect("events must have t5_proof_valid column (STORE-02)");
+        assert_eq!(
+            valid.1.to_uppercase(),
+            "INTEGER",
+            "t5_proof_valid must be INTEGER"
+        );
+    }
+
+    #[test]
+    fn test_migration_idempotent() {
+        let conn = Connection::open_in_memory().expect("in-memory DB must open");
+        run_migrations(&conn).expect("first migration must succeed");
+        run_migrations(&conn)
+            .expect("second migration must be a no-op (D-13-17 idempotency via user_version gate)");
+        // Confirm user_version is still 1 (not 2 or higher)
+        let version: u32 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(
+            version, 1,
+            "user_version must remain 1 after multiple run_migrations calls"
+        );
+    }
+
+    #[test]
+    fn test_fresh_db_ends_at_user_version_1() {
+        let conn = in_memory_conn();
+        let version: u32 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(
+            version, 1,
+            "fresh DB must end at user_version=1 after Phase 13 migrations"
+        );
+    }
 }
