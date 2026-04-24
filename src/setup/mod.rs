@@ -52,11 +52,17 @@ pub fn run_setup(path: &std::path::Path) -> Result<()> {
         .default("0.0.0.0:8080".into())
         .interact_text()?;
 
-    let tier_labels = &["Tier 1 (visible)", "Tier 2 (hidden)", "Tier 3 (meta)"];
+    let tier_labels = &[
+        "Tier 1 (Arbitrary Callback)",
+        "Tier 2 (Conditional Branch)",
+        "Tier 3 (Computed Callback)",
+        "Tier 4 (Capability Introspection)",
+        "Tier 5 (Multi-step Compliance)",
+    ];
     let selected = MultiSelect::new()
         .with_prompt("Tiers to enable")
         .items(tier_labels)
-        .defaults(&[true, true, true])
+        .defaults(&[true; 5])
         .interact()?;
     // Map 0-indexed selections to 1-indexed tier numbers
     let tiers: Vec<u8> = selected.iter().map(|&i| (i as u8) + 1).collect();
