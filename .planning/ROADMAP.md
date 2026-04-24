@@ -134,7 +134,7 @@ Plans:
 - Five embedding locations stay fixed (HTML comment, meta, hidden span, JSON-LD, prose)
 
 - [x] **Phase 13: Tiers 4 & 5 Backend (Payloads + Routes + Store)** - Catalog, callback routes, SQLite schema, and proof verification for T4/T5, backward-compatible with v1.0–v4.0 (completed 2026-04-24)
-- [ ] **Phase 14: Tiers 4 & 5 Surfacing (Monitor TUI + Report)** - TUI event table and Markdown report render T4 capability lists and T5 proofs with a validity indicator
+- [x] **Phase 14: Tiers 4 & 5 Surfacing (Monitor TUI + Report)** - TUI event table and Markdown report render T4 capability lists and T5 proofs with a validity indicator (completed 2026-04-24)
 - [ ] **Phase 15: Tiers 4 & 5 Validation & Docs (test-agent + README)** - test-agent scorecard and CI exit codes cover T4/T5; README Proof Levels rewritten to document the full 5-tier model
 
 ## Phase Details
@@ -171,9 +171,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 14-01-PLAN.md — T5Formula propagation end-to-end (types + server + broker + monitor integrated-mode bug fix + attach-mode None)
-- [ ] 14-02-PLAN.md — Monitor TUI extensions (EVIDENCE column, detail pane, 5-tier header, filter cycle, help overlay)
-- [ ] 14-03-PLAN.md — Report extensions (store queries, proof_level, Evidence column, exec summary T4/T5 rows, integration tests)
+- [x] 14-01-PLAN.md — T5Formula propagation end-to-end (types + server + broker + monitor integrated-mode bug fix + attach-mode None)
+- [x] 14-02-PLAN.md — Monitor TUI extensions (EVIDENCE column, detail pane, 5-tier header, filter cycle, help overlay)
+- [x] 14-03-PLAN.md — Report extensions (store queries, proof_level, Evidence column, exec summary T4/T5 rows, integration tests)
 
 ### Phase 15: Tiers 4 & 5 Validation & Docs (test-agent + README)
 **Goal**: The `honeyprompt test-agent` command scores Tier 4 and Tier 5 hits alongside T1–T3, CI exit codes preserve their 0/1/2 semantics across the new tiers, and the public README documents the full 5-tier proof model so external readers understand what evidence T4 and T5 produce.
@@ -206,5 +206,5 @@ Phases execute in numeric order: 13 → 14 → 15
 | 11. Setup Wizard & Zero-Config Serve | v4.0 | 2/2 | Complete | 2026-04-01 |
 | 12. Documentation & Deploy Templates | v4.0 | 2/2 | Complete | 2026-04-02 |
 | 13. Tiers 4 & 5 Backend | v5.0 | 4/4 | Complete    | 2026-04-24 |
-| 14. Tiers 4 & 5 Surfacing | v5.0 | 0/3   | Not started | - |
+| 14. Tiers 4 & 5 Surfacing | v5.0 | 3/3 | Complete    | 2026-04-24 |
 | 15. Tiers 4 & 5 Validation & Docs | v5.0 | 0/TBD | Not started | - |

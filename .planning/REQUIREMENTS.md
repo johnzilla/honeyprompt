@@ -34,11 +34,11 @@ Requirements for the v5.0 milestone. Each maps to exactly one roadmap phase.
 
 ### Monitor & Reports
 
-- [ ] **UI-01**: Monitor TUI event table renders Tier 4 capability summaries (decoded tool list) in the detail/row view
-- [ ] **UI-02**: Monitor TUI event table renders Tier 5 chain proofs with a visible `proof_valid` indicator (e.g. ✓ / ✗)
-- [ ] **UI-03**: Markdown disclosure report shows per-event T4 evidence (decoded tool list) alongside existing T1–T3 evidence
-- [ ] **UI-04**: Markdown disclosure report shows per-event T5 evidence (submitted proof + server verification result) alongside T1–T3 evidence
-- [ ] **UI-05**: Executive summary counts extend to include Tier 4 and Tier 5 event totals
+- [x] **UI-01**: Monitor TUI event table renders Tier 4 capability summaries (decoded tool list) in the detail/row view
+- [x] **UI-02**: Monitor TUI event table renders Tier 5 chain proofs with a visible `proof_valid` indicator (e.g. ✓ / ✗)
+- [x] **UI-03**: Markdown disclosure report shows per-event T4 evidence (decoded tool list) alongside existing T1–T3 evidence
+- [x] **UI-04**: Markdown disclosure report shows per-event T5 evidence (submitted proof + server verification result) alongside T1–T3 evidence
+- [x] **UI-05**: Executive summary counts extend to include Tier 4 and Tier 5 event totals
 
 ### test-agent & CI
 
@@ -101,11 +101,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | STORE-02 | Phase 13 | Complete |
 | STORE-03 | Phase 13 | Complete |
 | STORE-04 | Phase 13 | Complete |
-| UI-01 | Phase 14 | Pending |
-| UI-02 | Phase 14 | Pending |
-| UI-03 | Phase 14 | Pending |
-| UI-04 | Phase 14 | Pending |
-| UI-05 | Phase 14 | Pending |
+| UI-01 | Phase 14 | Complete |
+| UI-02 | Phase 14 | Complete |
+| UI-03 | Phase 14 | Complete |
+| UI-04 | Phase 14 | Complete |
+| UI-05 | Phase 14 | Complete |
 | TESTAGENT-01 | Phase 15 | Pending |
 | TESTAGENT-02 | Phase 15 | Pending |
 | TESTAGENT-03 | Phase 15 | Pending |
