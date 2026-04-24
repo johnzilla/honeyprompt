@@ -184,7 +184,12 @@ Plans:
   2. Running test-agent against a honeypot with T4/T5 payloads produces exit codes that still follow the 0/1/2 semantics documented in v2.0 (green/soft-fail/hard-fail) with T4/T5 participation included in the determination
   3. README "Proof Levels" section documents all five tiers with one short concrete example per tier (including T4 and T5) and the Ethics/Safety section explicitly reaffirms no-secrets guarantees for T4 (agent-chosen safe menu) and T5 (page-visible arithmetic)
   4. README Project Status table and TODOS.md are updated so T4/T5 no longer appear under "future" — they appear under "shipped" with the v5.0 phase references
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 15-01-PLAN.md — test-agent scorecard 5-tier extension (Scorecard struct + render_text/render_json + store::detections_by_tier → [u32; 5])
+- [ ] 15-02-PLAN.md — README 5-tier documentation (Proof Levels italic examples + Ethics T4/T5 no-secrets bullets + Project Status Phase 15 row)
+- [ ] 15-03-PLAN.md — TODOS.md ## Shipped section (T4 + T5 entries above existing security-email TODO)
 
 ## Progress
 
