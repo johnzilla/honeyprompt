@@ -4,11 +4,34 @@
 
 HoneyPrompt is a terminal-first security tool that detects and measures unsafe behavior by AI browsing agents. It generates honeypot web pages containing visible human warnings and hidden prompt-injection canaries, then records HTTP callbacks that prove varying levels of agent compliance with injected instructions. Built in Rust as a single binary for security researchers, defenders, and platform teams who want evidence of agentic web abuse without collecting secrets or performing harmful actions.
 
-v4.0 adds self-hosted UX: interactive setup wizard, zero-config `serve --domain` mode, deploy templates, and a "Deploy Your Own" guide. 4,700+ lines of Rust across 4 milestones, 12 phases.
+v4.0 shipped self-hosted UX: interactive setup wizard, zero-config `serve --domain` mode, deploy templates, and a "Deploy Your Own" guide. 4,700+ lines of Rust across 4 milestones, 12 phases.
+
+v5.0 extends the graduated proof model from Tiers 1–3 to Tiers 4 (Capability Introspection) and 5 (Multi-step Compliance Chain) — deeper verifiable evidence of agent compliance, still without secrets.
 
 ## Core Value
 
 Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
+
+## Current Milestone: v5.0 Tiers 4 & 5 — Capability Introspection + Multi-step Compliance
+
+**Goal:** Extend the graduated proof model from Tiers 1–3 to Tiers 4 (Capability Introspection) and Tier 5 (Multi-step Compliance Chain), providing deeper verifiable evidence of agent compliance — backward-compatible, no secrets transmitted.
+
+**Target features:**
+- Tier 4 payloads (2–3 templates) — agent returns sorted base64-encoded capability/tool list via `/cb/v4/{nonce}/{b64_list}`
+- Tier 5 payloads (2–3 templates) — agent follows numbered dependent steps (seed extraction → arithmetic → proof computation) ending in `/cb/v5/{nonce}/{proof}`
+- New callback routes `/cb/v4/` and `/cb/v5/` with decode/sanitize/verify (v1 route stays frozen)
+- SQLite schema extension for tier-4 capability summary and tier-5 proof + server-side proof verification (`proof_valid: bool`)
+- Payload catalog extension — new payloads across existing 5 embedding locations (HTML comment, meta, hidden span, JSON-LD, prose)
+- Monitor TUI renders T4 capability lists and T5 chain proofs
+- Markdown report shows per-tier results including T4/T5 evidence
+- test-agent scorecard and CI exit codes extend to T4 and T5
+- README Proof Levels section updated; TODOS.md cleaned
+
+**Key constraints:**
+- Backward compatible — Tiers 1–3 behavior, config, schema, routes unchanged
+- Zero-trust — all callbacks remain `/cb/vX/{nonce}/{safe_data}` style; no sensitive data ever transmitted
+- T4 tool lists agent-chosen from safe menu; T5 proofs arithmetic of page-visible values
+- Same 5 embedding locations, same nonce scheme, same single-binary distribution
 
 ## Requirements
 
@@ -44,7 +67,16 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 
 ### Active
 
-- None — planning next milestone
+- Tier 4 payload templates (2–3) with base64-encoded capability list — v5.0
+- Tier 5 payload templates (2–3) with multi-step compliance chain and verifiable proof — v5.0
+- `/cb/v4/{nonce}/{b64_list}` route — decode, sanitize, store — v5.0
+- `/cb/v5/{nonce}/{proof}` route — store + server-side proof verification when seed is deterministic — v5.0
+- SQLite schema fields for T4 capability summary and T5 proof + `proof_valid` — v5.0
+- Payload catalog extension covering 5 embedding locations for T4/T5 — v5.0
+- Monitor TUI renders T4 capability lists and T5 chain proofs — v5.0
+- Markdown disclosure report shows T4/T5 evidence alongside T1–T3 — v5.0
+- test-agent scorecard and CI exit codes extend to T4/T5 — v5.0
+- README Proof Levels section documents 5-tier model; TODOS.md updated — v5.0
 
 ### Out of Scope
 
@@ -147,4 +179,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-01 after v4.0 Self-Hosted UX milestone completion*
+*Last updated: 2026-04-24 — v5.0 Tiers 4 & 5 milestone started*

@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: Self-Hosted UX
-status: verifying
-stopped_at: Completed 12-02-PLAN.md
-last_updated: "2026-04-02T00:56:25.620Z"
-last_activity: 2026-04-02
+milestone: v5.0
+milestone_name: Tiers 4 & 5
+status: defining_requirements
+stopped_at: null
+last_updated: "2026-04-24T00:00:00.000Z"
+last_activity: 2026-04-24
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
   percent: 0
 ---
 
@@ -18,17 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-01)
+See: .planning/PROJECT.md (updated 2026-04-24)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** Phase 11 — setup-wizard-zero-config-serve
+**Current focus:** v5.0 milestone — defining requirements for Tiers 4 & 5 (Capability Introspection + Multi-step Compliance Chain)
 
 ## Current Position
 
-Phase: 12
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-04-02
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-24 — Milestone v5.0 Tiers 4 & 5 started
 
 Progress: [░░░░░░░░░░] 0%
 
