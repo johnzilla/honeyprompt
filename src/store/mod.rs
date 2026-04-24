@@ -804,11 +804,7 @@ mod tests {
             .iter()
             .find(|(n, _)| n == "t4_capability")
             .expect("events must have t4_capability column (STORE-01)");
-        assert_eq!(
-            t4.1.to_uppercase(),
-            "TEXT",
-            "t4_capability must be TEXT"
-        );
+        assert_eq!(t4.1.to_uppercase(), "TEXT", "t4_capability must be TEXT");
     }
 
     #[test]
@@ -828,11 +824,7 @@ mod tests {
             .iter()
             .find(|(n, _)| n == "t5_proof")
             .expect("events must have t5_proof column (STORE-02)");
-        assert_eq!(
-            proof.1.to_uppercase(),
-            "TEXT",
-            "t5_proof must be TEXT"
-        );
+        assert_eq!(proof.1.to_uppercase(), "TEXT", "t5_proof must be TEXT");
         let valid = column_rows
             .iter()
             .find(|(n, _)| n == "t5_proof_valid")
