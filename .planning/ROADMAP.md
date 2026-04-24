@@ -168,7 +168,12 @@ Plans:
   4. The report's executive summary counts extend to list Tier 4 and Tier 5 totals alongside T1–T3
   5. All UI changes are purely additive — running Monitor or report against a v4.0 database (T1–T3 only) still produces sensible output with no empty T4/T5 sections printed
 **UI hint**: yes
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 14-01-PLAN.md — T5Formula propagation end-to-end (types + server + broker + monitor integrated-mode bug fix + attach-mode None)
+- [ ] 14-02-PLAN.md — Monitor TUI extensions (EVIDENCE column, detail pane, 5-tier header, filter cycle, help overlay)
+- [ ] 14-03-PLAN.md — Report extensions (store queries, proof_level, Evidence column, exec summary T4/T5 rows, integration tests)
 
 ### Phase 15: Tiers 4 & 5 Validation & Docs (test-agent + README)
 **Goal**: The `honeyprompt test-agent` command scores Tier 4 and Tier 5 hits alongside T1–T3, CI exit codes preserve their 0/1/2 semantics across the new tiers, and the public README documents the full 5-tier proof model so external readers understand what evidence T4 and T5 produce.
@@ -201,5 +206,5 @@ Phases execute in numeric order: 13 → 14 → 15
 | 11. Setup Wizard & Zero-Config Serve | v4.0 | 2/2 | Complete | 2026-04-01 |
 | 12. Documentation & Deploy Templates | v4.0 | 2/2 | Complete | 2026-04-02 |
 | 13. Tiers 4 & 5 Backend | v5.0 | 4/4 | Complete    | 2026-04-24 |
-| 14. Tiers 4 & 5 Surfacing | v5.0 | 0/TBD | Not started | - |
+| 14. Tiers 4 & 5 Surfacing | v5.0 | 0/3   | Not started | - |
 | 15. Tiers 4 & 5 Validation & Docs | v5.0 | 0/TBD | Not started | - |
