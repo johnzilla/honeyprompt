@@ -87,37 +87,42 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PAYLOAD-01 | TBD | Pending |
-| PAYLOAD-02 | TBD | Pending |
-| PAYLOAD-03 | TBD | Pending |
-| PAYLOAD-04 | TBD | Pending |
-| PAYLOAD-05 | TBD | Pending |
-| SERVER-01 | TBD | Pending |
-| SERVER-02 | TBD | Pending |
-| SERVER-03 | TBD | Pending |
-| SERVER-04 | TBD | Pending |
-| STORE-01 | TBD | Pending |
-| STORE-02 | TBD | Pending |
-| STORE-03 | TBD | Pending |
-| STORE-04 | TBD | Pending |
-| UI-01 | TBD | Pending |
-| UI-02 | TBD | Pending |
-| UI-03 | TBD | Pending |
-| UI-04 | TBD | Pending |
-| UI-05 | TBD | Pending |
-| TESTAGENT-01 | TBD | Pending |
-| TESTAGENT-02 | TBD | Pending |
-| TESTAGENT-03 | TBD | Pending |
-| DOCS-01 | TBD | Pending |
-| DOCS-02 | TBD | Pending |
-| DOCS-03 | TBD | Pending |
-| DOCS-04 | TBD | Pending |
+| PAYLOAD-01 | Phase 13 | Pending |
+| PAYLOAD-02 | Phase 13 | Pending |
+| PAYLOAD-03 | Phase 13 | Pending |
+| PAYLOAD-04 | Phase 13 | Pending |
+| PAYLOAD-05 | Phase 13 | Pending |
+| SERVER-01 | Phase 13 | Pending |
+| SERVER-02 | Phase 13 | Pending |
+| SERVER-03 | Phase 13 | Pending |
+| SERVER-04 | Phase 13 | Pending |
+| STORE-01 | Phase 13 | Pending |
+| STORE-02 | Phase 13 | Pending |
+| STORE-03 | Phase 13 | Pending |
+| STORE-04 | Phase 13 | Pending |
+| UI-01 | Phase 14 | Pending |
+| UI-02 | Phase 14 | Pending |
+| UI-03 | Phase 14 | Pending |
+| UI-04 | Phase 14 | Pending |
+| UI-05 | Phase 14 | Pending |
+| TESTAGENT-01 | Phase 15 | Pending |
+| TESTAGENT-02 | Phase 15 | Pending |
+| TESTAGENT-03 | Phase 15 | Pending |
+| DOCS-01 | Phase 15 | Pending |
+| DOCS-02 | Phase 15 | Pending |
+| DOCS-03 | Phase 15 | Pending |
+| DOCS-04 | Phase 15 | Pending |
 
 **Coverage:**
 - v5.0 requirements: 25 total
-- Mapped to phases: 0 (awaiting roadmap)
-- Unmapped: 25 ⚠️
+- Mapped to phases: 25 (Phase 13: 13, Phase 14: 5, Phase 15: 7) ✓
+- Unmapped: 0
+
+**Phase Distribution:**
+- Phase 13 (Backend): PAYLOAD-01..05, SERVER-01..04, STORE-01..04 — 13 requirements
+- Phase 14 (Surfacing): UI-01..05 — 5 requirements
+- Phase 15 (Validation & Docs): TESTAGENT-01..03, DOCS-01..04 — 7 requirements
 
 ---
 *Requirements defined: 2026-04-24*
-*Last updated: 2026-04-24 — initial definition for v5.0 Tiers 4 & 5*
+*Last updated: 2026-04-24 — traceability filled in for v5.0 phases 13-15*

@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Tiers 4 & 5
-status: defining_requirements
+status: roadmap_complete
 stopped_at: null
 last_updated: "2026-04-24T00:00:00.000Z"
 last_activity: 2026-04-24
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,22 +21,32 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-24)
 
 **Core value:** Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
-**Current focus:** v5.0 milestone — defining requirements for Tiers 4 & 5 (Capability Introspection + Multi-step Compliance Chain)
+**Current focus:** v5.0 milestone — Phase 13 (Tiers 4 & 5 Backend) ready to plan
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-24 — Milestone v5.0 Tiers 4 & 5 started
+Phase: 13 of 15 (Tiers 4 & 5 Backend — Payloads + Routes + Store)
+Plan: — (roadmap complete, plans TBD)
+Status: Ready to plan Phase 13
+Last activity: 2026-04-24 — Roadmap written for v5.0 (phases 13-15)
 
 Progress: [░░░░░░░░░░] 0%
+
+## v5.0 Phase Inventory
+
+| Phase | Name | Requirements | Status |
+|-------|------|--------------|--------|
+| 13 | Tiers 4 & 5 Backend (Payloads + Routes + Store) | 13 reqs (PAYLOAD-01..05, SERVER-01..04, STORE-01..04) | Not started |
+| 14 | Tiers 4 & 5 Surfacing (Monitor TUI + Report) | 5 reqs (UI-01..05) | Not started |
+| 15 | Tiers 4 & 5 Validation & Docs (test-agent + README) | 7 reqs (TESTAGENT-01..03, DOCS-01..04) | Not started |
+
+Coverage: 25/25 v5.0 requirements mapped.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0 (v4.0) / 17 (v1.0–v3.0 combined)
+- Total plans completed: 17 (v1.0–v3.0) + 4 (v4.0) = 21
 - Average duration: ~25 min/plan (v2.0 baseline)
 - Total execution time: —
 
@@ -47,16 +57,13 @@ Progress: [░░░░░░░░░░] 0%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [v5.0 roadmap]: 3-phase split — backend foundation → UI surfacing → validation+docs — chosen for smallest blast radius with clear demoable boundaries
+- [v5.0 roadmap]: Backward-compat (frozen /cb/v1/, additive SQLite migration) concentrated as Phase 13 success criteria since that's where the risk lives
 - [v4.0 design]: `dialoguer` crate for interactive CLI prompts in setup wizard
 - [v4.0 design]: tempdir serve mode reuses existing generate pipeline (same pattern as test-agent)
 - [v4.0 design]: --domain flag sets callback_base_url, bind 0.0.0.0:8080, all payloads enabled
 - [v4.0 design]: flag > config file > built-in defaults precedence chain
 - [v4.0 design]: deploy/templates/ with {DOMAIN} placeholder pattern for docker-compose, systemd, Caddyfile
-- [Phase 11-01]: dialoguer crate for interactive CLI prompts; check_dns returns Ok(bool) for non-blocking warning semantics; Setup guard exits with process::exit(1) on existing config
-- [Phase 11-02]: config_with_overrides precedence: flag > domain-defaults > base-config, with domain implying bind=0.0.0.0:8080 and tiers=[1,2,3]
-- [Phase 11-02]: Tempdir mode triggers when --domain set, path=='.', and no honeyprompt.toml present; explicit --path always uses standard mode
-- [Phase 12-02]: Templates use {DOMAIN} placeholder that users globally-replace — no templating engine required
-- [Phase 12-02]: honeyprompt.service ExecStart updated to use --domain flag matching v4.0 zero-config UX
 
 ### Pending Todos
 
@@ -68,7 +75,6 @@ None for current phase.
 
 ## Session Continuity
 
-Last session: 2026-04-01T23:11:55.305Z
-Last activity: 2026-04-01 — Roadmap written for v4.0 Self-Hosted UX (phases 11-12)
-Stopped at: Completed 12-02-PLAN.md
+Last session: 2026-04-24
+Stopped at: Roadmap written for v5.0 Tiers 4 & 5 (Phases 13-15)
 Resume file: None
