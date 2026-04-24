@@ -9,6 +9,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
+use base64::{engine::general_purpose, Engine as _};
 use tokio::sync::mpsc;
 use tower_http::services::ServeDir;
 
@@ -215,4 +216,156 @@ fn now_unix_secs() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
+}
+
+/// Compute the expected T5 proof value in u64 space, then reduce to u32.
+/// Returns a number in [0, modulus - 1]. D-13-02 arithmetic:
+/// `proof = ((seed + formula_a) * formula_b) % formula_mod`.
+///
+/// u64 promotion is critical: `(seed + a) * b` overflows u32 when seed near
+/// u32::MAX (RESEARCH Pitfall 3 / Risk 2). `wrapping_add` / `wrapping_mul`
+/// on u64 cannot in practice overflow (max value is ~u32::MAX^2 + u32::MAX
+/// < 2^64), but the wrapping versions are used as defense-in-depth.
+///
+/// PARENTHESIZATION INVARIANT: the formula is `((seed + a) * b) % m`. A
+/// refactor that changes this to `(seed + (a * b)) % m` would silently
+/// produce wrong proofs on ALL nonzero seeds. Guarded by
+/// `test_compute_expected_proof_seed_zero_nontrivial_a_b`.
+#[cfg_attr(not(test), allow(dead_code))]
+fn compute_expected_proof(seed: u32, formula_a: u32, formula_b: u32, formula_mod: u32) -> u32 {
+    let s = seed as u64;
+    let a = formula_a as u64;
+    let b = formula_b as u64;
+    let m = formula_mod as u64;
+    ((s.wrapping_add(a).wrapping_mul(b)) % m) as u32
+}
+
+/// D-13-09 hand-rolled sanitizer: `^[a-z0-9_,.\-]{1,256}$`
+/// No `regex` crate dependency -- auditable byte scan (RESEARCH "Don't Hand-Roll" line 461).
+#[cfg_attr(not(test), allow(dead_code))]
+fn is_valid_t4_payload(s: &str) -> bool {
+    let len = s.len();
+    if len == 0 || len > 256 {
+        return false;
+    }
+    s.bytes().all(|b| {
+        b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'_' | b',' | b'.' | b'-')
+    })
+}
+
+/// URL-safe base64 decode with D-13-09 sanitization. Returns None on any failure.
+/// Oversize check BEFORE decode to avoid wasteful decoding (RESEARCH line 308).
+#[cfg_attr(not(test), allow(dead_code))]
+fn decode_t4_payload(b64: &str) -> Option<String> {
+    // URL-safe base64 of 256 bytes = ceil(256 * 4/3) ~= 344; allow slack to 400.
+    if b64.len() > 400 {
+        return None;
+    }
+    let decoded = general_purpose::URL_SAFE_NO_PAD.decode(b64).ok()?;
+    let as_str = String::from_utf8(decoded).ok()?;
+    let normalized: String = as_str
+        .trim()
+        .to_lowercase()
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    if is_valid_t4_payload(&normalized) {
+        Some(normalized)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compute_expected_proof_zero_seed() {
+        // (0 + 0) * 1 % 1000 = 0
+        assert_eq!(compute_expected_proof(0, 0, 1, 1000), 0);
+    }
+
+    #[test]
+    fn test_compute_expected_proof_max_seed_no_overflow() {
+        // RESEARCH Pitfall 3 critical test: MUST NOT panic in debug builds.
+        // u32::MAX + 1_000_000 would overflow u32; u64 promotion prevents it.
+        let result = compute_expected_proof(u32::MAX, 1_000_000, 1_000_000, 1000);
+        // Don't assert specific value -- just that we didn't panic and got something in range.
+        assert!(result < 1000);
+    }
+
+    #[test]
+    fn test_compute_expected_proof_known_vector() {
+        // seed = 0x12345678 = 305_419_896
+        // a = 42, b = 17, mod = 1000
+        // S = 305_419_896 + 42 = 305_419_938
+        // proof = (305_419_938 * 17) % 1000 = 5_192_138_946 % 1000 = 946
+        assert_eq!(compute_expected_proof(0x12345678, 42, 17, 1000), 946);
+    }
+
+    #[test]
+    fn test_compute_expected_proof_seed_zero_nontrivial_a_b() {
+        // PARENTHESIZATION TRAP: seed=0 does NOT distinguish `(seed + a) * b`
+        // from `seed + (a * b)` because addition-identity collapses both forms
+        // to `a * b` at seed=0. We must use a nonzero seed.
+        //
+        // With seed=1, a=42, b=17, mod=1000:
+        //   Correct `((seed + a) * b) % mod`:
+        //     ((1 + 42) * 17) % 1000 = (43 * 17) % 1000 = 731 % 1000 = 731
+        //   WRONG  `(seed + (a * b)) % mod`:
+        //     (1 + (42 * 17)) % 1000 = (1 + 714) % 1000 = 715
+        //
+        // Any future refactor that silently swaps the parenthesization will
+        // produce 715 and fail this test -- the intended guard.
+        assert_eq!(compute_expected_proof(1, 42, 17, 1000), 731);
+    }
+
+    #[test]
+    fn test_t4_decode_valid_payload() {
+        // "web_search,browse_page" URL-safe base64 no-pad
+        let input = "web_search,browse_page";
+        let encoded = general_purpose::URL_SAFE_NO_PAD.encode(input.as_bytes());
+        assert_eq!(decode_t4_payload(&encoded), Some(input.to_string()));
+    }
+
+    #[test]
+    fn test_t4_decode_rejects_oversize() {
+        let oversize = "A".repeat(500);
+        assert_eq!(decode_t4_payload(&oversize), None);
+    }
+
+    #[test]
+    fn test_t4_decode_rejects_invalid_chars() {
+        let bad = general_purpose::URL_SAFE_NO_PAD.encode(b"contains!punctuation@");
+        assert_eq!(decode_t4_payload(&bad), None);
+    }
+
+    #[test]
+    fn test_t4_decode_normalizes_case_and_whitespace() {
+        let input = "Web_Search , Browse_Page";
+        let encoded = general_purpose::URL_SAFE_NO_PAD.encode(input.as_bytes());
+        assert_eq!(
+            decode_t4_payload(&encoded),
+            Some("web_search,browse_page".to_string())
+        );
+    }
+
+    #[test]
+    fn test_t4_decode_rejects_non_base64() {
+        // Characters not in URL-safe alphabet (contains + and /)
+        assert_eq!(decode_t4_payload("not+url/safe"), None);
+    }
+
+    #[test]
+    fn test_is_valid_t4_payload_empty_and_oversize() {
+        assert!(!is_valid_t4_payload(""), "empty string must be rejected");
+        let s = "a".repeat(256);
+        assert!(
+            is_valid_t4_payload(&s),
+            "256 chars of lowercase alpha must be accepted"
+        );
+        let s = "a".repeat(257);
+        assert!(!is_valid_t4_payload(&s), "257 chars must be rejected");
+    }
 }
