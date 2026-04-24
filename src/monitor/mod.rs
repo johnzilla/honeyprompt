@@ -1,7 +1,7 @@
 use crate::cli::MonitorArgs;
 use crate::config::Config;
 use crate::types::{AgentClass, AppEvent};
-use crate::types::{NonceMapping, RawCallbackEvent};
+use crate::types::{NonceMapping, RawCallbackEvent, T5Formula, Tier};
 use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{
@@ -904,16 +904,32 @@ pub async fn monitor(
         let mappings: Vec<NonceMapping> = serde_json::from_str(&json_str)
             .map_err(|e| anyhow::anyhow!("Failed to parse callback-map.json: {}", e))?;
 
+        // Phase 14 fix: load the payload catalog and build a payload_id -> T5Formula
+        // lookup BEFORE constructing nonce_map, so tier-5 entries get their formula
+        // populated (previously hard-coded to None, which caused every T5 callback
+        // to silently fall through at src/server/mod.rs:160-163). Mirrors the
+        // run_server pattern at src/server/mod.rs:249-274.
+        let all_payloads = crate::catalog::load_catalog()?;
+        let t5_formulas_by_payload_id: std::collections::HashMap<String, T5Formula> = all_payloads
+            .iter()
+            .filter_map(|p| p.t5_formula.map(|f| (p.id.clone(), f)))
+            .collect();
+
         let mut nonce_map: std::collections::HashMap<String, crate::server::NonceMeta> =
             std::collections::HashMap::new();
         for m in &mappings {
+            let t5_formula = if m.tier == Tier::Tier5 {
+                t5_formulas_by_payload_id.get(&m.payload_id).copied()
+            } else {
+                None
+            };
             nonce_map.insert(
                 m.nonce.clone(),
                 crate::server::NonceMeta {
                     tier: u8::from(m.tier),
                     payload_id: m.payload_id.clone(),
                     embedding_loc: m.embedding_location.to_string(),
-                    t5_formula: None,
+                    t5_formula,
                 },
             );
         }
@@ -1302,5 +1318,42 @@ mod tests {
     fn test_parse_classification_none() {
         let cls = parse_classification_from_extra(&None);
         assert_eq!(cls, AgentClass::Unknown);
+    }
+
+    #[test]
+    fn test_integrated_mode_nonce_map_loads_t5_formula() {
+        // Regression test for the Phase 14 latent-bug fix at src/monitor/mod.rs:903-915.
+        // The integrated-mode nonce_map construction must mirror run_server
+        // (src/server/mod.rs:249-274): load the catalog and populate t5_formula
+        // for tier-5 entries. Previously hard-coded to None, causing T5 callbacks
+        // to silently fail at src/server/mod.rs:160-163.
+        let all_payloads = crate::catalog::load_catalog().expect("catalog loads");
+        let t5_formulas_by_payload_id: std::collections::HashMap<String, crate::types::T5Formula> =
+            all_payloads
+                .iter()
+                .filter_map(|p| p.t5_formula.map(|f| (p.id.clone(), f)))
+                .collect();
+        // Assert the catalog contains at least one tier-5 entry with a formula.
+        // (Phase 13 shipped tier5.toml with >= 2 templates, all of which MUST
+        // have formula_a/formula_b/formula_mod fields populated — this is a
+        // smoke test that the loading path is wired.)
+        assert!(
+            !t5_formulas_by_payload_id.is_empty(),
+            "Catalog should contain at least one tier-5 payload with a T5Formula; \
+             got empty map. This likely means tier5.toml is missing or the catalog \
+             loader isn't filtering correctly."
+        );
+        // For each tier-5 entry, verify the formula lookup round-trip.
+        for p in all_payloads
+            .iter()
+            .filter(|p| p.tier == crate::types::Tier::Tier5)
+        {
+            let looked_up = t5_formulas_by_payload_id.get(&p.id).copied();
+            assert_eq!(
+                looked_up, p.t5_formula,
+                "payload_id {} round-trip mismatch",
+                p.id
+            );
+        }
     }
 }

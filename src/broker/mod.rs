@@ -355,11 +355,10 @@ mod tests {
         // Helper defaults `t5_formula: None`; (nonce, tier) = ("n1", 1).
         let raw = make_raw_event("n1", 1);
         callback_tx.send(raw).await.unwrap();
-        let received =
-            tokio::time::timeout(std::time::Duration::from_millis(500), event_rx.recv())
-                .await
-                .expect("broker must broadcast within 500ms")
-                .expect("broadcast must succeed");
+        let received = tokio::time::timeout(std::time::Duration::from_millis(500), event_rx.recv())
+            .await
+            .expect("broker must broadcast within 500ms")
+            .expect("broadcast must succeed");
         assert_eq!(received.t5_formula, None);
     }
 
