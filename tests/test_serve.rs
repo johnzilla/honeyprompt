@@ -318,6 +318,9 @@ async fn test_stats_populated_db_returns_counts() {
         "10.0.0.1",
         "TestAgent/1.0",
         r#"{"classification":"Unknown","headers":{}}"#,
+        None,
+        None,
+        None,
     )
     .unwrap();
     drop(sync_conn);

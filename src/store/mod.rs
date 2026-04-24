@@ -76,6 +76,11 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
 ///
 /// Returns `(fire_count, is_replay)` so the broker knows if this was a replay.
 /// All values are passed via parameterized query — SQL metacharacters cannot corrupt queries.
+///
+/// Phase 13 extension: three trailing `Option` parameters carry T4/T5 payload data.
+/// Per D-13-19 / RESEARCH Risk 6, these fields follow first-write-wins semantics —
+/// they are stored on INSERT but the `ON CONFLICT(nonce) DO UPDATE SET` clause does
+/// NOT overwrite them on replay (replay only touches last_seen_at, fire_count, is_replay).
 #[allow(clippy::too_many_arguments)]
 pub fn insert_callback_event(
     conn: &Connection,
@@ -87,16 +92,37 @@ pub fn insert_callback_event(
     remote_addr: &str,
     user_agent: &str,
     extra_headers: &str,
+    t4_capability: Option<&str>,
+    t5_proof: Option<&str>,
+    t5_proof_valid: Option<bool>,
 ) -> rusqlite::Result<(u32, bool)> {
     let now = chrono_now();
     conn.execute(
-        "INSERT INTO events (nonce, tier, payload_id, embedding_loc, first_seen_at, last_seen_at, fire_count, is_replay, session_id, remote_addr, user_agent, extra_headers)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?5, 1, 0, ?6, ?7, ?8, ?9)
+        "INSERT INTO events (
+             nonce, tier, payload_id, embedding_loc,
+             first_seen_at, last_seen_at, fire_count, is_replay,
+             session_id, remote_addr, user_agent, extra_headers,
+             t4_capability, t5_proof, t5_proof_valid
+         )
+         VALUES (?1, ?2, ?3, ?4, ?5, ?5, 1, 0, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
          ON CONFLICT(nonce) DO UPDATE SET
            last_seen_at = ?5,
            fire_count = fire_count + 1,
            is_replay = 1",
-        params![nonce, tier, payload_id, embedding_loc, now, session_id, remote_addr, user_agent, extra_headers],
+        params![
+            nonce,
+            tier,
+            payload_id,
+            embedding_loc,
+            now,
+            session_id,
+            remote_addr,
+            user_agent,
+            extra_headers,
+            t4_capability,
+            t5_proof,
+            t5_proof_valid,
+        ],
     )?;
 
     let (fire_count, is_replay_int): (u32, i64) = conn.query_row(
@@ -379,6 +405,9 @@ mod tests {
             "1.2.3.4",
             "TestBot/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
         )
         .unwrap();
         assert_eq!(fire_count, 1, "new nonce should have fire_count=1");
@@ -400,6 +429,9 @@ mod tests {
             "1.2.3.4",
             "TestBot/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
         )
         .unwrap();
         // Second fire — same nonce
@@ -413,6 +445,9 @@ mod tests {
             "1.2.3.4",
             "TestBot/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
         )
         .unwrap();
         assert_eq!(fire_count, 2, "second fire should have fire_count=2");
@@ -434,6 +469,9 @@ mod tests {
             "5.6.7.8",
             "GPTBot/1.0",
             extra,
+            None,
+            None,
+            None,
         )
         .unwrap();
         let (session_id, remote_addr, user_agent, extra_headers): (String, String, String, String) = conn
@@ -468,6 +506,9 @@ mod tests {
             "9.9.9.9",
             "NoBodyBot/1.0",
             "{}",
+            None,
+            None,
+            None,
         );
         assert!(result.is_ok());
     }
@@ -510,6 +551,9 @@ mod tests {
             "10.0.0.1",
             "Googlebot/2.1",
             r#"{"classification":"KnownCrawler","headers":{}}"#,
+            None,
+            None,
+            None,
         )
         .unwrap();
         // Insert an Unknown event — should count
@@ -524,6 +568,9 @@ mod tests {
             "10.0.0.2",
             "EvilAgent/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
         )
         .unwrap();
         let count = count_detections(&conn).unwrap();
@@ -545,6 +592,9 @@ mod tests {
             "1.1.1.1",
             "Agent/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
         )
         .unwrap();
         insert_nonce(&conn, "same02", 1, "t1-other", "meta_tag").unwrap();
@@ -558,6 +608,9 @@ mod tests {
             "1.1.1.1",
             "Agent/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
         )
         .unwrap();
         // Different tier, same session — should count as 2
@@ -572,6 +625,9 @@ mod tests {
             "1.1.1.1",
             "Agent/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
         )
         .unwrap();
         let count = count_detections(&conn).unwrap();
@@ -650,6 +706,9 @@ mod tests {
             "10.0.0.1",
             "Agent/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
         )
         .unwrap();
         // Tier 3 event
@@ -664,6 +723,9 @@ mod tests {
             "10.0.0.2",
             "Agent/1.0",
             r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
         )
         .unwrap();
         // Known crawler should be excluded
@@ -678,6 +740,9 @@ mod tests {
             "10.0.0.3",
             "Googlebot/2.1",
             r#"{"classification":"KnownCrawler","headers":{}}"#,
+            None,
+            None,
+            None,
         )
         .unwrap();
         let counts = detections_by_tier(&conn).unwrap();

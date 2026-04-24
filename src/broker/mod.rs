@@ -64,6 +64,9 @@ pub async fn db_writer_task(
                             &remote_addr,
                             &user_agent,
                             &extra_headers,
+                            None, // t4_capability — Plan 04 populates from AppEvent
+                            None, // t5_proof — Plan 04 populates from AppEvent
+                            None, // t5_proof_valid — Plan 04 populates from AppEvent
                         )
                         .map_err(tokio_rusqlite::Error::from)
                     })
