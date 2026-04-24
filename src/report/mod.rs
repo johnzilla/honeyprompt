@@ -40,7 +40,32 @@ fn proof_level(tier: u8) -> &'static str {
         1 => "Arbitrary Callback",
         2 => "Conditional Branch",
         3 => "Computed Callback",
+        4 => "Capability Introspection", // NEW Phase 14 (D-14-09)
+        5 => "Multi-step Compliance",    // NEW Phase 14 (D-14-09)
         _ => "Unknown",
+    }
+}
+
+/// Phase 14 (D-14-08, D-14-10, D-14-11, D-14-13): Evidence Table cell for a given
+/// session row. T4 renders the full decoded capability list; T5 renders
+/// "NNN ✓ VALID" / "NNN ✗ INVALID"; T1-T3 render an em-dash.
+/// All agent-supplied strings pass through md_escape (Pattern C, Pitfall 1).
+fn evidence_cell(s: &crate::store::ReportSession) -> String {
+    match s.tier {
+        4 => s
+            .t4_capability
+            .as_deref()
+            .map(md_escape)
+            .unwrap_or_else(|| "—".to_string()),
+        5 => {
+            let proof = s.t5_proof.as_deref().unwrap_or("---");
+            match s.t5_proof_valid {
+                Some(true) => format!("{} ✓ VALID", md_escape(proof)),
+                Some(false) => format!("{} ✗ INVALID", md_escape(proof)),
+                None => md_escape(proof),
+            }
+        }
+        _ => "—".to_string(),
     }
 }
 
@@ -99,6 +124,15 @@ pub fn generate_report(conn: &Connection) -> anyhow::Result<String> {
         "| Tier 3 (Computed Callback) | {} |\n",
         summary.tier3_sessions
     ));
+    // Phase 14 (D-14-09, D-14-12): always emit Tier 4/5 rows, even with count=0.
+    md.push_str(&format!(
+        "| Tier 4 (Capability Introspection) | {} |\n",
+        summary.tier4_sessions
+    ));
+    md.push_str(&format!(
+        "| Tier 5 (Multi-step Compliance) | {} |\n",
+        summary.tier5_sessions
+    ));
     md.push_str(&format!(
         "| Known Crawler Sessions | {} |\n",
         summary.crawler_sessions
@@ -117,11 +151,11 @@ pub fn generate_report(conn: &Connection) -> anyhow::Result<String> {
 
     // Evidence Table (detection sessions only)
     md.push_str("## Evidence Table\n\n");
-    md.push_str("| Session | Tier | Proof Level | First Seen | Source IP | User Agent | Fire Count | Classification | Payload |\n");
-    md.push_str("|---------|------|-------------|------------|-----------|------------|------------|----------------|--------|\n");
+    md.push_str("| Session | Tier | Proof Level | First Seen | Source IP | User Agent | Fire Count | Classification | Evidence | Payload |\n");
+    md.push_str("|---------|------|-------------|------------|-----------|------------|------------|----------------|----------|--------|\n");
 
     if detection_sessions.is_empty() {
-        md.push_str("| — | — | — | — | — | — | — | — | — |\n");
+        md.push_str("| — | — | — | — | — | — | — | — | — | — |\n");
     } else {
         for s in &detection_sessions {
             let session_short = md_escape(&s.session_id[..s.session_id.len().min(8)]);
@@ -132,9 +166,10 @@ pub fn generate_report(conn: &Connection) -> anyhow::Result<String> {
             let ua = md_escape(&s.user_agent);
             let fire = s.fire_count.to_string();
             let class = md_escape(&s.classification);
+            let evidence = evidence_cell(s); // NEW Phase 14 (UI-03, UI-04)
             let payload = md_escape(&s.payload_id);
             md.push_str(&format!(
-                "| {session_short} | {tier_str} | {proof} | {first_seen} | {ip} | {ua} | {fire} | {class} | {payload} |\n"
+                "| {session_short} | {tier_str} | {proof} | {first_seen} | {ip} | {ua} | {fire} | {class} | {evidence} | {payload} |\n"
             ));
         }
     }
@@ -142,11 +177,11 @@ pub fn generate_report(conn: &Connection) -> anyhow::Result<String> {
 
     // Known Crawler Sessions
     md.push_str("## Known Crawler Sessions\n\n");
-    md.push_str("| Session | Tier | Proof Level | First Seen | Source IP | User Agent | Fire Count | Classification | Payload |\n");
-    md.push_str("|---------|------|-------------|------------|-----------|------------|------------|----------------|--------|\n");
+    md.push_str("| Session | Tier | Proof Level | First Seen | Source IP | User Agent | Fire Count | Classification | Evidence | Payload |\n");
+    md.push_str("|---------|------|-------------|------------|-----------|------------|------------|----------------|----------|--------|\n");
 
     if crawler_sessions.is_empty() {
-        md.push_str("| — | — | — | — | — | — | — | — | — |\n");
+        md.push_str("| — | — | — | — | — | — | — | — | — | — |\n");
     } else {
         for s in &crawler_sessions {
             let session_short = md_escape(&s.session_id[..s.session_id.len().min(8)]);
@@ -157,9 +192,10 @@ pub fn generate_report(conn: &Connection) -> anyhow::Result<String> {
             let ua = md_escape(&s.user_agent);
             let fire = s.fire_count.to_string();
             let class = md_escape(&s.classification);
+            let evidence = evidence_cell(s); // NEW Phase 14 (UI-03, UI-04)
             let payload = md_escape(&s.payload_id);
             md.push_str(&format!(
-                "| {session_short} | {tier_str} | {proof} | {first_seen} | {ip} | {ua} | {fire} | {class} | {payload} |\n"
+                "| {session_short} | {tier_str} | {proof} | {first_seen} | {ip} | {ua} | {fire} | {class} | {evidence} | {payload} |\n"
             ));
         }
     }
@@ -213,6 +249,103 @@ mod tests {
         assert_eq!(proof_level(1), "Arbitrary Callback");
         assert_eq!(proof_level(2), "Conditional Branch");
         assert_eq!(proof_level(3), "Computed Callback");
+        assert_eq!(proof_level(4), "Capability Introspection"); // NEW Phase 14 (D-14-09)
+        assert_eq!(proof_level(5), "Multi-step Compliance"); // NEW Phase 14 (D-14-09)
         assert_eq!(proof_level(99), "Unknown");
+    }
+
+    // Helper to construct a minimal ReportSession for evidence_cell testing.
+    fn make_session(tier: u8) -> crate::store::ReportSession {
+        crate::store::ReportSession {
+            session_id: "s".to_string(),
+            tier,
+            payload_id: "p".to_string(),
+            embedding_loc: "html_comment".to_string(),
+            first_seen_at: "1700000000".to_string(),
+            last_seen_at: "1700000000".to_string(),
+            fire_count: 1,
+            remote_addr: "1.2.3.4".to_string(),
+            user_agent: "ua".to_string(),
+            classification: "Unknown".to_string(),
+            t4_capability: None,
+            t5_proof: None,
+            t5_proof_valid: None,
+        }
+    }
+
+    #[test]
+    fn test_evidence_cell_t4_some() {
+        let mut s = make_session(4);
+        s.t4_capability = Some("web_search,browse_page,code_execution".to_string());
+        let got = evidence_cell(&s);
+        // md_escape over a safe string (no | ` \n \r) is identity — so result equals the input.
+        assert_eq!(got, "web_search,browse_page,code_execution");
+    }
+
+    #[test]
+    fn test_evidence_cell_t4_none_shows_emdash() {
+        let s = make_session(4);
+        // t4_capability: None — shouldn't happen in practice because a T4 session
+        // always has the column populated, but we defend with em-dash.
+        assert_eq!(evidence_cell(&s), "—");
+    }
+
+    #[test]
+    fn test_evidence_cell_t4_escapes_pipe() {
+        let mut s = make_session(4);
+        s.t4_capability = Some("evil|cap".to_string());
+        assert_eq!(evidence_cell(&s), r"evil\|cap");
+    }
+
+    #[test]
+    fn test_evidence_cell_t5_valid() {
+        let mut s = make_session(5);
+        s.t5_proof = Some("123".to_string());
+        s.t5_proof_valid = Some(true);
+        assert_eq!(evidence_cell(&s), "123 ✓ VALID");
+    }
+
+    #[test]
+    fn test_evidence_cell_t5_invalid() {
+        let mut s = make_session(5);
+        s.t5_proof = Some("456".to_string());
+        s.t5_proof_valid = Some(false);
+        assert_eq!(evidence_cell(&s), "456 ✗ INVALID");
+    }
+
+    #[test]
+    fn test_evidence_cell_t5_unverified() {
+        let mut s = make_session(5);
+        s.t5_proof = Some("789".to_string());
+        s.t5_proof_valid = None;
+        // None validity -> just the proof (md_escape'd), no glyph
+        assert_eq!(evidence_cell(&s), "789");
+    }
+
+    #[test]
+    fn test_evidence_cell_t1_t2_t3_emdash() {
+        assert_eq!(evidence_cell(&make_session(1)), "—");
+        assert_eq!(evidence_cell(&make_session(2)), "—");
+        assert_eq!(evidence_cell(&make_session(3)), "—");
+    }
+
+    // Regression test (Pitfall 6): header column count must equal separator column
+    // count must equal empty-state row column count.
+    #[test]
+    fn test_evidence_table_column_counts_match() {
+        // These strings are the post-Phase-14 10-column literals.
+        let header = "| Session | Tier | Proof Level | First Seen | Source IP | User Agent | Fire Count | Classification | Evidence | Payload |";
+        let sep = "|---------|------|-------------|------------|-----------|------------|------------|----------------|----------|--------|";
+        let empty = "| — | — | — | — | — | — | — | — | — | — |";
+        assert_eq!(
+            header.matches('|').count(),
+            sep.matches('|').count(),
+            "header and separator must have matching pipe count"
+        );
+        assert_eq!(
+            header.matches('|').count(),
+            empty.matches('|').count(),
+            "header and empty-state must have matching pipe count"
+        );
     }
 }
