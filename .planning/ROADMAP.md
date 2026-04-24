@@ -149,7 +149,13 @@ Plans:
   3. An agent hitting `GET /cb/v5/{nonce}/{proof}` results in the submitted proof being stored alongside a `proof_valid` boolean computed from the payload's deterministic `verification_seed`; malformed (non-numeric) input still returns 204
   4. An existing v4.0 honeyprompt.sqlite file opens unchanged under v5.0, existing T1–T3 rows read back identically, and replay detection + session grouping behave the same for T4/T5 events as for T1–T3
   5. `/cb/v1/{nonce}` produces byte-identical response and stored-row shape to v4.0 (verified by existing integration tests still passing with no modification)
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 13-01-PLAN.md — Catalog + Types + Nonce helpers (tier4/5 TOML, Tier::Tier4/5 enum, T5Formula, derive_seed, is_valid_nonce, base64 dep)
+- [ ] 13-02-PLAN.md — Store migration (PRAGMA user_version gate, ALTER TABLE ADD COLUMN x3, insert_callback_event signature extension, first-write-wins tests)
+- [ ] 13-03-PLAN.md — Generator (Tier::Tier4/Tier5 match arms, seed JSON-LD emission, placeholder substitution)
+- [ ] 13-04-PLAN.md — Server handlers + broker wiring (t4/t5 handlers, NonceMeta formula extension, RawCallbackEvent/AppEvent fields, /cb/v1/ byte-identical regression)
 
 ### Phase 14: Tiers 4 & 5 Surfacing (Monitor TUI + Report)
 **Goal**: A defender watching the Monitor TUI or reading a Markdown disclosure report can see the decoded T4 capability list and the T5 proof with its server-verified validity, alongside existing T1–T3 evidence and with T4/T5 counts included in the executive summary.
@@ -194,6 +200,6 @@ Phases execute in numeric order: 13 → 14 → 15
 | 10. Landing Page | v3.0 | 1/1 | Complete | 2026-04-01 |
 | 11. Setup Wizard & Zero-Config Serve | v4.0 | 2/2 | Complete | 2026-04-01 |
 | 12. Documentation & Deploy Templates | v4.0 | 2/2 | Complete | 2026-04-02 |
-| 13. Tiers 4 & 5 Backend | v5.0 | 0/TBD | Not started | - |
+| 13. Tiers 4 & 5 Backend | v5.0 | 0/4 | Planning | - |
 | 14. Tiers 4 & 5 Surfacing | v5.0 | 0/TBD | Not started | - |
 | 15. Tiers 4 & 5 Validation & Docs | v5.0 | 0/TBD | Not started | - |
