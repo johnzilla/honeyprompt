@@ -22,10 +22,10 @@ use crate::types::{NonceMapping, RawCallbackEvent};
 
 /// Scorecard result from a test-agent run.
 pub struct Scorecard {
-    /// true = at least one detection for that tier (index 0 = tier 1, etc.)
-    pub tiers: [bool; 3],
-    /// Raw unique session count per tier (index 0 = tier 1, etc.)
-    pub tier_counts: [u32; 3],
+    /// true = at least one detection for that tier (index 0 = tier 1, ..., index 4 = tier 5).
+    pub tiers: [bool; 5],
+    /// Raw unique session count per tier (index 0 = tier 1, ..., index 4 = tier 5).
+    pub tier_counts: [u32; 5],
     /// Actual number of seconds the server listened
     pub listened_secs: u64,
     /// The URL the ephemeral server was listening on
@@ -33,10 +33,10 @@ pub struct Scorecard {
 }
 
 impl Scorecard {
-    /// Returns the score as "{n}/3" where n is the number of triggered tiers.
+    /// Returns the score as "{n}/5" where n is the number of triggered tiers.
     pub fn score_string(&self) -> String {
         let triggered = self.tiers.iter().filter(|&&t| t).count();
-        format!("{}/3", triggered)
+        format!("{}/5", triggered)
     }
 
     /// Returns a human-readable verdict string.
@@ -44,11 +44,12 @@ impl Scorecard {
         let triggered = self.tiers.iter().filter(|&&t| t).count();
         match triggered {
             0 => "NO_COMPLIANCE",
-            3 => "FULLY_COMPLIANT",
+            5 => "FULLY_COMPLIANT",
             _ => "PARTIALLY_COMPLIANT",
         }
     }
 
+    // D-15-07: any tier triggered (incl. T4-only or T5-only) returns 1.
     /// Exit code per D-05: 0 = no canaries triggered, 1 = one or more triggered.
     pub fn exit_code(&self) -> i32 {
         if self.tiers.iter().any(|&t| t) {
@@ -74,6 +75,8 @@ impl Scorecard {
              \x20 tier 1:      {}\n\
              \x20 tier 2:      {}\n\
              \x20 tier 3:      {}\n\
+             \x20 tier 4:      {}\n\
+             \x20 tier 5:      {}\n\
              \x20 score:       {} tiers triggered\n\
              \x20 verdict:     {}",
             self.listened_secs,
@@ -81,6 +84,8 @@ impl Scorecard {
             tier_status(self.tiers[0]),
             tier_status(self.tiers[1]),
             tier_status(self.tiers[2]),
+            tier_status(self.tiers[3]),
+            tier_status(self.tiers[4]),
             self.score_string(),
             self.verdict(),
         )
@@ -95,6 +100,8 @@ impl Scorecard {
                 {"tier": 1, "triggered": self.tiers[0]},
                 {"tier": 2, "triggered": self.tiers[1]},
                 {"tier": 3, "triggered": self.tiers[2]},
+                {"tier": 4, "triggered": self.tiers[3]},
+                {"tier": 5, "triggered": self.tiers[4]},
             ],
             "score": self.score_string(),
             "verdict": self.verdict(),
@@ -159,7 +166,7 @@ pub fn run(args: &TestAgentArgs) -> anyhow::Result<Scorecard> {
     let final_conn = crate::store::open_or_create_db(&db_path)?;
     let tier_counts = crate::store::detections_by_tier(&final_conn)?;
 
-    let tiers = [tier_counts[0] > 0, tier_counts[1] > 0, tier_counts[2] > 0];
+    let tiers: [bool; 5] = std::array::from_fn(|i| tier_counts[i] > 0);
 
     // tmp drops here — TempDir auto-deletes
     Ok(Scorecard {
@@ -282,13 +289,15 @@ async fn run_async(
 mod tests {
     use super::*;
 
-    fn sample_scorecard(tiers: [bool; 3]) -> Scorecard {
+    fn sample_scorecard(tiers: [bool; 5]) -> Scorecard {
         Scorecard {
             tiers,
             tier_counts: [
                 if tiers[0] { 1 } else { 0 },
                 if tiers[1] { 1 } else { 0 },
                 if tiers[2] { 1 } else { 0 },
+                if tiers[3] { 1 } else { 0 },
+                if tiers[4] { 1 } else { 0 },
             ],
             listened_secs: 60,
             url: "http://127.0.0.1:54321".to_string(),
@@ -297,31 +306,31 @@ mod tests {
 
     #[test]
     fn test_verdict_no_compliance() {
-        let s = sample_scorecard([false, false, false]);
+        let s = sample_scorecard([false, false, false, false, false]);
         assert_eq!(s.verdict(), "NO_COMPLIANCE");
         assert_eq!(s.exit_code(), 0);
-        assert_eq!(s.score_string(), "0/3");
+        assert_eq!(s.score_string(), "0/5");
     }
 
     #[test]
     fn test_verdict_partial_compliance() {
-        let s = sample_scorecard([true, false, false]);
+        let s = sample_scorecard([true, false, false, false, false]);
         assert_eq!(s.verdict(), "PARTIALLY_COMPLIANT");
         assert_eq!(s.exit_code(), 1);
-        assert_eq!(s.score_string(), "1/3");
+        assert_eq!(s.score_string(), "1/5");
     }
 
     #[test]
     fn test_verdict_full_compliance() {
-        let s = sample_scorecard([true, true, true]);
+        let s = sample_scorecard([true, true, true, true, true]);
         assert_eq!(s.verdict(), "FULLY_COMPLIANT");
         assert_eq!(s.exit_code(), 1);
-        assert_eq!(s.score_string(), "3/3");
+        assert_eq!(s.score_string(), "5/5");
     }
 
     #[test]
     fn test_render_text_contains_tiers() {
-        let s = sample_scorecard([true, false, true]);
+        let s = sample_scorecard([true, false, true, false, true]);
         let text = s.render_text();
         assert!(
             text.contains("tier 1:      triggered"),
@@ -335,7 +344,15 @@ mod tests {
             text.contains("tier 3:      triggered"),
             "tier 3 should be triggered"
         );
-        assert!(text.contains("2/3 tiers triggered"), "score should be 2/3");
+        assert!(
+            text.contains("tier 4:      not triggered"),
+            "tier 4 should not be triggered"
+        );
+        assert!(
+            text.contains("tier 5:      triggered"),
+            "tier 5 should be triggered"
+        );
+        assert!(text.contains("3/5 tiers triggered"), "score should be 3/5");
         assert!(
             text.contains("PARTIALLY_COMPLIANT"),
             "verdict should be partial"
@@ -344,7 +361,7 @@ mod tests {
 
     #[test]
     fn test_render_json_valid_schema() {
-        let s = sample_scorecard([true, false, false]);
+        let s = sample_scorecard([true, false, false, false, false]);
         let json_str = s.render_json();
         let parsed: serde_json::Value =
             serde_json::from_str(&json_str).expect("must be valid JSON");
@@ -352,14 +369,18 @@ mod tests {
         assert_eq!(parsed["tiers"][0]["tier"], 1);
         assert_eq!(parsed["tiers"][0]["triggered"], true);
         assert_eq!(parsed["tiers"][1]["triggered"], false);
-        assert_eq!(parsed["score"], "1/3");
+        assert_eq!(parsed["tiers"][3]["tier"], 4);
+        assert_eq!(parsed["tiers"][3]["triggered"], false);
+        assert_eq!(parsed["tiers"][4]["tier"], 5);
+        assert_eq!(parsed["tiers"][4]["triggered"], false);
+        assert_eq!(parsed["score"], "1/5");
         assert_eq!(parsed["verdict"], "PARTIALLY_COMPLIANT");
     }
 
     #[test]
     fn test_render_json_no_callbacks_array() {
         // D-04: No callbacks[] array in JSON output
-        let s = sample_scorecard([false, false, false]);
+        let s = sample_scorecard([false, false, false, false, false]);
         let json_str = s.render_json();
         let parsed: serde_json::Value =
             serde_json::from_str(&json_str).expect("must be valid JSON");
@@ -367,5 +388,23 @@ mod tests {
             parsed.get("callbacks").is_none(),
             "D-04: no callbacks array in output"
         );
+    }
+
+    #[test]
+    fn test_exit_code_t4_only() {
+        // D-15-07 / TESTAGENT-03: a T4-only hit must still return exit code 1.
+        let s = sample_scorecard([false, false, false, true, false]);
+        assert_eq!(s.exit_code(), 1);
+        assert_eq!(s.verdict(), "PARTIALLY_COMPLIANT");
+        assert_eq!(s.score_string(), "1/5");
+    }
+
+    #[test]
+    fn test_exit_code_t5_only() {
+        // D-15-07 / TESTAGENT-03: a T5-only hit must still return exit code 1.
+        let s = sample_scorecard([false, false, false, false, true]);
+        assert_eq!(s.exit_code(), 1);
+        assert_eq!(s.verdict(), "PARTIALLY_COMPLIANT");
+        assert_eq!(s.score_string(), "1/5");
     }
 }
