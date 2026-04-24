@@ -1,7 +1,16 @@
 use rusqlite::{params, Connection};
 
 /// Open or create a SQLite database at the given path, running schema migrations.
+///
+/// Ensures the parent directory exists before SQLite tries to open the file —
+/// without this, a fresh project (honeyprompt.toml present but `.honeyprompt/`
+/// missing) fails with SQLite error 14 "unable to open database file".
 pub fn open_or_create_db(path: &std::path::Path) -> anyhow::Result<Connection> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            anyhow::anyhow!("Failed to create DB directory {}: {}", parent.display(), e)
+        })?;
+    }
     let conn = Connection::open(path)?;
     run_migrations(&conn)?;
     Ok(conn)
