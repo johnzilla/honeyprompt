@@ -8,7 +8,15 @@ pub fn open_or_create_db(path: &std::path::Path) -> anyhow::Result<Connection> {
 }
 
 /// Execute all schema migrations against an open connection.
+///
+/// The v4.0 baseline schema (`CREATE TABLE IF NOT EXISTS events (...)`) is preserved
+/// byte-identically (D-13-17 — fresh DBs receive the v4.0 shape first; additive
+/// migrations then lift the database to v5.0). Idempotency comes from the
+/// `PRAGMA user_version` gate — SQLite has no `ALTER TABLE ADD COLUMN IF NOT EXISTS`,
+/// so re-running `run_migrations` on a v5.0 DB skips the ALTER block entirely.
 pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
+    // v4.0 baseline — UNCHANGED (D-13-17). Fresh DBs get v4.0 shape first, then
+    // migrations add T4/T5 columns additively.
     conn.execute_batch(
         "
         PRAGMA journal_mode = WAL;
@@ -39,7 +47,24 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
             generated_at    TEXT NOT NULL
         );
         ",
-    )
+    )?;
+
+    // Phase 13 — gated additive migration (D-13-17). SQLite has no
+    // `ALTER TABLE ADD COLUMN IF NOT EXISTS`, so idempotency comes from the
+    // PRAGMA user_version gate. `PRAGMA user_version = <N>` cannot use
+    // parameter binding — the `1` must be a literal in the SQL text.
+    let version: u32 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    if version < 1 {
+        conn.execute_batch(
+            "
+            ALTER TABLE events ADD COLUMN t4_capability TEXT;
+            ALTER TABLE events ADD COLUMN t5_proof TEXT;
+            ALTER TABLE events ADD COLUMN t5_proof_valid INTEGER;
+            PRAGMA user_version = 1;
+            ",
+        )?;
+    }
+    Ok(())
 }
 
 /// Insert or update a callback event in the events table using upsert (replay detection).
