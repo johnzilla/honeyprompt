@@ -819,6 +819,11 @@ async fn run_loop_attach(
                             is_replay,
                             fire_count,
                             received_at: first_seen_at,
+                            // Phase 13: monitor does not yet surface T4/T5 payload
+                            // details (Phase 14 — UI-01..05); load as None for now.
+                            t4_capability: None,
+                            t5_proof: None,
+                            t5_proof_valid: None,
                         };
                         app.push_event(ev);
                         if id > last_seen_id {
@@ -1010,6 +1015,9 @@ mod tests {
             is_replay,
             fire_count: 1,
             received_at,
+            t4_capability: None,
+            t5_proof: None,
+            t5_proof_valid: None,
         }
     }
 

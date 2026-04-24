@@ -94,6 +94,15 @@ pub struct RawCallbackEvent {
     pub fingerprint: AgentFingerprint,
     pub classification: AgentClass,
     pub received_at: u64,
+    /// Phase 13 (T4): sanitized capability string decoded from the /cb/v4/ path.
+    /// `Some` only for tier-4 callbacks that passed the decode+sanitize pipeline.
+    pub t4_capability: Option<String>,
+    /// Phase 13 (T5): raw 3-digit proof string submitted on the /cb/v5/ path.
+    /// `Some` only for tier-5 callbacks that passed the 3-ASCII-digit format check.
+    pub t5_proof: Option<String>,
+    /// Phase 13 (T5): whether `t5_proof` matched the expected value derived from
+    /// `nonce::derive_seed` and the payload's `T5Formula`.
+    pub t5_proof_valid: Option<bool>,
 }
 
 /// Enriched event after broker processing (with session info, replay detection)
@@ -109,6 +118,12 @@ pub struct AppEvent {
     pub is_replay: bool,
     pub fire_count: u32,
     pub received_at: u64,
+    /// Phase 13 (T4): propagated from `RawCallbackEvent.t4_capability`.
+    pub t4_capability: Option<String>,
+    /// Phase 13 (T5): propagated from `RawCallbackEvent.t5_proof`.
+    pub t5_proof: Option<String>,
+    /// Phase 13 (T5): propagated from `RawCallbackEvent.t5_proof_valid`.
+    pub t5_proof_valid: Option<bool>,
 }
 
 #[cfg(test)]
@@ -179,6 +194,9 @@ mod tests {
             fingerprint: fp,
             classification: AgentClass::Unknown,
             received_at: 100u64,
+            t4_capability: None,
+            t5_proof: None,
+            t5_proof_valid: None,
         };
         assert_eq!(ev.nonce, "abc123");
         assert_eq!(ev.tier, 1u8);
@@ -206,6 +224,9 @@ mod tests {
             is_replay: false,
             fire_count: 1,
             received_at: 200u64,
+            t4_capability: None,
+            t5_proof: None,
+            t5_proof_valid: None,
         };
         assert_eq!(ev.session_id, "aabbccdd11223344");
         assert!(!ev.is_replay);

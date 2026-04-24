@@ -73,6 +73,9 @@ pub async fn callback_handler(
         fingerprint,
         classification,
         received_at: now_unix_secs(),
+        t4_capability: None,
+        t5_proof: None,
+        t5_proof_valid: None,
     };
 
     // Non-blocking send — drop if channel is full (best-effort delivery)

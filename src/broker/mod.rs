@@ -26,6 +26,12 @@ pub async fn broker_task(
             is_replay: false,
             fire_count: 1,
             received_at: raw.received_at,
+            // Phase 13: propagate T4/T5 payload values so db_writer_task can
+            // persist them. Missing any of these would silently drop T4/T5
+            // data (RESEARCH Pitfall 4).
+            t4_capability: raw.t4_capability,
+            t5_proof: raw.t5_proof,
+            t5_proof_valid: raw.t5_proof_valid,
         };
         // Ignore send errors — no receivers means events are dropped safely.
         let _ = event_tx.send(app_event);
@@ -52,6 +58,13 @@ pub async fn db_writer_task(
                 let session_id = event.session_id.clone();
                 let remote_addr = event.fingerprint.source_ip.to_string();
                 let user_agent = event.fingerprint.user_agent.clone();
+                // Phase 13: clone T4/T5 payload fields so the move-closure owns
+                // them; these replace the `None, None, None` placeholders from
+                // Plan 02. `t5_proof_valid` is `Option<bool>` (Copy), so no
+                // clone is needed.
+                let t4_capability = event.t4_capability.clone();
+                let t5_proof = event.t5_proof.clone();
+                let t5_proof_valid = event.t5_proof_valid;
                 let result = conn
                     .call(move |conn| {
                         crate::store::insert_callback_event(
@@ -64,9 +77,9 @@ pub async fn db_writer_task(
                             &remote_addr,
                             &user_agent,
                             &extra_headers,
-                            None, // t4_capability — Plan 04 populates from AppEvent
-                            None, // t5_proof — Plan 04 populates from AppEvent
-                            None, // t5_proof_valid — Plan 04 populates from AppEvent
+                            t4_capability.as_deref(),
+                            t5_proof.as_deref(),
+                            t5_proof_valid,
                         )
                         .map_err(tokio_rusqlite::Error::from)
                     })
@@ -184,6 +197,9 @@ mod tests {
             fingerprint: fp,
             classification: AgentClass::Unknown,
             received_at: 1000u64,
+            t4_capability: None,
+            t5_proof: None,
+            t5_proof_valid: None,
         }
     }
 
@@ -217,6 +233,95 @@ mod tests {
             16,
             "session_id should be 16-char hex"
         );
+    }
+
+    /// Phase 13: broker_task must propagate T4/T5 payload fields from RawCallbackEvent
+    /// into AppEvent. A missing field here would silently drop T4/T5 capture data
+    /// (RESEARCH Pitfall 4) because the db_writer_task reads these exact fields.
+    #[tokio::test]
+    async fn test_broker_task_propagates_t4_capability() {
+        let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(16);
+        let (event_tx, mut event_rx) = broadcast::channel::<AppEvent>(16);
+
+        tokio::spawn(broker_task(callback_rx, event_tx));
+
+        let ip: IpAddr = "1.2.3.4".parse().unwrap();
+        let fp = AgentFingerprint {
+            source_ip: ip,
+            user_agent: "TestAgent/1.0".to_string(),
+            headers: HashMap::new(),
+            received_at: 1000u64,
+        };
+        let raw = RawCallbackEvent {
+            nonce: "aaaaaaaaaaaaaaaa".to_string(),
+            tier: 4,
+            payload_id: "t4-tools-meta".to_string(),
+            embedding_loc: "meta_tag".to_string(),
+            fingerprint: fp,
+            classification: AgentClass::Unknown,
+            received_at: 1_700_000_000,
+            t4_capability: Some("web_search,browse_page".to_string()),
+            t5_proof: None,
+            t5_proof_valid: None,
+        };
+        callback_tx.send(raw).await.unwrap();
+
+        let app_event =
+            tokio::time::timeout(std::time::Duration::from_millis(500), event_rx.recv())
+                .await
+                .expect("broker must broadcast within 500ms")
+                .expect("broadcast must succeed");
+
+        assert_eq!(
+            app_event.t4_capability,
+            Some("web_search,browse_page".to_string()),
+            "broker must propagate t4_capability from raw to app"
+        );
+        assert_eq!(app_event.t5_proof, None);
+        assert_eq!(app_event.t5_proof_valid, None);
+        assert_eq!(app_event.tier, 4);
+    }
+
+    /// Phase 13: broker_task must also propagate T5 proof fields. This guards the
+    /// symmetric Pitfall 4 regression for tier-5 callbacks.
+    #[tokio::test]
+    async fn test_broker_task_propagates_t5_proof() {
+        let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(16);
+        let (event_tx, mut event_rx) = broadcast::channel::<AppEvent>(16);
+
+        tokio::spawn(broker_task(callback_rx, event_tx));
+
+        let ip: IpAddr = "1.2.3.4".parse().unwrap();
+        let fp = AgentFingerprint {
+            source_ip: ip,
+            user_agent: "TestAgent/1.0".to_string(),
+            headers: HashMap::new(),
+            received_at: 1000u64,
+        };
+        let raw = RawCallbackEvent {
+            nonce: "bbbbbbbbbbbbbbbb".to_string(),
+            tier: 5,
+            payload_id: "t5-semantic-prose".to_string(),
+            embedding_loc: "semantic_prose".to_string(),
+            fingerprint: fp,
+            classification: AgentClass::Unknown,
+            received_at: 1_700_000_000,
+            t4_capability: None,
+            t5_proof: Some("731".to_string()),
+            t5_proof_valid: Some(true),
+        };
+        callback_tx.send(raw).await.unwrap();
+
+        let app_event =
+            tokio::time::timeout(std::time::Duration::from_millis(500), event_rx.recv())
+                .await
+                .expect("broker must broadcast within 500ms")
+                .expect("broadcast must succeed");
+
+        assert_eq!(app_event.t4_capability, None);
+        assert_eq!(app_event.t5_proof, Some("731".to_string()));
+        assert_eq!(app_event.t5_proof_valid, Some(true));
+        assert_eq!(app_event.tier, 5);
     }
 
     #[tokio::test]
@@ -260,6 +365,9 @@ mod tests {
             is_replay: false,
             fire_count: 1,
             received_at: 2000u64,
+            t4_capability: None,
+            t5_proof: None,
+            t5_proof_valid: None,
         };
         event_tx.send(app_event).unwrap();
 
@@ -306,6 +414,9 @@ mod tests {
             is_replay: false,
             fire_count: 1,
             received_at: 3000u64,
+            t4_capability: None,
+            t5_proof: None,
+            t5_proof_valid: None,
         };
         // Send should succeed (receiver exists in spawned task)
         assert!(event_tx.send(app_event).is_ok());
