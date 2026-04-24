@@ -14,7 +14,8 @@ Requirements for the v5.0 milestone. Each maps to exactly one roadmap phase.
 - [ ] **PAYLOAD-01**: Catalog contains 2–3 Tier 4 introspection payload templates that instruct agent to return a sorted, base64-encoded tool/capability list
 - [ ] **PAYLOAD-02**: Tier 4 payload templates use distinct phrasings and cover different capability dimensions (tools, permissions, or similar agent-chosen safe menu)
 - [ ] **PAYLOAD-03**: Catalog contains 2–3 Tier 5 multi-step compliance payload templates with numbered dependent steps ending in a computed verifiable proof
-- [ ] **PAYLOAD-04**: Tier 5 payload templates embed a deterministic `verification_seed` in JSON-LD so the server can recompute and verify the submitted proof
+- [x] **PAYLOAD-04
+**: Tier 5 payload templates embed a deterministic `verification_seed` in JSON-LD so the server can recompute and verify the submitted proof
 - [ ] **PAYLOAD-05**: All new T4/T5 payloads render across the existing 5 embedding locations (HTML comment, meta tag, hidden span, JSON-LD, prose) without regressing T1–T3 coverage
 
 ### Server (callback routes)
