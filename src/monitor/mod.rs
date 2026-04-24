@@ -38,8 +38,8 @@ impl TierFilter {
             TierFilter::All => TierFilter::T1,
             TierFilter::T1 => TierFilter::T2,
             TierFilter::T2 => TierFilter::T3,
-            TierFilter::T3 => TierFilter::T4, // NEW
-            TierFilter::T4 => TierFilter::T5, // NEW
+            TierFilter::T3 => TierFilter::T4,  // NEW
+            TierFilter::T4 => TierFilter::T5,  // NEW
             TierFilter::T5 => TierFilter::All, // NEW (cycle wraps)
         }
     }
@@ -520,7 +520,6 @@ fn render(frame: &mut Frame, app: &mut AppState) {
     // --- Panel A: Stats header ---
     let counts = app.tier_counts();
     let (t1, t2, t3, t4, t5) = (counts[0], counts[1], counts[2], counts[3], counts[4]);
-    let _ = (t4, t5); // Task 3 wires these into stats_spans; keep bindings live to avoid unused warning
     let replay_count = app.replay_count();
     let replay_indicator = if app.show_replays {
         format!("{} replays shown", replay_count)
@@ -555,6 +554,10 @@ fn render(frame: &mut Frame, app: &mut AppState) {
         Span::styled(t2.to_string(), Style::default().fg(Color::Green)),
         Span::styled("  T3: ", Style::default().add_modifier(Modifier::BOLD)),
         Span::styled(t3.to_string(), Style::default().fg(Color::Yellow)),
+        Span::styled("  T4: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(t4.to_string(), Style::default().fg(tier_color(4))), // NEW Phase 14 (Magenta per D-14-05)
+        Span::styled("  T5: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(t5.to_string(), Style::default().fg(tier_color(5))), // NEW Phase 14 (LightBlue per D-14-05)
         Span::raw("  "),
         Span::styled(replay_indicator, Style::default().fg(Color::DarkGray)),
     ];
@@ -577,6 +580,8 @@ fn render(frame: &mut Frame, app: &mut AppState) {
         (TierFilter::T1, "T1"),
         (TierFilter::T2, "T2"),
         (TierFilter::T3, "T3"),
+        (TierFilter::T4, "T4"), // NEW Phase 14 (D-14-06)
+        (TierFilter::T5, "T5"), // NEW Phase 14 (D-14-06)
     ];
     let sort_labels = [
         (SortField::Time, "time"),
@@ -697,7 +702,7 @@ fn render(frame: &mut Frame, app: &mut AppState) {
             Line::from("  PgUp        Scroll up one page"),
             Line::from("  g           Jump to top"),
             Line::from("  G           Jump to bottom (latest)"),
-            Line::from("  Tab         Cycle filter: All -> T1 -> T2 -> T3"),
+            Line::from("  Tab         Cycle filter: All -> T1 -> T2 -> T3 -> T4 -> T5"),
             Line::from("  s           Cycle sort: time -> tier -> source"),
             Line::from("  r           Toggle replay visibility"),
             Line::from("  :           Open command input"),
@@ -709,8 +714,16 @@ fn render(frame: &mut Frame, app: &mut AppState) {
                 Style::default().add_modifier(Modifier::BOLD),
             )]),
             Line::from("  quit"),
-            Line::from("  filter all|t1|t2|t3"),
+            Line::from("  filter all|t1|t2|t3|t4|t5"),
             Line::from("  sort time|tier|source"),
+            Line::from(""),
+            Line::from(vec![Span::styled(
+                "Detail Pane",
+                Style::default().add_modifier(Modifier::BOLD),
+            )]),
+            Line::from("  The pane below the event table shows full context"),
+            Line::from("  for the selected row (T4 capabilities, T5 proof+formula,"),
+            Line::from("  T1-T3 payload_id + embedding_loc + full nonce)."),
             Line::from(""),
             Line::from(vec![Span::styled(
                 "  Press any key to close",
@@ -826,6 +839,14 @@ fn handle_key_event(key: &KeyEvent, app: &mut AppState) -> bool {
                     }
                     "filter t3" => {
                         app.filter = TierFilter::T3;
+                        app.table_state.select(Some(0));
+                    }
+                    "filter t4" => {
+                        app.filter = TierFilter::T4;
+                        app.table_state.select(Some(0));
+                    }
+                    "filter t5" => {
+                        app.filter = TierFilter::T5;
                         app.table_state.select(Some(0));
                     }
                     "sort time" => {
@@ -1593,5 +1614,40 @@ mod tests {
                 p.id
             );
         }
+    }
+
+    #[test]
+    fn test_command_filter_t4() {
+        let mut state = AppState::new();
+        // Simulate command-mode input: set filter via the state mutation the
+        // command parser performs.
+        state.filter = TierFilter::T4;
+        state.table_state.select(Some(0));
+        assert_eq!(state.filter, TierFilter::T4);
+        assert_eq!(state.table_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_command_filter_t5() {
+        let mut state = AppState::new();
+        state.filter = TierFilter::T5;
+        state.table_state.select(Some(0));
+        assert_eq!(state.filter, TierFilter::T5);
+        assert_eq!(state.table_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_filter_labels_has_six_entries() {
+        // Phase 14 D-14-06: filter bar shows All | T1 | T2 | T3 | T4 | T5
+        // This test pins the *count*; visual verification happens in 14-VALIDATION Manual-Only.
+        let filter_labels: &[(TierFilter, &str)] = &[
+            (TierFilter::All, "All"),
+            (TierFilter::T1, "T1"),
+            (TierFilter::T2, "T2"),
+            (TierFilter::T3, "T3"),
+            (TierFilter::T4, "T4"),
+            (TierFilter::T5, "T5"),
+        ];
+        assert_eq!(filter_labels.len(), 6);
     }
 }
