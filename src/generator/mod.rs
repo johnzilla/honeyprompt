@@ -271,4 +271,127 @@ mod tests {
         assert!(dir.path().join("output/callback-map.json").exists());
         assert!(dir.path().join("output/.well-known/security.txt").exists());
     }
+
+    // ---- Phase 13 Plan 03: T4/T5 generator rendering + seed JSON-LD emission ----
+
+    fn test_config_with_tiers(tiers: Vec<u8>) -> Config {
+        let mut c = Config::default();
+        c.tiers = tiers;
+        c
+    }
+
+    #[test]
+    fn test_tier4_renders_with_b64_base() {
+        let dir = tempfile::tempdir().expect("tempdir must create");
+        let config = test_config_with_tiers(vec![4]);
+        let conn = test_conn();
+
+        generate(&config, &conn, dir.path()).expect("generate must succeed");
+
+        let html = std::fs::read_to_string(dir.path().join("output/index.html"))
+            .expect("index.html must exist");
+        assert!(
+            html.contains("/cb/v4/"),
+            "index.html must contain /cb/v4/ route"
+        );
+        assert!(
+            !html.contains("{callback_url_b64_base}"),
+            "placeholder must be substituted, not left raw"
+        );
+    }
+
+    #[test]
+    fn test_tier5_renders_with_proof_base() {
+        let dir = tempfile::tempdir().expect("tempdir must create");
+        let config = test_config_with_tiers(vec![5]);
+        let conn = test_conn();
+
+        generate(&config, &conn, dir.path()).expect("generate must succeed");
+
+        let html = std::fs::read_to_string(dir.path().join("output/index.html"))
+            .expect("index.html must exist");
+        assert!(
+            html.contains("/cb/v5/"),
+            "index.html must contain /cb/v5/ route"
+        );
+        assert!(
+            !html.contains("{callback_url_proof_base}"),
+            "placeholder must be substituted, not left raw"
+        );
+    }
+
+    #[test]
+    fn test_t5_seed_json_ld_emission() {
+        let dir = tempfile::tempdir().expect("tempdir must create");
+        let config = test_config_with_tiers(vec![5]);
+        let conn = test_conn();
+
+        generate(&config, &conn, dir.path()).expect("generate must succeed");
+
+        let html = std::fs::read_to_string(dir.path().join("output/index.html"))
+            .expect("index.html must exist");
+
+        // D-13-05: one block per active T5 payload. tier5.toml ships 3 payloads.
+        let block_count = html.matches("\"verification_seed\"").count();
+        let t5_payload_count = crate::catalog::load_for_tiers(&[5])
+            .expect("tier5 catalog must load")
+            .len();
+        assert_eq!(
+            block_count, t5_payload_count,
+            "must emit one seed JSON-LD block per active T5 payload (D-13-05)"
+        );
+
+        // Each emitted seed must equal nonce::derive_seed(nonce). Load nonce_mappings
+        // from callback-map.json written by generate().
+        let map_json = std::fs::read_to_string(dir.path().join("output/callback-map.json"))
+            .expect("callback-map.json must exist");
+        let mappings: Vec<serde_json::Value> =
+            serde_json::from_str(&map_json).expect("callback-map.json must be valid JSON");
+        let t5_nonces: Vec<String> = mappings
+            .iter()
+            .filter(|m| {
+                m.get("tier").and_then(|t| t.as_str()) == Some("Tier5")
+                    || m.get("tier").and_then(|t| t.as_u64()) == Some(5)
+            })
+            .filter_map(|m| m.get("nonce").and_then(|n| n.as_str()).map(String::from))
+            .collect();
+        assert_eq!(
+            t5_nonces.len(),
+            t5_payload_count,
+            "callback-map.json must contain T5 nonces"
+        );
+
+        for n in &t5_nonces {
+            let expected_seed = crate::nonce::derive_seed(n).expect("valid nonce");
+            let fragment = format!("\"verification_seed\":{}", expected_seed);
+            assert!(
+                html.contains(&fragment),
+                "HTML must contain verification_seed={} for nonce {}",
+                expected_seed,
+                n
+            );
+            let nonce_fragment = format!("\"nonce\":\"{}\"", n);
+            assert!(
+                html.contains(&nonce_fragment),
+                "HTML must contain nonce={} in a JSON-LD seed block",
+                n
+            );
+        }
+    }
+
+    #[test]
+    fn test_no_seed_block_when_t5_filtered_out() {
+        let dir = tempfile::tempdir().expect("tempdir must create");
+        let config = test_config_with_tiers(vec![1, 2, 3]);
+        let conn = test_conn();
+
+        generate(&config, &conn, dir.path()).expect("generate must succeed");
+
+        let html = std::fs::read_to_string(dir.path().join("output/index.html"))
+            .expect("index.html must exist");
+        assert!(
+            !html.contains("verification_seed"),
+            "no seed JSON-LD when no T5 payloads active (D-13-05 conditional)"
+        );
+    }
 }
