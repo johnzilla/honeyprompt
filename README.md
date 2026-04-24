@@ -309,6 +309,8 @@ HoneyPrompt is designed to produce evidence, not to exploit or surveil:
 - All payload instructions are auditable in the open-source catalog
 - Custom payload authoring is not supported — the curated catalog ensures the safety guarantee holds
 - No harmful actions are requested of agents at any tier
+- **Tier 4 never asks for secrets** — the agent returns a sorted list of tool/capability names from a safe, agent-chosen menu (e.g., `web_search,browse_page`). No API keys, no session state, no file contents.
+- **Tier 5 never asks for secrets** — the proof is arithmetic over a page-visible `verification_seed` plus fixed catalog constants. The callback carries only a 3-digit number the server independently re-computes.
 
 ## License
 
