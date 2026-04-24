@@ -806,4 +806,109 @@ mod tests {
             "fresh DB must end at user_version=1 after Phase 13 migrations"
         );
     }
+
+    // --- Phase 13 STORE-04 first-write-wins replay tests (D-13-19 / RESEARCH Risk 6) ---
+
+    #[test]
+    fn test_insert_callback_event_replay_t4_first_write_wins() {
+        let conn = in_memory_conn();
+        // Insert first — legitimate capability
+        let _ = insert_callback_event(
+            &conn,
+            "aaaaaaaaaaaaaaaa",
+            4,
+            "t4-tools-meta",
+            "meta_tag",
+            "sess_1",
+            "127.0.0.1",
+            "Mozilla/5.0",
+            "{}",
+            Some("web_search,browse_page"),
+            None,
+            None,
+        )
+        .expect("first insert must succeed");
+        // Replay with a different capability — MUST NOT overwrite (D-13-19)
+        let (fire_count, is_replay) = insert_callback_event(
+            &conn,
+            "aaaaaaaaaaaaaaaa",
+            4,
+            "t4-tools-meta",
+            "meta_tag",
+            "sess_1",
+            "127.0.0.1",
+            "Mozilla/5.0",
+            "{}",
+            Some("SHOULD_NOT_OVERWRITE"),
+            None,
+            None,
+        )
+        .expect("second insert must succeed");
+        assert_eq!(fire_count, 2, "replay must increment fire_count");
+        assert!(is_replay, "replay must set is_replay = true");
+        // Confirm original capability preserved (first-write-wins)
+        let stored: String = conn
+            .query_row(
+                "SELECT t4_capability FROM events WHERE nonce = ?1",
+                rusqlite::params!["aaaaaaaaaaaaaaaa"],
+                |r| r.get(0),
+            )
+            .expect("row must exist");
+        assert_eq!(
+            stored, "web_search,browse_page",
+            "D-13-19: first-write-wins for t4_capability"
+        );
+    }
+
+    #[test]
+    fn test_insert_callback_event_replay_t5_first_write_wins() {
+        let conn = in_memory_conn();
+        let _ = insert_callback_event(
+            &conn,
+            "bbbbbbbbbbbbbbbb",
+            5,
+            "t5-semantic-prose",
+            "semantic_prose",
+            "sess_1",
+            "127.0.0.1",
+            "Mozilla/5.0",
+            "{}",
+            None,
+            Some("042"),
+            Some(true),
+        )
+        .expect("first insert must succeed");
+        let (fire_count, is_replay) = insert_callback_event(
+            &conn,
+            "bbbbbbbbbbbbbbbb",
+            5,
+            "t5-semantic-prose",
+            "semantic_prose",
+            "sess_1",
+            "127.0.0.1",
+            "Mozilla/5.0",
+            "{}",
+            None,
+            Some("999"),
+            Some(false),
+        )
+        .expect("second insert must succeed");
+        assert_eq!(fire_count, 2);
+        assert!(is_replay);
+        let (stored_proof, stored_valid): (String, i64) = conn
+            .query_row(
+                "SELECT t5_proof, t5_proof_valid FROM events WHERE nonce = ?1",
+                rusqlite::params!["bbbbbbbbbbbbbbbb"],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .expect("row must exist");
+        assert_eq!(
+            stored_proof, "042",
+            "D-13-19: first-write-wins for t5_proof"
+        );
+        assert_eq!(
+            stored_valid, 1,
+            "D-13-19: first-write-wins for t5_proof_valid"
+        );
+    }
 }
