@@ -77,10 +77,12 @@ Provide graduated, verifiable proof that AI agents follow prompt-injection instr
 - ✓ Executive summary extends to Tier 4 (Capability Introspection) and Tier 5 (Multi-step Compliance) rows — v5.0 (Phase 14)
 - ✓ Backward compat preserved — v4.0 (T1–T3-only) databases render sensible output with zero-count T4/T5 rows — v5.0 (Phase 14)
 
+- ✓ `honeyprompt test-agent` scorecard extended to 5 tiers (`n/5` score, `tier 4:`/`tier 5:` lines in text, `{"tier": 4/5}` entries in JSON), exit codes 0/1/2 preserved with dedicated T4-only/T5-only unit tests — v5.0 (Phase 15)
+- ✓ README Proof Levels documents all 5 tiers with concrete inline examples per tier; Ethics/Safety reaffirms no-secrets guarantees for T4 (agent-chosen safe menu) and T5 (page-visible arithmetic); Project Status table extended; TODOS.md `## Shipped` section added — v5.0 (Phase 15)
+
 ### Active
 
-- test-agent scorecard and CI exit codes extend to T4/T5 — v5.0
-- README Proof Levels section documents 5-tier model; TODOS.md updated — v5.0
+- None — v5.0 milestone complete
 
 ### Out of Scope
 
@@ -183,4 +185,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 — Phase 14 complete: Monitor TUI + Markdown report surfacing shipped (EVIDENCE column, detail pane, 5-tier chrome, exec summary T4/T5 rows). Gap fixes folded in for setup-wizard 5-tier menu, DB parent dir auto-create, attach-mode SELECT, and TUI contrast. Next: Phase 15 (test-agent scorecard + README + TODOS.md).*
+*Last updated: 2026-04-25 — Phase 15 complete: v5.0 Tiers 4 & 5 milestone shipped. `test-agent` scorecard extends to 5 tiers with `n/5` score, T4/T5 hit lines in text and JSON, exit codes 0/1/2 preserved (new T4-only/T5-only tests). README documents the 5-tier proof model with concrete examples per tier and explicit T4/T5 no-secrets callouts in Ethics. TODOS.md gained a `## Shipped` section referencing Phases 13–15. v5.0 milestone terminal.*
