@@ -42,16 +42,16 @@ Requirements for the v5.0 milestone. Each maps to exactly one roadmap phase.
 
 ### test-agent & CI
 
-- [ ] **TESTAGENT-01**: `honeyprompt test-agent` per-tier scorecard extends to Tier 4 and Tier 5 (hit counts)
-- [ ] **TESTAGENT-02**: test-agent tempdir pipeline automatically picks up new T4/T5 payloads from the extended catalog — no code changes in test-agent itself
-- [ ] **TESTAGENT-03**: Existing CI exit-code semantics (0/1/2) are preserved and account for T4/T5 presence
+- [x] **TESTAGENT-01**: `honeyprompt test-agent` per-tier scorecard extends to Tier 4 and Tier 5 (hit counts)
+- [x] **TESTAGENT-02**: test-agent tempdir pipeline automatically picks up new T4/T5 payloads from the extended catalog — no code changes in test-agent itself
+- [x] **TESTAGENT-03**: Existing CI exit-code semantics (0/1/2) are preserved and account for T4/T5 presence
 
 ### Docs
 
-- [ ] **DOCS-01**: README Proof Levels section documents the full 5-tier model with a short example per tier
-- [ ] **DOCS-02**: README Ethics/Safety section reaffirms the no-secrets guarantee explicitly covers T4 (agent-chosen safe menu) and T5 (arithmetic of page-visible values)
-- [ ] **DOCS-03**: README Project Status extended to reflect v5.0 phases
-- [ ] **DOCS-04**: TODOS.md updated — T4/T5 entries removed from "future" once shipped
+- [x] **DOCS-01**: README Proof Levels section documents the full 5-tier model with a short example per tier
+- [x] **DOCS-02**: README Ethics/Safety section reaffirms the no-secrets guarantee explicitly covers T4 (agent-chosen safe menu) and T5 (arithmetic of page-visible values)
+- [x] **DOCS-03**: README Project Status extended to reflect v5.0 phases
+- [x] **DOCS-04**: TODOS.md updated — T4/T5 entries removed from "future" once shipped
 
 ## Future Requirements
 
@@ -106,13 +106,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UI-03 | Phase 14 | Complete |
 | UI-04 | Phase 14 | Complete |
 | UI-05 | Phase 14 | Complete |
-| TESTAGENT-01 | Phase 15 | Pending |
-| TESTAGENT-02 | Phase 15 | Pending |
-| TESTAGENT-03 | Phase 15 | Pending |
-| DOCS-01 | Phase 15 | Pending |
-| DOCS-02 | Phase 15 | Pending |
-| DOCS-03 | Phase 15 | Pending |
-| DOCS-04 | Phase 15 | Pending |
+| TESTAGENT-01 | Phase 15 | Complete |
+| TESTAGENT-02 | Phase 15 | Complete |
+| TESTAGENT-03 | Phase 15 | Complete |
+| DOCS-01 | Phase 15 | Complete |
+| DOCS-02 | Phase 15 | Complete |
+| DOCS-03 | Phase 15 | Complete |
+| DOCS-04 | Phase 15 | Complete |
 
 **Coverage:**
 - v5.0 requirements: 25 total

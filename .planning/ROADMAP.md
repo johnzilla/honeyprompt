@@ -135,7 +135,7 @@ Plans:
 
 - [x] **Phase 13: Tiers 4 & 5 Backend (Payloads + Routes + Store)** - Catalog, callback routes, SQLite schema, and proof verification for T4/T5, backward-compatible with v1.0–v4.0 (completed 2026-04-24)
 - [x] **Phase 14: Tiers 4 & 5 Surfacing (Monitor TUI + Report)** - TUI event table and Markdown report render T4 capability lists and T5 proofs with a validity indicator (completed 2026-04-24)
-- [ ] **Phase 15: Tiers 4 & 5 Validation & Docs (test-agent + README)** - test-agent scorecard and CI exit codes cover T4/T5; README Proof Levels rewritten to document the full 5-tier model
+- [x] **Phase 15: Tiers 4 & 5 Validation & Docs (test-agent + README)** - test-agent scorecard and CI exit codes cover T4/T5; README Proof Levels rewritten to document the full 5-tier model (completed 2026-04-25)
 
 ## Phase Details
 
@@ -187,9 +187,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — test-agent scorecard 5-tier extension (Scorecard struct + render_text/render_json + store::detections_by_tier → [u32; 5])
-- [ ] 15-02-PLAN.md — README 5-tier documentation (Proof Levels italic examples + Ethics T4/T5 no-secrets bullets + Project Status Phase 15 row)
-- [ ] 15-03-PLAN.md — TODOS.md ## Shipped section (T4 + T5 entries above existing security-email TODO)
+- [x] 15-01-PLAN.md — test-agent scorecard 5-tier extension (Scorecard struct + render_text/render_json + store::detections_by_tier → [u32; 5])
+- [x] 15-02-PLAN.md — README 5-tier documentation (Proof Levels italic examples + Ethics T4/T5 no-secrets bullets + Project Status Phase 15 row)
+- [x] 15-03-PLAN.md — TODOS.md ## Shipped section (T4 + T5 entries above existing security-email TODO)
 
 ## Progress
 
@@ -212,4 +212,4 @@ Phases execute in numeric order: 13 → 14 → 15
 | 12. Documentation & Deploy Templates | v4.0 | 2/2 | Complete | 2026-04-02 |
 | 13. Tiers 4 & 5 Backend | v5.0 | 4/4 | Complete    | 2026-04-24 |
 | 14. Tiers 4 & 5 Surfacing | v5.0 | 3/3 | Complete    | 2026-04-24 |
-| 15. Tiers 4 & 5 Validation & Docs | v5.0 | 0/TBD | Not started | - |
+| 15. Tiers 4 & 5 Validation & Docs | v5.0 | 3/3 | Complete    | 2026-04-25 |
