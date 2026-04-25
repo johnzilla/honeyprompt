@@ -168,13 +168,14 @@ pub fn lookup_nonce(
     }
 }
 
-/// Count unique detection sessions per tier (1/2/3), excluding known crawlers.
+/// Count unique detection sessions per tier (1..=5), excluding known crawlers.
 ///
-/// Returns a [u32; 3] array where index 0 = tier 1 count, index 1 = tier 2, index 2 = tier 3.
+/// Returns a [u32; 5] array where index 0 = tier 1 count, ..., index 4 = tier 5 count.
 /// D-07: per-tier hit counts for the test-agent scorecard.
-pub fn detections_by_tier(conn: &Connection) -> rusqlite::Result<[u32; 3]> {
-    let mut counts = [0u32; 3];
-    for tier in 1u8..=3 {
+/// D-15-06: extended from 3 to 5 tiers; KnownCrawler exclusion filter unchanged.
+pub fn detections_by_tier(conn: &Connection) -> rusqlite::Result<[u32; 5]> {
+    let mut counts = [0u32; 5];
+    for tier in 1u8..=5 {
         counts[(tier - 1) as usize] = conn.query_row(
             "SELECT COUNT(DISTINCT session_id) FROM events
              WHERE tier = ?1
@@ -769,7 +770,7 @@ mod tests {
             None,
         )
         .unwrap();
-        // Known crawler should be excluded
+        // Known crawler should be excluded (T2)
         insert_nonce(&conn, "crawler_t2", 2, "t2-cond", "meta_tag").unwrap();
         insert_callback_event(
             &conn,
@@ -786,11 +787,62 @@ mod tests {
             None,
         )
         .unwrap();
+        // Tier 4 event (legitimate)
+        insert_nonce(&conn, "tier4a", 4, "t4-meta", "meta_tag").unwrap();
+        insert_callback_event(
+            &conn,
+            "tier4a",
+            4,
+            "t4-meta",
+            "meta_tag",
+            "sess_t4",
+            "10.0.0.4",
+            "Agent/1.0",
+            r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        // Tier 4 event from a KnownCrawler (must be excluded — D-15-06: filter applies at T4 too)
+        insert_nonce(&conn, "crawler_t4", 4, "t4-cmt", "html_comment").unwrap();
+        insert_callback_event(
+            &conn,
+            "crawler_t4",
+            4,
+            "t4-cmt",
+            "html_comment",
+            "sess_crawler_t4",
+            "10.0.0.5",
+            "Googlebot/2.1",
+            r#"{"classification":"KnownCrawler","headers":{}}"#,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        // Tier 5 event (legitimate)
+        insert_nonce(&conn, "tier5a", 5, "t5-prose", "semantic_prose").unwrap();
+        insert_callback_event(
+            &conn,
+            "tier5a",
+            5,
+            "t5-prose",
+            "semantic_prose",
+            "sess_t5",
+            "10.0.0.6",
+            "Agent/1.0",
+            r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         let counts = detections_by_tier(&conn).unwrap();
         assert_eq!(
             counts,
-            [1, 0, 1],
-            "tier 1=1, tier 2=0 (crawler excluded), tier 3=1"
+            [1, 0, 1, 1, 1],
+            "tier 1=1, tier 2=0 (crawler excluded), tier 3=1, tier 4=1 (crawler excluded), tier 5=1"
         );
     }
 
