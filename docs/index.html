@@ -219,7 +219,9 @@
           '  sessions: <span class="val">' + d.total_sessions + '</span>' +
           '  |  url_fetch: <span class="val">' + d.tier1_sessions + '</span>' +
           '  |  conditional: <span class="val">' + d.tier2_sessions + '</span>' +
-          '  |  composed: <span class="val">' + d.tier3_sessions + '</span>';
+          '  |  composed: <span class="val">' + d.tier3_sessions + '</span>' +
+          '  |  capability: <span class="val">' + (d.tier4_sessions || 0) + '</span>' +
+          '  |  multistep: <span class="val">' + (d.tier5_sessions || 0) + '</span>';
       } catch (e) {
         output.innerHTML = '  <span class="err">Stats unavailable. Honeypot may be offline.</span> ' +
           '<a href="https://github.com/johnzilla/honeyprompt">View on GitHub</a>';

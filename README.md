@@ -297,7 +297,7 @@ Runs a self-contained compliance test: spins up a honeypot server, waits for cal
 | Phase 12 | Documentation & Deploy Templates — Deploy Your Own guide, deploy/templates/ for all platforms | Complete |
 | Phase 13 | Tiers 4 & 5 Backend — payload catalog extension, `/cb/v4/` + `/cb/v5/` routes, server-side proof verification, additive SQLite migration | Complete |
 | Phase 14 | Tiers 4 & 5 Surfacing — Monitor TUI EVIDENCE column + detail pane, 5-tier stats header, 6-state filter cycle, Markdown report Evidence column, executive summary T4/T5 rows | Complete |
-| Phase 15 | Tiers 4 & 5 Validation & Docs — test-agent scorecard extended to T4/T5, README 5-tier proof model documented, TODOS.md shipped section | In Progress |
+| Phase 15 | Tiers 4 & 5 Validation & Docs — test-agent scorecard extended to T4/T5, README 5-tier proof model documented, TODOS.md shipped section | Complete |
 
 ## Ethics and Safety
 
