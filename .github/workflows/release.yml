@@ -16,7 +16,7 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - uses: taiki-e/create-gh-release-action@c5baa0b5dc700cf06439d87935e130220a6882d9  # v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -38,7 +38,7 @@ jobs:
             os: macos-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - uses: taiki-e/upload-rust-binary-action@0e34102c043ded9f2ca39f7af5cd99a540c61aff  # v1
         with:
           bin: honeyprompt
