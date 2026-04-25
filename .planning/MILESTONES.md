@@ -1,5 +1,30 @@
 # Milestones
 
+## v5.0 Tiers 4 & 5 — Capability Introspection + Multi-step Compliance (Shipped: 2026-04-25)
+
+**Phases completed:** 3 phases, 10 plans, ~30 tasks
+
+**Git range:** `8644aa2..a3bf38e` (75 commits, +2806/−87 Rust LOC across 15 files)
+
+**Key accomplishments:**
+
+- Tier 4 (Capability Introspection) — 3 payload templates probing distinct dimensions (tools, model-identity, permissions), base64-encoded sorted lists submitted via `GET /cb/v4/{nonce}/{b64_list}`, server-sanitized with `^[a-z0-9_,.\-]{1,256}$` regex; agent-chosen safe menu, never secrets
+- Tier 5 (Multi-step Compliance Chain) — 3 payload templates with numbered dependent steps, deterministic `verification_seed` embedded in JSON-LD derived from first 8 hex chars of nonce, 3-digit proof `((seed+a)*b) %mod` submitted via `GET /cb/v5/{nonce}/{proof}` and server-verified against a re-computed expected value
+- Additive SQLite migration adds `t4_capability`, `t5_proof`, `t5_proof_valid` columns — v4.0 databases open unchanged and T1–T3 rows read back byte-identical; replay detection and session grouping behave uniformly across all 5 tiers
+- `/cb/v1/{nonce}` route response and stored-row shape unchanged — verified by existing integration tests passing without modification (backward-compat anchor)
+- Monitor TUI extended with compact EVIDENCE column + always-visible detail pane (T1–T3 shows payload_id/embedding_loc/full-nonce; T4 shows decoded capability list; T5 shows proof + formula + VALID/INVALID), 6-state tier filter cycle (`All → T1 → T2 → T3 → T4 → T5 → All`), and "always-show chrome" policy that keeps T4/T5 rows visible even on zero-count v4.0 databases
+- Markdown disclosure report gains Evidence column interleaving T4 tool lists and T5 proofs with existing T1–T3 evidence; executive summary extends to all 5 tiers
+- `honeyprompt test-agent` scorecard extended to 5-tier shape (`tiers: [bool; 5]`, `tier_counts: [u32; 5]`, `"n/5"` score) while preserving the v2.0 exit-code contract (0=no canaries, 1=any tier triggered including T4-only or T5-only, 2=error) — 2 new unit tests (`test_exit_code_t4_only`, `test_exit_code_t5_only`) enforce the backward-compat guarantee
+- Public docs sync: README Proof Levels gains concrete inline examples per tier (including a worked T5 formula `seed 137 → ((137+42)·17) %1000 → "043"` matching the real `t5-semantic-prose` catalog constants), Ethics/Safety explicitly reaffirms no-secrets guarantees for T4 (agent-chosen safe menu) and T5 (page-visible arithmetic), Project Status table extended through Phase 15, TODOS.md gets a `## Shipped` section referencing v5.0 phases, and landing page (`docs/index.html`) live-stats display extended with T4 `capability` and T5 `multistep` session counts (with `|| 0` fallback for older server deployments)
+
+**Timeline:** 2026-04-24 → 2026-04-25 (single-day milestone). CONTEXT.md-driven planning with zero scope creep; every D-15-* decision byte-identically honored in committed code/docs. Phase 15 closed with 212/212 tests passing, `cargo clippy --all-targets -- -D warnings` clean, `cargo fmt --check` clean.
+
+**Archived files:**
+- `.planning/milestones/v5.0-ROADMAP.md` — full phase-by-phase details + decisions + deferred items
+- `.planning/milestones/v5.0-REQUIREMENTS.md` — all 25 requirements validated (PAYLOAD-01..05, SERVER-01..04, STORE-01..04, UI-01..05, TESTAGENT-01..03, DOCS-01..04)
+
+---
+
 ## v4.0 Self-Hosted UX (Shipped: 2026-04-02)
 
 **Phases completed:** 2 phases, 4 plans, 7 tasks

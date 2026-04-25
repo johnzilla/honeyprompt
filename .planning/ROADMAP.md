@@ -6,7 +6,7 @@
 - ✅ **v2.0 Ship & Learn** - Phases 5-8 (shipped 2026-03-31)
 - ✅ **v3.0 Public Presence** - Phases 9-10 (shipped 2026-04-01)
 - ✅ **v4.0 Self-Hosted UX** - Phases 11-12 (shipped 2026-04-02)
-- 🚧 **v5.0 Tiers 4 & 5** - Phases 13-15 (in progress)
+- ✅ **v5.0 Tiers 4 & 5** - Phases 13-15 (shipped 2026-04-25)
 
 ## Phases
 
@@ -123,32 +123,11 @@ Plans:
 
 </details>
 
-### 🚧 v5.0 Tiers 4 & 5 (In Progress)
-
-**Milestone Goal:** Extend the graduated proof model from Tiers 1–3 to Tiers 4 (Capability Introspection) and Tier 5 (Multi-step Compliance Chain). Backward-compatible — `/cb/v1/` frozen, SQLite migration additive — with no secrets transmitted.
-
-**Cross-cutting constraints (apply to every v5.0 phase):**
-- `/cb/v1/{nonce}` route behavior is frozen — T1–T3 callbacks unchanged
-- SQLite migrations are additive only — existing T1–T3 rows remain readable without transformation
-- No secrets ever leave the agent — T4 lists are agent-chosen from a safe menu; T5 proofs are arithmetic of page-visible values
-- Five embedding locations stay fixed (HTML comment, meta, hidden span, JSON-LD, prose)
-
-- [x] **Phase 13: Tiers 4 & 5 Backend (Payloads + Routes + Store)** - Catalog, callback routes, SQLite schema, and proof verification for T4/T5, backward-compatible with v1.0–v4.0 (completed 2026-04-24)
-- [x] **Phase 14: Tiers 4 & 5 Surfacing (Monitor TUI + Report)** - TUI event table and Markdown report render T4 capability lists and T5 proofs with a validity indicator (completed 2026-04-24)
-- [x] **Phase 15: Tiers 4 & 5 Validation & Docs (test-agent + README)** - test-agent scorecard and CI exit codes cover T4/T5; README Proof Levels rewritten to document the full 5-tier model (completed 2026-04-25)
-
-## Phase Details
+<details>
+<summary>✅ v5.0 Tiers 4 & 5 (Phases 13-15) - SHIPPED 2026-04-25</summary>
 
 ### Phase 13: Tiers 4 & 5 Backend (Payloads + Routes + Store)
-**Goal**: The honeypot can emit Tier 4 and Tier 5 payloads, receive their callbacks at new `/cb/v4/` and `/cb/v5/` routes, verify T5 proofs server-side, and persist results in an additively-migrated SQLite schema — all without changing `/cb/v1/` behavior or breaking existing T1–T3 rows.
-**Depends on**: Phase 12
-**Requirements**: PAYLOAD-01, PAYLOAD-02, PAYLOAD-03, PAYLOAD-04, PAYLOAD-05, SERVER-01, SERVER-02, SERVER-03, SERVER-04, STORE-01, STORE-02, STORE-03, STORE-04
-**Success Criteria** (what must be TRUE):
-  1. Running `honeyprompt generate` produces a honeypot whose HTML contains 2–3 Tier 4 introspection payloads and 2–3 Tier 5 multi-step payloads rendered across all five existing embedding locations, with no regression in T1–T3 coverage
-  2. An agent hitting `GET /cb/v4/{nonce}/{b64_list}` results in the decoded, sanitized tool list being stored against the nonce; malformed input (oversized, non-base64) still returns 204 with nothing leaked
-  3. An agent hitting `GET /cb/v5/{nonce}/{proof}` results in the submitted proof being stored alongside a `proof_valid` boolean computed from the payload's deterministic `verification_seed`; malformed (non-numeric) input still returns 204
-  4. An existing v4.0 honeyprompt.sqlite file opens unchanged under v5.0, existing T1–T3 rows read back identically, and replay detection + session grouping behave the same for T4/T5 events as for T1–T3
-  5. `/cb/v1/{nonce}` produces byte-identical response and stored-row shape to v4.0 (verified by existing integration tests still passing with no modification)
+**Goal**: Honeypot emits T4/T5 payloads, receives callbacks at `/cb/v4/` and `/cb/v5/` routes, verifies T5 proofs server-side, and persists results in an additively-migrated SQLite schema — `/cb/v1/` behavior unchanged.
 **Plans**: 4 plans
 
 Plans:
@@ -158,16 +137,7 @@ Plans:
 - [x] 13-04-PLAN.md — Server handlers + broker wiring (t4/t5 handlers, NonceMeta formula extension, RawCallbackEvent/AppEvent fields, /cb/v1/ byte-identical regression)
 
 ### Phase 14: Tiers 4 & 5 Surfacing (Monitor TUI + Report)
-**Goal**: A defender watching the Monitor TUI or reading a Markdown disclosure report can see the decoded T4 capability list and the T5 proof with its server-verified validity, alongside existing T1–T3 evidence and with T4/T5 counts included in the executive summary.
-**Depends on**: Phase 13
-**Requirements**: UI-01, UI-02, UI-03, UI-04, UI-05
-**Success Criteria** (what must be TRUE):
-  1. In the Monitor TUI, a Tier 4 event shows the decoded, sorted tool list (e.g. "web_search,browse_page,code_execution") in the detail/row view, readable at a glance
-  2. In the Monitor TUI, a Tier 5 event shows the submitted proof value with a visible validity indicator (e.g. ✓ / ✗) reflecting the server's `proof_valid` check
-  3. `honeyprompt report` produces Markdown where each T4 event entry includes its decoded tool list and each T5 event entry includes its submitted proof + verification result, interleaved with existing T1–T3 event entries in the same format
-  4. The report's executive summary counts extend to list Tier 4 and Tier 5 totals alongside T1–T3
-  5. All UI changes are purely additive — running Monitor or report against a v4.0 database (T1–T3 only) still produces sensible output with no empty T4/T5 sections printed
-**UI hint**: yes
+**Goal**: Monitor TUI and Markdown disclosure report show T4 capability lists and T5 proofs with server-verified validity alongside T1–T3, with T4/T5 counts in the executive summary.
 **Plans**: 3 plans
 
 Plans:
@@ -176,20 +146,17 @@ Plans:
 - [x] 14-03-PLAN.md — Report extensions (store queries, proof_level, Evidence column, exec summary T4/T5 rows, integration tests)
 
 ### Phase 15: Tiers 4 & 5 Validation & Docs (test-agent + README)
-**Goal**: The `honeyprompt test-agent` command scores Tier 4 and Tier 5 hits alongside T1–T3, CI exit codes preserve their 0/1/2 semantics across the new tiers, and the public README documents the full 5-tier proof model so external readers understand what evidence T4 and T5 produce.
-**Depends on**: Phase 14
-**Requirements**: TESTAGENT-01, TESTAGENT-02, TESTAGENT-03, DOCS-01, DOCS-02, DOCS-03, DOCS-04
-**Success Criteria** (what must be TRUE):
-  1. `honeyprompt test-agent` prints a per-tier scorecard that includes Tier 4 and Tier 5 hit counts, with no code changes required in test-agent itself beyond catalog-driven updates
-  2. Running test-agent against a honeypot with T4/T5 payloads produces exit codes that still follow the 0/1/2 semantics documented in v2.0 (green/soft-fail/hard-fail) with T4/T5 participation included in the determination
-  3. README "Proof Levels" section documents all five tiers with one short concrete example per tier (including T4 and T5) and the Ethics/Safety section explicitly reaffirms no-secrets guarantees for T4 (agent-chosen safe menu) and T5 (page-visible arithmetic)
-  4. README Project Status table and TODOS.md are updated so T4/T5 no longer appear under "future" — they appear under "shipped" with the v5.0 phase references
+**Goal**: `honeyprompt test-agent` scores T4/T5 alongside T1–T3 with 0/1/2 exit-code semantics preserved; README documents the full 5-tier proof model.
 **Plans**: 3 plans
 
 Plans:
 - [x] 15-01-PLAN.md — test-agent scorecard 5-tier extension (Scorecard struct + render_text/render_json + store::detections_by_tier → [u32; 5])
 - [x] 15-02-PLAN.md — README 5-tier documentation (Proof Levels italic examples + Ethics T4/T5 no-secrets bullets + Project Status Phase 15 row)
 - [x] 15-03-PLAN.md — TODOS.md ## Shipped section (T4 + T5 entries above existing security-email TODO)
+
+**Full details:** see `.planning/milestones/v5.0-ROADMAP.md` for success criteria, cross-cutting constraints, key decisions, deferred items, and frozen protocol surface.
+
+</details>
 
 ## Progress
 
