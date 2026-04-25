@@ -12,26 +12,19 @@ v5.0 extends the graduated proof model from Tiers 1–3 to Tiers 4 (Capability I
 
 Provide graduated, verifiable proof that AI agents follow prompt-injection instructions from untrusted web content — without requiring secrets or causing harm.
 
-## Current Milestone: v5.0 Tiers 4 & 5 — Capability Introspection + Multi-step Compliance
+## Current State: v5.0 shipped 2026-04-25
 
-**Goal:** Extend the graduated proof model from Tiers 1–3 to Tiers 4 (Capability Introspection) and Tier 5 (Multi-step Compliance Chain), providing deeper verifiable evidence of agent compliance — backward-compatible, no secrets transmitted.
+v5.0 Tiers 4 & 5 — Capability Introspection + Multi-step Compliance — **shipped and tagged as `v5.0.0`**. All 25 requirements validated across Phases 13, 14, 15. Cross-platform binaries published to GitHub Releases. Full archive at `.planning/milestones/v5.0-ROADMAP.md` and `.planning/milestones/v5.0-REQUIREMENTS.md`.
 
-**Target features:**
-- Tier 4 payloads (2–3 templates) — agent returns sorted base64-encoded capability/tool list via `/cb/v4/{nonce}/{b64_list}`
-- Tier 5 payloads (2–3 templates) — agent follows numbered dependent steps (seed extraction → arithmetic → proof computation) ending in `/cb/v5/{nonce}/{proof}`
-- New callback routes `/cb/v4/` and `/cb/v5/` with decode/sanitize/verify (v1 route stays frozen)
-- SQLite schema extension for tier-4 capability summary and tier-5 proof + server-side proof verification (`proof_valid: bool`)
-- Payload catalog extension — new payloads across existing 5 embedding locations (HTML comment, meta, hidden span, JSON-LD, prose)
-- Monitor TUI renders T4 capability lists and T5 chain proofs
-- Markdown report shows per-tier results including T4/T5 evidence
-- test-agent scorecard and CI exit codes extend to T4 and T5
-- README Proof Levels section updated; TODOS.md cleaned
+**v5.0 shipped protocol surface (frozen):**
+- `GET /cb/v1/{nonce}` — unchanged from v1.0 (backward-compat anchor)
+- `GET /cb/v4/{nonce}/{b64_list}` — Tier 4 capability introspection
+- `GET /cb/v5/{nonce}/{proof}` — Tier 5 multi-step compliance with server-side proof verification
+- `GET /stats` — extended with `tier4_sessions` and `tier5_sessions` fields (older clients that read only T1–T3 keep working)
 
-**Key constraints:**
-- Backward compatible — Tiers 1–3 behavior, config, schema, routes unchanged
-- Zero-trust — all callbacks remain `/cb/vX/{nonce}/{safe_data}` style; no sensitive data ever transmitted
-- T4 tool lists agent-chosen from safe menu; T5 proofs arithmetic of page-visible values
-- Same 5 embedding locations, same nonce scheme, same single-binary distribution
+## Next Milestone: TBD
+
+No active milestone. Run `/gsd-new-milestone` to begin v6.0 direction-setting (questioning → research → requirements → roadmap). v5.0 is a natural pause point — the 5-tier proof model is complete and backward-compatible, so v6.0 can pick a genuinely new direction rather than extending the tier ladder. Candidate directions include federation (cross-instance stats aggregation), richer report formats, cloud-hosted multi-tenant honeypots, or orthogonal instrumentation (DNS canaries, binary supply-chain). The office-hours insight flagged "agent-builder QA" as the strongest commercial angle — worth revisiting once v5.0 has gathered real-world T4/T5 evidence from honeyprompt.sh.
 
 ## Requirements
 
