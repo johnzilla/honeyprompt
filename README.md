@@ -32,6 +32,16 @@ HoneyPrompt uses a five-tier graduated evidence model:
 
 Each tier's callback URL carries only a unique cryptographic nonce, the prompt ID, and the tier level — no secrets or sensitive data.
 
+## How It Works
+
+1. `honeyprompt setup` (or `init`) creates a config with your domain and desired settings.
+2. `honeyprompt serve --domain your-domain.com` (or `serve` with a config) generates and serves the honeypot in one step.
+3. `generate` reads the config, loads the payload catalog (Tiers 1–5), and assigns a unique cryptographic nonce to each payload instance. Tier 5 payloads also embed a deterministic `verification_seed` (derived from the nonce) in a JSON-LD script block for the agent to extract.
+4. The generator renders `index.html` using a built-in template that embeds payloads in: HTML comments, `<meta>` tags, invisible `<span>` elements, JSON-LD structured data, and natural-language prose.
+5. Every generated page includes a visible human warning so real users know the page is a security research instrument.
+6. `robots.txt` and `ai.txt` are generated with disallow rules, creating a detectable signal when compliant crawlers respect them but non-compliant agents do not.
+7. When an agent triggers a callback, the URL encodes the prompt ID, nonce, and tier — enough to identify what happened without transmitting any sensitive data.
+
 ## FAQ
 
 Check the [FAQ](https://github.com/johnzilla/honeyprompt/blob/main/FAQ.md) and find additional info below. 
@@ -268,16 +278,6 @@ honeyprompt test-agent --listen 0.0.0.0:8080 --timeout 30 --format json
 ```
 
 Runs a self-contained compliance test: spins up a honeypot server, waits for callbacks, then outputs a pass/fail scorecard. Exit code 0 means no canaries triggered (safe agent). Exit code 1 means one or more canaries triggered. Designed for CI pipelines testing AI agent compliance.
-
-## How It Works
-
-1. `honeyprompt setup` (or `init`) creates a config with your domain and desired settings.
-2. `honeyprompt serve --domain your-domain.com` (or `serve` with a config) generates and serves the honeypot in one step.
-3. `generate` reads the config, loads the payload catalog (Tiers 1–5), and assigns a unique cryptographic nonce to each payload instance. Tier 5 payloads also embed a deterministic `verification_seed` (derived from the nonce) in a JSON-LD script block for the agent to extract.
-4. The generator renders `index.html` using a built-in template that embeds payloads in: HTML comments, `<meta>` tags, invisible `<span>` elements, JSON-LD structured data, and natural-language prose.
-5. Every generated page includes a visible human warning so real users know the page is a security research instrument.
-6. `robots.txt` and `ai.txt` are generated with disallow rules, creating a detectable signal when compliant crawlers respect them but non-compliant agents do not.
-7. When an agent triggers a callback, the URL encodes the prompt ID, nonce, and tier — enough to identify what happened without transmitting any sensitive data.
 
 ## Project Status
 
