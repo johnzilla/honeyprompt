@@ -4,8 +4,8 @@ milestone: v5.0
 milestone_name: Tiers 4 & 5
 status: milestone_complete
 stopped_at: Phase 15 context gathered
-last_updated: "2026-05-01T18:34:05.784Z"
-last_activity: 2026-05-01 -- Quick task: fix-broken-github-links-in-readme-faq-md
+last_updated: "2026-05-02T14:53:05.817Z"
+last_activity: 2026-05-02 -- Quick task: move-how-it-works-section-up-to-follow-p
 progress:
   total_phases: 3
   completed_phases: 3
@@ -79,6 +79,7 @@ None for current phase.
 | Date | Slug | Description | Commit |
 |------|------|-------------|--------|
 | 2026-05-01 | fix-broken-github-links-in-readme-faq-md | Fix 404 GitHub links in README (FAQ.md + LICENSE — missing /blob/main/) | `5ca281d` |
+| 2026-05-02 | move-how-it-works-section-up-to-follow-p | Hoist "How It Works" above ops content (now sits between Proof Levels and FAQ) | `b37bf36` |
 
 ## Session Continuity
 
