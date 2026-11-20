@@ -3,13 +3,19 @@ use minijinja::{context, Environment};
 use rusqlite::Connection;
 use rust_embed::RustEmbed;
 use serde::Serialize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::catalog;
 use crate::config::Config;
 use crate::nonce;
 use crate::store;
 use crate::types::{NonceMapping, Tier};
+
+/// Location of the nonce → payload map. Lives in `.honeyprompt/` (never served),
+/// not `output/`, so visitors cannot enumerate nonces and forge callbacks.
+pub fn callback_map_path(project_path: &Path) -> PathBuf {
+    project_path.join(".honeyprompt").join("callback-map.json")
+}
 
 /// Embedded Jinja templates from assets/templates/.
 #[derive(RustEmbed)]
@@ -274,8 +280,17 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
     std::fs::write(output_dir.join("robots.txt"), robots)
         .context("Failed to write output/robots.txt")?;
     std::fs::write(output_dir.join("ai.txt"), ai_txt).context("Failed to write output/ai.txt")?;
-    std::fs::write(output_dir.join("callback-map.json"), callback_map_json)
-        .context("Failed to write output/callback-map.json")?;
+    let map_path = callback_map_path(project_path);
+    if let Some(parent) = map_path.parent() {
+        std::fs::create_dir_all(parent).context("Failed to create .honeyprompt/ directory")?;
+    }
+    std::fs::write(&map_path, callback_map_json)
+        .context("Failed to write .honeyprompt/callback-map.json")?;
+    // Remove a map left in the served directory by older versions.
+    let legacy_map = output_dir.join("callback-map.json");
+    if legacy_map.exists() {
+        std::fs::remove_file(&legacy_map).context("Failed to remove output/callback-map.json")?;
+    }
     std::fs::write(well_known_dir.join("security.txt"), security_txt)
         .context("Failed to write output/.well-known/security.txt")?;
 
@@ -346,7 +361,7 @@ mod tests {
         assert!(dir.path().join("output/index.html").exists());
         assert!(dir.path().join("output/robots.txt").exists());
         assert!(dir.path().join("output/ai.txt").exists());
-        assert!(dir.path().join("output/callback-map.json").exists());
+        assert!(dir.path().join(".honeyprompt/callback-map.json").exists());
         assert!(dir.path().join("output/.well-known/security.txt").exists());
     }
 
@@ -422,7 +437,7 @@ mod tests {
 
         // Each emitted seed must equal nonce::derive_seed(nonce). Load nonce_mappings
         // from callback-map.json written by generate().
-        let map_json = std::fs::read_to_string(dir.path().join("output/callback-map.json"))
+        let map_json = std::fs::read_to_string(dir.path().join(".honeyprompt/callback-map.json"))
             .expect("callback-map.json must exist");
         let mappings: Vec<serde_json::Value> =
             serde_json::from_str(&map_json).expect("callback-map.json must be valid JSON");

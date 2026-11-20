@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::extract::{ConnectInfo, Path as AxumPath, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -11,7 +11,9 @@ use axum::routing::get;
 use axum::Router;
 use base64::{engine::general_purpose, Engine as _};
 use tokio::sync::mpsc;
+use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::ServeDir;
+use tower_http::timeout::TimeoutLayer;
 
 use crate::config::Config;
 use crate::crawler_catalog::CrawlerCatalog;
@@ -224,6 +226,13 @@ pub async fn stats_handler(State(state): State<Arc<AppState>>) -> axum::response
     }
 }
 
+/// Per-request timeout. Every route is a cheap GET, so anything slower is a
+/// slow-loris style client.
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Largest accepted request body. No route reads a body.
+pub const MAX_REQUEST_BODY_BYTES: usize = 16 * 1024;
+
 /// Build the Axum router given an AppState and output directory.
 ///
 /// Extracted as a public function so integration tests can use it without binding a port.
@@ -234,35 +243,35 @@ pub fn build_router(state: Arc<AppState>, output_dir: PathBuf) -> Router {
         .route("/cb/v5/{nonce}/{proof}", get(t5_callback_handler)) // NEW (D-13-14)
         .route("/stats", get(stats_handler))
         .fallback_service(ServeDir::new(output_dir))
+        .layer(RequestBodyLimitLayer::new(MAX_REQUEST_BODY_BYTES))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            REQUEST_TIMEOUT,
+        ))
         .with_state(state)
 }
 
-/// Start the honeyprompt HTTP server.
-///
-/// Loads callback-map.json from `{project_path}/output/callback-map.json`, opens the
-/// SQLite DB, wires up the event pipeline (broker + DB writer + stdout logger), and
-/// serves on the configured bind address.
-pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> anyhow::Result<()> {
-    let output_dir = project_path.join("output");
-    let db_path = project_path.join(".honeyprompt").join("events.db");
-
-    // Load callback-map.json and build in-memory nonce lookup
-    let callback_map_path = output_dir.join("callback-map.json");
-    let json_str = std::fs::read_to_string(&callback_map_path)
-        .map_err(|e| anyhow::anyhow!("Failed to read callback-map.json: {}", e))?;
+/// Load the nonce map written by `generate` and join tier-5 entries with their
+/// catalog formulas. Shared by `serve`, `monitor` and `test-agent`.
+pub fn load_nonce_map(project_path: &Path) -> anyhow::Result<HashMap<String, NonceMeta>> {
+    let callback_map_path = crate::generator::callback_map_path(project_path);
+    let json_str = std::fs::read_to_string(&callback_map_path).map_err(|e| {
+        anyhow::anyhow!(
+            "Failed to read {}: {} (run `honeyprompt generate`)",
+            callback_map_path.display(),
+            e
+        )
+    })?;
     let mappings: Vec<NonceMapping> = serde_json::from_str(&json_str)
         .map_err(|e| anyhow::anyhow!("Failed to parse callback-map.json: {}", e))?;
 
-    // Load catalog once for T5 formula lookup (RESEARCH Q3).
-    // MUST happen before the nonce_map construction loop below, which depends on
-    // this HashMap to populate NonceMeta.t5_formula for tier-5 entries.
     let all_payloads = crate::catalog::load_catalog()?;
     let t5_formulas_by_payload_id: HashMap<String, T5Formula> = all_payloads
         .iter()
         .filter_map(|p| p.t5_formula.map(|f| (p.id.clone(), f)))
         .collect();
 
-    let mut nonce_map: HashMap<String, NonceMeta> = HashMap::new();
+    let mut nonce_map = HashMap::new();
     for m in &mappings {
         let t5_formula = if m.tier == Tier::Tier5 {
             t5_formulas_by_payload_id.get(&m.payload_id).copied()
@@ -279,6 +288,19 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
             },
         );
     }
+    Ok(nonce_map)
+}
+
+/// Start the honeyprompt HTTP server.
+///
+/// Loads the nonce map from `{project_path}/.honeyprompt/callback-map.json`, opens the
+/// SQLite DB, wires up the event pipeline (broker + DB writer + stdout logger), and
+/// serves on the configured bind address.
+pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> anyhow::Result<()> {
+    let output_dir = project_path.join("output");
+    let db_path = project_path.join(".honeyprompt").join("events.db");
+
+    let nonce_map = load_nonce_map(project_path)?;
     let nonce_count = nonce_map.len();
 
     // Load crawler catalog
@@ -305,7 +327,12 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
     let log_rx = event_tx.subscribe();
 
     // Spawn pipeline tasks
-    tokio::spawn(crate::broker::broker_task(callback_rx, event_tx));
+    let session_salt = crate::fingerprint::load_or_create_salt(&project_path.join(".honeyprompt"))?;
+    tokio::spawn(crate::broker::broker_task(
+        callback_rx,
+        event_tx,
+        session_salt,
+    ));
     tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone()));
     tokio::spawn(crate::broker::stdout_logger_task(log_rx, json_mode));
 

@@ -41,8 +41,8 @@ fn test_generate_creates_output_files() {
         "output/ai.txt must exist"
     );
     assert!(
-        path.join("output/callback-map.json").exists(),
-        "output/callback-map.json must exist"
+        path.join(".honeyprompt/callback-map.json").exists(),
+        ".honeyprompt/callback-map.json must exist"
     );
     assert!(
         path.join("output/.well-known/security.txt").exists(),
@@ -114,7 +114,7 @@ fn test_generate_html_multiple_locations() {
 #[test]
 fn test_generate_nonce_format() {
     let dir = init_and_generate();
-    let json_str = std::fs::read_to_string(dir.path().join("output/callback-map.json"))
+    let json_str = std::fs::read_to_string(dir.path().join(".honeyprompt/callback-map.json"))
         .expect("callback-map.json must be readable");
     let entries: Value =
         serde_json::from_str(&json_str).expect("callback-map.json must be valid JSON");
@@ -151,7 +151,7 @@ fn test_generate_nonce_format() {
 #[test]
 fn test_generate_nonce_uniqueness() {
     let dir = init_and_generate();
-    let json_str = std::fs::read_to_string(dir.path().join("output/callback-map.json"))
+    let json_str = std::fs::read_to_string(dir.path().join(".honeyprompt/callback-map.json"))
         .expect("callback-map.json must be readable");
     let entries: Value =
         serde_json::from_str(&json_str).expect("callback-map.json must be valid JSON");
@@ -248,7 +248,7 @@ fn test_generate_html_has_footer() {
 #[test]
 fn test_generate_callback_map_structure() {
     let dir = init_and_generate();
-    let json_str = std::fs::read_to_string(dir.path().join("output/callback-map.json"))
+    let json_str = std::fs::read_to_string(dir.path().join(".honeyprompt/callback-map.json"))
         .expect("callback-map.json must be readable");
     let entries: Value =
         serde_json::from_str(&json_str).expect("callback-map.json must be valid JSON");

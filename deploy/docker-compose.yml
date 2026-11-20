@@ -2,7 +2,9 @@ services:
   honeyprompt:
     image: ghcr.io/johnzilla/honeyprompt:latest
     volumes:
-      - hp-db:/landing/.honeyprompt
+      # Whole project dir: config, generated site, nonce map, salt, events DB.
+      # First start copies the image's honeyprompt.toml in and generates the site.
+      - hp-data:/landing
     restart: always
 
   caddy:
@@ -17,6 +19,6 @@ services:
     restart: always
 
 volumes:
-  hp-db:
+  hp-data:
   caddy-data:
   caddy-config:

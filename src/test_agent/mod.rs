@@ -7,7 +7,6 @@
 //! D-01: Reuses 100% of the existing init/generate/serve pipeline in a tempdir.
 //! D-06: Replaces Ctrl+C handler with CancellationToken + tokio::time::sleep timeout.
 
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -17,8 +16,8 @@ use tokio_util::sync::CancellationToken;
 use crate::cli::TestAgentArgs;
 use crate::config::Config;
 use crate::crawler_catalog::CrawlerCatalog;
-use crate::server::{build_router, AppState, NonceMeta};
-use crate::types::{NonceMapping, RawCallbackEvent};
+use crate::server::{build_router, AppState};
+use crate::types::RawCallbackEvent;
 
 /// Scorecard result from a test-agent run.
 pub struct Scorecard {
@@ -190,26 +189,8 @@ async fn run_async(
     let actual_addr = tokio_listener.local_addr()?;
     let url = format!("http://{}", actual_addr);
 
-    // Load callback-map.json and build in-memory nonce lookup
     let output_dir = tmp_path.join("output");
-    let callback_map_path = output_dir.join("callback-map.json");
-    let json_str = std::fs::read_to_string(&callback_map_path)
-        .map_err(|e| anyhow::anyhow!("Failed to read callback-map.json: {}", e))?;
-    let mappings: Vec<NonceMapping> = serde_json::from_str(&json_str)
-        .map_err(|e| anyhow::anyhow!("Failed to parse callback-map.json: {}", e))?;
-
-    let mut nonce_map: HashMap<String, NonceMeta> = HashMap::new();
-    for m in &mappings {
-        nonce_map.insert(
-            m.nonce.clone(),
-            NonceMeta {
-                tier: u8::from(m.tier),
-                payload_id: m.payload_id.clone(),
-                embedding_loc: m.embedding_location.to_string(),
-                t5_formula: None,
-            },
-        );
-    }
+    let nonce_map = crate::server::load_nonce_map(tmp_path)?;
 
     // Load crawler catalog
     let crawler_catalog = CrawlerCatalog::load()?;
@@ -229,7 +210,12 @@ async fn run_async(
 
     // Spawn pipeline tasks
     // NOTE: no stdout_logger_task — test-agent is quiet during collection (D-06)
-    let broker_handle = tokio::spawn(crate::broker::broker_task(callback_rx, event_tx.clone()));
+    let session_salt = crate::fingerprint::load_or_create_salt(&tmp_path.join(".honeyprompt"))?;
+    let broker_handle = tokio::spawn(crate::broker::broker_task(
+        callback_rx,
+        event_tx.clone(),
+        session_salt,
+    ));
     let db_writer_handle = tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone()));
 
     // Create CancellationToken for graceful shutdown coordination

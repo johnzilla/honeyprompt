@@ -70,7 +70,7 @@ async fn test_domain_tempdir_serves_index() {
     drop(sync_conn);
 
     // Build router the same way server::serve does
-    let callback_map_path = tmp_path.join("output/callback-map.json");
+    let callback_map_path = tmp_path.join(".honeyprompt/callback-map.json");
     let json_str = std::fs::read_to_string(&callback_map_path).unwrap();
     let mappings: Vec<honeyprompt::types::NonceMapping> = serde_json::from_str(&json_str).unwrap();
 

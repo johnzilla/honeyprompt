@@ -23,9 +23,9 @@ Type=simple
 User=honeyprompt
 Group=honeyprompt
 WorkingDirectory=/var/lib/honeyprompt
-# --domain enables zero-config mode: generates site in tempdir, binds 0.0.0.0:8080
-# Add --path /var/lib/honeyprompt/landing to persist the generated site on disk
-ExecStart=/usr/local/bin/honeyprompt serve --domain {DOMAIN}
+# First start creates /var/lib/honeyprompt/honeyprompt.toml for {DOMAIN} and
+# generates the site there; later starts reuse it. Binds 0.0.0.0:8080.
+ExecStart=/usr/local/bin/honeyprompt serve /var/lib/honeyprompt --domain {DOMAIN}
 Restart=always
 RestartSec=5
 StartLimitIntervalSec=600

@@ -1,7 +1,7 @@
 use crate::cli::MonitorArgs;
 use crate::config::Config;
+use crate::types::RawCallbackEvent;
 use crate::types::{AgentClass, AppEvent};
-use crate::types::{NonceMapping, RawCallbackEvent, T5Formula, Tier};
 use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{
@@ -1071,42 +1071,7 @@ pub async fn monitor(
         let output_dir = project_path.join("output");
         let db_path = project_path.join(".honeyprompt").join("events.db");
 
-        // Load callback-map.json and build in-memory nonce lookup
-        let callback_map_path = output_dir.join("callback-map.json");
-        let json_str = std::fs::read_to_string(&callback_map_path)
-            .map_err(|e| anyhow::anyhow!("Failed to read callback-map.json: {}", e))?;
-        let mappings: Vec<NonceMapping> = serde_json::from_str(&json_str)
-            .map_err(|e| anyhow::anyhow!("Failed to parse callback-map.json: {}", e))?;
-
-        // Phase 14 fix: load the payload catalog and build a payload_id -> T5Formula
-        // lookup BEFORE constructing nonce_map, so tier-5 entries get their formula
-        // populated (previously hard-coded to None, which caused every T5 callback
-        // to silently fall through at src/server/mod.rs:160-163). Mirrors the
-        // run_server pattern at src/server/mod.rs:249-274.
-        let all_payloads = crate::catalog::load_catalog()?;
-        let t5_formulas_by_payload_id: std::collections::HashMap<String, T5Formula> = all_payloads
-            .iter()
-            .filter_map(|p| p.t5_formula.map(|f| (p.id.clone(), f)))
-            .collect();
-
-        let mut nonce_map: std::collections::HashMap<String, crate::server::NonceMeta> =
-            std::collections::HashMap::new();
-        for m in &mappings {
-            let t5_formula = if m.tier == Tier::Tier5 {
-                t5_formulas_by_payload_id.get(&m.payload_id).copied()
-            } else {
-                None
-            };
-            nonce_map.insert(
-                m.nonce.clone(),
-                crate::server::NonceMeta {
-                    tier: u8::from(m.tier),
-                    payload_id: m.payload_id.clone(),
-                    embedding_loc: m.embedding_location.to_string(),
-                    t5_formula,
-                },
-            );
-        }
+        let nonce_map = crate::server::load_nonce_map(project_path)?;
 
         // Load crawler catalog
         let crawler_catalog = crate::crawler_catalog::CrawlerCatalog::load()?;
@@ -1125,7 +1090,13 @@ pub async fn monitor(
         let db_rx = event_tx.subscribe();
 
         // Spawn pipeline tasks (no stdout_logger_task — TUI replaces it)
-        tokio::spawn(crate::broker::broker_task(callback_rx, event_tx));
+        let session_salt =
+            crate::fingerprint::load_or_create_salt(&project_path.join(".honeyprompt"))?;
+        tokio::spawn(crate::broker::broker_task(
+            callback_rx,
+            event_tx,
+            session_salt,
+        ));
         tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone()));
 
         // Build server AppState and router

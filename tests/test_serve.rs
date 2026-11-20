@@ -53,7 +53,7 @@ async fn build_test_state(
         .expect("tokio-rusqlite connection must open");
 
     // Load callback-map.json
-    let json_str = std::fs::read_to_string(output_dir.join("callback-map.json"))
+    let json_str = std::fs::read_to_string(generator::callback_map_path(path))
         .expect("callback-map.json must exist after generate");
     let mappings: Vec<honeyprompt::types::NonceMapping> =
         serde_json::from_str(&json_str).expect("callback-map.json must be valid JSON");
@@ -668,4 +668,52 @@ async fn test_cb_v1_byte_identical_response() {
         body_bytes.is_empty(),
         "D-13-18: /cb/v1/ body must be empty (byte-identical to v4.0)"
     );
+}
+
+/// The nonce map must never be reachable over HTTP; otherwise anyone could
+/// enumerate nonces and forge callbacks.
+#[tokio::test]
+async fn test_callback_map_not_served() {
+    let dir = init_and_generate();
+    assert!(
+        !dir.path().join("output/callback-map.json").exists(),
+        "generate must not write the nonce map into output/"
+    );
+    let (callback_tx, _callback_rx) = mpsc::channel(16);
+    let (state, output_dir, _) = build_test_state(&dir, callback_tx).await;
+
+    let app = test_router(state, output_dir);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/callback-map.json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+/// Oversized request bodies are rejected before reaching any handler.
+#[tokio::test]
+async fn test_oversized_body_rejected() {
+    let dir = init_and_generate();
+    let (callback_tx, _callback_rx) = mpsc::channel(16);
+    let (state, output_dir, _) = build_test_state(&dir, callback_tx).await;
+
+    let body = vec![b'a'; server::MAX_REQUEST_BODY_BYTES + 1];
+    let app = test_router(state, output_dir);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/index.html")
+                .header("content-length", body.len())
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 }

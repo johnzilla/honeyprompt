@@ -229,7 +229,7 @@ Edit `honeyprompt.toml` to set your callback URL before generating.
 
 ```sh
 honeyprompt generate
-honeyprompt generate --dir /path/to/project
+honeyprompt generate /path/to/project
 ```
 
 Reads the project config and writes static files to the output directory:
@@ -244,19 +244,22 @@ Each payload contains a unique cryptographic nonce in its callback URL, so indiv
 
 ```sh
 honeyprompt serve
-honeyprompt serve --port 8080
+honeyprompt serve --bind 0.0.0.0:9090
 honeyprompt serve --domain your-domain.com
+honeyprompt serve /var/lib/honeyprompt --domain your-domain.com
 ```
 
 Starts an HTTP server that serves the honeypot page and listens for callback beacons on the same port. Each incoming callback is fingerprinted and stored in SQLite.
 
-The `--domain` flag enables zero-config mode: generates a fresh site in a tempdir, sets the callback base URL to your domain, binds `0.0.0.0:8080`, and enables all tiers — no config file needed.
+The `--domain` flag enables zero-config mode: sets the callback base URL to your domain, binds `0.0.0.0:8080`, and enables all tiers — no config file needed. Without a path it generates a throwaway site in a tempdir. With a path that has no config yet, it creates `honeyprompt.toml` there and generates the site, so nonces and events persist across restarts. `serve` also generates the site on its own if `output/` or the nonce map is missing.
+
+The nonce map (`.honeyprompt/callback-map.json`) is kept outside `output/` and is never served — anyone holding it could forge callbacks.
 
 ### Monitor live callbacks
 
 ```sh
 honeyprompt monitor
-honeyprompt monitor --dir /path/to/project
+honeyprompt monitor /path/to/project
 ```
 
 Opens the TUI live event viewer. Displays incoming callbacks as they arrive with agent fingerprinting, 5-tier breakdown, and session grouping. The `EVIDENCE` column shows the decoded T4 capability list and T5 proof with a validity glyph (`✓`/`✗`), while an always-visible detail pane below the table renders the full capability list, T5 formula, or payload metadata for the currently selected row. Vim-style navigation, Tab cycles through all six tier filters (All → T1 → T2 → T3 → T4 → T5 → All). Can attach to a running server (`--attach`) or start integrated mode.
@@ -268,7 +271,7 @@ honeyprompt report
 honeyprompt report --output report.md
 ```
 
-Generates a Markdown disclosure report from captured events. The executive summary lists session counts for all 5 tiers. The evidence table includes an `Evidence` column that renders the decoded T4 tool list for Tier 4 events and the submitted proof plus server-verified validity (`NNN ✓ VALID` / `NNN ✗ INVALID`) for Tier 5 events, interleaved with T1–T3 rows in the same format. Output includes agent fingerprints and full request metadata.
+Generates a Markdown disclosure report from captured events. The executive summary lists session counts for all 5 tiers. The evidence table includes an `Evidence` column that renders the decoded T4 tool list for Tier 4 events and the submitted proof plus server-verified validity (`NNN ✓ VALID` / `NNN ✗ INVALID`) for Tier 5 events, interleaved with T1–T3 rows in the same format. Output includes agent fingerprints and the allowlisted request headers.
 
 ### Test an AI agent
 
@@ -281,7 +284,7 @@ Runs a self-contained compliance test: spins up a honeypot server, waits for cal
 
 ## Status
 
-Current release: **v5.0.0** — all five proof tiers, `serve`, `monitor`, `report`, `test-agent`, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
+Current release: **v5.0.1** — all five proof tiers, `serve`, `monitor`, `report`, `test-agent`, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
 
 ## Ethics and Safety
 
@@ -294,6 +297,8 @@ HoneyPrompt is designed to produce evidence, not to exploit or surveil:
 - All payload instructions are auditable in the open-source catalog
 - Custom payload authoring is not supported — the curated catalog ensures the safety guarantee holds
 - No harmful actions are requested of agents at any tier
+- Only an allowlist of request headers is stored (User-Agent, Accept*, From, Via, X-Forwarded-For, X-Real-IP); `Authorization`, `Cookie` and any other header are dropped before storage
+- Session IDs are salted per deployment (`.honeyprompt/session-salt`), so they can't be correlated across deployments or reversed to an IP
 - **Tier 4 never asks for secrets** — the agent returns a sorted list of tool/capability names from a safe, agent-chosen menu (e.g., `web_search,browse_page`). No API keys, no session state, no file contents.
 - **Tier 5 never asks for secrets** — the proof is arithmetic over a page-visible `verification_seed` plus fixed catalog constants. The callback carries only a 3-digit number the server independently re-computes.
 

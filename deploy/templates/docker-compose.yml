@@ -14,11 +14,11 @@
 services:
   honeyprompt:
     image: ghcr.io/johnzilla/honeyprompt:latest
-    # --domain enables zero-config mode: generates site in tempdir, binds 0.0.0.0:8080
-    command: ["serve", "--domain", "{DOMAIN}"]
+    # First start creates /data/honeyprompt.toml for {DOMAIN} and generates the
+    # site; later starts reuse it, so nonces and events survive restarts.
+    command: ["serve", "/data", "--domain", "{DOMAIN}"]
     volumes:
-      # hp-db persists SQLite across container restarts and image upgrades
-      - hp-db:/data
+      - hp-data:/data
     restart: always
 
   caddy:
@@ -33,8 +33,8 @@ services:
     restart: always
 
 volumes:
-  # hp-db: named volume for SQLite database persistence
-  # Data survives `docker compose pull && docker compose up -d` upgrades
-  hp-db:
+  # hp-data: project dir (config, site, nonce map, salt, SQLite)
+  # Survives `docker compose pull && docker compose up -d` upgrades
+  hp-data:
   caddy-data:
   caddy-config:

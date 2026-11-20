@@ -4,9 +4,12 @@
 # Runtime state — never commit event databases
 .honeyprompt/
 
-# Root-level user sandbox — `landing/` has its own committed copies
+# Generated sites — `serve`/`generate` recreate them. Never commit nonce maps.
 /output/
 /honeyprompt.toml
+landing/output/
+test-site/output/
+callback-map.json
 
 # OS files
 .DS_Store

@@ -7,7 +7,7 @@ Usage:
     python3 fire_callbacks.py http://127.0.0.1:8090
 
 Prereqs:
-    ./target/release/honeyprompt generate   # creates output/callback-map.json
+    ./target/release/honeyprompt generate   # creates .honeyprompt/callback-map.json
     ./target/release/honeyprompt serve      # running on the same HOST:PORT
 
 This is a Phase 14 Task 4 smoke helper — intentionally simple, not a test-agent replacement.
@@ -21,7 +21,7 @@ import sys
 HOST = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8080"
 
 # Pick one nonce per tier from the generated callback map.
-with open("output/callback-map.json") as f:
+with open(".honeyprompt/callback-map.json") as f:
     mappings = json.load(f)
 
 by_tier = {}

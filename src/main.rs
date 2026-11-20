@@ -56,6 +56,23 @@ fn main() -> Result<()> {
                 && args.path.as_os_str() == "."
                 && !std::path::Path::new("./honeyprompt.toml").exists();
 
+            // --domain with an explicit path and no config there: create a
+            // persistent project at that path (used by the Docker templates).
+            if !use_tempdir && args.path.as_os_str() != "." {
+                let config_path = args.path.join("honeyprompt.toml");
+                if let (Some(domain), false) = (args.domain.as_deref(), config_path.exists()) {
+                    std::fs::create_dir_all(args.path.join(".honeyprompt"))?;
+                    let cfg = config::config_with_overrides(
+                        &config::Config::default(),
+                        Some(domain),
+                        args.bind.as_deref(),
+                        args.tiers.clone(),
+                    );
+                    std::fs::write(&config_path, toml::to_string_pretty(&cfg)?)?;
+                    println!("Created {}", config_path.display());
+                }
+            }
+
             if use_tempdir {
                 // Tempdir mode: generate ephemeral project (reuses test-agent pattern)
                 let domain = args.domain.as_deref().unwrap();
@@ -108,8 +125,13 @@ fn main() -> Result<()> {
                     args.tiers.clone(),
                 );
 
-                // Regenerate output if --domain changed the callback_base_url
-                if args.domain.is_some() && cfg.callback_base_url != base_cfg.callback_base_url {
+                // Generate on first run (no nonce map or page yet) or when
+                // --domain changed the callback_base_url.
+                let missing_site = !generator::callback_map_path(path).exists()
+                    || !path.join("output").join("index.html").exists();
+                let domain_changed =
+                    args.domain.is_some() && cfg.callback_base_url != base_cfg.callback_base_url;
+                if missing_site || domain_changed {
                     let db_path = path.join(".honeyprompt").join("events.db");
                     let conn = store::open_or_create_db(&db_path)?;
                     generator::generate(&cfg, &conn, path)?;

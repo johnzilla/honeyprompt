@@ -4,14 +4,16 @@ use crate::types::{AgentClass, AppEvent, RawCallbackEvent};
 
 /// Receive RawCallbackEvents from mpsc, enrich with session_id, and broadcast AppEvent to all subscribers.
 ///
-/// The session_id is computed as SHA-256(ip + ua) using the fingerprint module.
+/// The session_id is a salted SHA-256 of ip + ua (see `fingerprint::compute_session_id`).
 /// Broadcast send errors (no receivers) are silently dropped — events are best-effort.
 pub async fn broker_task(
     mut callback_rx: mpsc::Receiver<RawCallbackEvent>,
     event_tx: broadcast::Sender<AppEvent>,
+    session_salt: String,
 ) {
     while let Some(raw) = callback_rx.recv().await {
         let session_id = crate::fingerprint::compute_session_id(
+            &session_salt,
             &raw.fingerprint.source_ip.to_string(),
             &raw.fingerprint.user_agent,
         );
@@ -215,7 +217,7 @@ mod tests {
         let (event_tx, mut event_rx) = broadcast::channel::<AppEvent>(16);
 
         // Spawn the broker
-        tokio::spawn(broker_task(callback_rx, event_tx));
+        tokio::spawn(broker_task(callback_rx, event_tx, "test-salt".to_string()));
 
         // Send a raw event
         let raw = make_raw_event("testnonce01", 1);
@@ -249,7 +251,7 @@ mod tests {
         let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(16);
         let (event_tx, mut event_rx) = broadcast::channel::<AppEvent>(16);
 
-        tokio::spawn(broker_task(callback_rx, event_tx));
+        tokio::spawn(broker_task(callback_rx, event_tx, "test-salt".to_string()));
 
         let ip: IpAddr = "1.2.3.4".parse().unwrap();
         let fp = AgentFingerprint {
@@ -296,7 +298,7 @@ mod tests {
         let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(16);
         let (event_tx, mut event_rx) = broadcast::channel::<AppEvent>(16);
 
-        tokio::spawn(broker_task(callback_rx, event_tx));
+        tokio::spawn(broker_task(callback_rx, event_tx, "test-salt".to_string()));
 
         let ip: IpAddr = "1.2.3.4".parse().unwrap();
         let fp = AgentFingerprint {
@@ -351,7 +353,7 @@ mod tests {
     async fn test_broker_task_t5_formula_none_when_raw_is_none() {
         let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(8);
         let (event_tx, mut event_rx) = broadcast::channel::<AppEvent>(8);
-        tokio::spawn(broker_task(callback_rx, event_tx));
+        tokio::spawn(broker_task(callback_rx, event_tx, "test-salt".to_string()));
         // Helper defaults `t5_formula: None`; (nonce, tier) = ("n1", 1).
         let raw = make_raw_event("n1", 1);
         callback_tx.send(raw).await.unwrap();

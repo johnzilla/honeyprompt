@@ -46,7 +46,7 @@ docker compose logs honeyprompt       # "honeyprompt serve ... ready"
 
 ## Data
 
-- SQLite DB persists in the `hp-db` Docker volume — survives image updates
+- Config, generated site, nonce map and SQLite DB persist in the `hp-data` Docker volume — survives image updates. To rotate all nonces, stop the stack, `docker volume rm honeyprompt_hp-data`, and start it again
 - Backup: `ssh root@DROPLET "docker compose -f /opt/honeyprompt/docker-compose.yml cp honeyprompt:/landing/.honeyprompt/events.db -" > events-backup.db`
 
 ## Monitor

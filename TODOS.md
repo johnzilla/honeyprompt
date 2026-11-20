@@ -2,15 +2,12 @@
 
 Single backlog for the project. Releases are numbered; nothing else is.
 
-## Next: security fixes (5.0.1)
+## Next
 
-From a 2026-05-04 review, plus one found 2026-11-19. No users yet, so breaking changes and a full nonce regeneration are fine.
-
-- **Committed nonce map.** `landing/output/callback-map.json` (and `test-site/output/callback-map.json`) are in the public repo, and the Dockerfile serves `landing/` to honeyprompt.sh. Every live nonce is public, so callbacks can be forged. Move the map out of the served tree (e.g. `.honeyprompt/`), stop committing it, regenerate all nonces, redeploy. Treat existing honeyprompt.sh data as unverified.
-- **Served map.** `build_router` uses `fallback_service(ServeDir)` over `output/`, so `/callback-map.json` is fetchable. Fixed by the move above; add a test that it 404s.
-- **Header allowlist.** `fingerprint::extract` stores every header, including `Authorization`, `Cookie` and `Proxy-Authorization`. That contradicts the README safety model. Keep only an allowlist (User-Agent, Accept, X-Forwarded-For, ...).
-- **Salted session_id.** `compute_session_id` is unsalted `SHA-256(ip + ua)`. Add a per-deployment salt generated on first run and stored in `.honeyprompt/`.
-- **Request middleware.** No timeout, body limit or rate limit on the router. Add `TimeoutLayer` and `DefaultBodyLimit`.
+- **Tag and redeploy 5.0.1.** Build and push the image, then on the droplet switch to the new compose file (volume `hp-data` mounted at `/landing`) and start fresh — the old `hp-db` volume holds events recorded while the nonce map was public; back it up or drop it.
+- **Real client IP behind Caddy.** Callbacks use the TCP peer address, which behind the Docker Caddy proxy is Caddy's container IP. Every visitor shares one IP, so session grouping is effectively by user-agent only. Use `X-Forwarded-For` only when the request comes from a configured trusted proxy (`axum-client-ip` is already a dependency).
+- **Live site runs Tiers 1–3 only.** `landing/honeyprompt.toml` has `tiers = [1, 2, 3]`, so honeyprompt.sh never serves T4/T5. Decide whether to enable all five before the redeploy.
+- **Rate limiting.** Not added; the router has a timeout and body cap, and callbacks use `try_send` (drops events when the broker queue is full rather than blocking). Per-IP limits are easiest in Caddy if needed.
 
 ## Ideas: context canaries (from the Dragos/HD Moore post, 2026-11-19)
 
@@ -35,5 +32,6 @@ Bigger expansion ideas (federation, hosted benchmark site, leaderboard) only mak
 
 ## Shipped
 
+- 5.0.1 (security) — nonce map moved to `.honeyprompt/` and no longer served or committed; generated sites untracked and created by `serve` on first start; header allowlist (credentials never stored); per-deployment salted session IDs; request timeout + body limit; `serve <path> --domain` creates a persistent project (Docker/systemd templates actually persist now); `test-agent` now loads T5 formulas, so Tier 5 hits are detected.
 - 5.0.0 — Tier 4 (capability introspection, `/cb/v4/{nonce}/{b64_list}`) and Tier 5 (multi-step compliance with server-verified proof, `/cb/v5/{nonce}/{proof}`).
 - Earlier: generator + payload catalog (T1–T3), server + callbacks, TUI monitor, Markdown report, `test-agent` with CI exit codes, release binaries, honeyprompt.sh live demo, honeyprompt.dev landing page with `/stats`, security.txt, setup wizard, zero-config `serve --domain`, deploy templates.
