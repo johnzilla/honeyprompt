@@ -1098,6 +1098,11 @@ pub async fn monitor(
             session_salt,
         ));
         tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone()));
+        let (page_view_tx, page_view_rx) = mpsc::channel::<crate::server::PageView>(256);
+        tokio::spawn(crate::broker::page_view_writer_task(
+            page_view_rx,
+            conn.clone(),
+        ));
 
         // Build server AppState and router
         let server_state = Arc::new(crate::server::AppState {
@@ -1106,6 +1111,7 @@ pub async fn monitor(
             nonce_map,
             crawler_catalog,
             trusted_proxies: crate::client_ip::TrustedProxies::parse(&config.trusted_proxies)?,
+            page_view_tx: Some(page_view_tx),
         });
         let app_router = crate::server::build_router(server_state, output_dir);
 

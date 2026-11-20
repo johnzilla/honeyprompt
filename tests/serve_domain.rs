@@ -97,6 +97,7 @@ async fn test_domain_tempdir_serves_index() {
         nonce_map,
         crawler_catalog,
         trusted_proxies: Default::default(),
+        page_view_tx: None,
     });
 
     let mock_addr: SocketAddr = "127.0.0.1:12345".parse().unwrap();

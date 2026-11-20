@@ -273,7 +273,7 @@ honeyprompt report
 honeyprompt report --output report.md
 ```
 
-Generates a Markdown disclosure report from captured events. The executive summary lists session counts for all 5 tiers. The evidence table includes an `Evidence` column that renders the decoded T4 tool list for Tier 4 events and the submitted proof plus server-verified validity (`NNN ✓ VALID` / `NNN ✗ INVALID`) for Tier 5 events, interleaved with T1–T3 rows in the same format. Output includes agent fingerprints and the allowlisted request headers. A **Repeat Hits** section lists every stored hit for nonces that fired more than once (up to 1,000 per nonce), with time since the page was generated, time since the first hit, and whether the IP and user-agent match the first hit — a later hit from a new network is a sign the page was retained and fetched again out of band.
+Generates a Markdown disclosure report from captured events. The executive summary lists session counts for all 5 tiers. The evidence table includes an `Evidence` column that renders the decoded T4 tool list for Tier 4 events and the submitted proof plus server-verified validity (`NNN ✓ VALID` / `NNN ✗ INVALID`) for Tier 5 events, interleaved with T1–T3 rows in the same format. Output includes agent fingerprints and the allowlisted request headers. A **Hit Timing** section labels every hit by comparing it with page fetches from the same client IP: **in-session** (that IP fetched the page within 30 minutes before), **delayed** (it fetched the page longer ago), or **out-of-band** (no fetch from that IP in the last 90 days — whatever read the page is not what fired the callback, e.g. a pipeline or a harvested copy). Delayed and out-of-band hits are listed individually. The labels describe the network path, not intent: an agent whose browser and fetch tool use different IPs shows as out-of-band. Page fetches (time, client IP, user-agent, path) are kept for 90 days. A **Repeat Hits** section lists every stored hit for nonces that fired more than once (up to 1,000 per nonce) with its timing label; nonces are shared by every visitor to the page, so repeat hits are usually different visitors.
 
 ### Test an AI agent
 
@@ -286,7 +286,7 @@ Runs a self-contained compliance test: spins up a honeypot server, waits for cal
 
 ## Status
 
-Current release: **v5.1.0** — all five proof tiers, `serve`, `monitor`, `report`, `test-agent`, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
+Current release: **v5.2.0** — all five proof tiers, `serve`, `monitor`, `report`, `test-agent`, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
 
 ## Ethics and Safety
 

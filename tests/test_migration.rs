@@ -92,11 +92,11 @@ fn test_v4_db_opens_unchanged() {
         );
     }
 
-    // user_version must be at the latest schema (2 = hits table).
+    // user_version must be at the latest schema (3 = page_views + hit timing).
     let version: u32 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 2, "user_version must be 2 after migrating v4.0 DB");
+    assert_eq!(version, 3, "user_version must be 3 after migrating v4.0 DB");
     let hits_exists: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='hits'",
@@ -105,6 +105,19 @@ fn test_v4_db_opens_unchanged() {
         )
         .unwrap();
     assert_eq!(hits_exists, 1, "hits table must exist after migration");
+    let page_views_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='page_views'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        page_views_exists, 1,
+        "page_views table must exist after migration"
+    );
+    conn.prepare("SELECT timing, last_page_view_at FROM hits")
+        .expect("hits must have timing columns");
 
     // Existing T1-T3 rows must read back with original field values, with the
     // three new columns all NULL (additive migration — zero-touch on existing rows).
@@ -186,5 +199,5 @@ fn test_v4_db_migration_idempotent_across_reopen() {
     let version: u32 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 2, "user_version stable across reopen");
+    assert_eq!(version, 3, "user_version stable across reopen");
 }

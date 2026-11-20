@@ -97,6 +97,95 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
             ",
         )?;
     }
+    // v3: page fetches, so each hit can be labelled in-session / delayed /
+    // out-of-band by comparing it with when that IP last fetched the page.
+    // Hits stored before v3 keep `timing = NULL` (shown as "unknown").
+    if version < 3 {
+        conn.execute_batch(
+            "
+            CREATE TABLE IF NOT EXISTS page_views (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                received_at     INTEGER NOT NULL,
+                remote_addr     TEXT NOT NULL,
+                user_agent      TEXT,
+                path            TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_page_views_addr ON page_views(remote_addr, received_at);
+            CREATE INDEX IF NOT EXISTS idx_page_views_time ON page_views(received_at);
+            ALTER TABLE hits ADD COLUMN timing TEXT;
+            ALTER TABLE hits ADD COLUMN last_page_view_at INTEGER;
+            PRAGMA user_version = 3;
+            ",
+        )?;
+    }
+    Ok(())
+}
+
+/// A hit within this many seconds of the same IP fetching the page is "in-session".
+pub const IN_SESSION_WINDOW_SECS: i64 = 30 * 60;
+
+/// Page fetches are kept this long; it is also how far back a hit looks for one.
+pub const PAGE_VIEW_RETENTION_SECS: i64 = 90 * 24 * 60 * 60;
+
+/// How a hit relates to page fetches from the same client IP.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HitTiming {
+    /// That IP fetched the page within `IN_SESSION_WINDOW_SECS` before the hit.
+    InSession,
+    /// That IP fetched the page earlier, but longer ago than the window.
+    Delayed,
+    /// No fetch of the page from that IP in the retention period before the hit.
+    OutOfBand,
+    /// Hit stored before page fetches were recorded.
+    Unknown,
+}
+
+impl HitTiming {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            HitTiming::InSession => "in-session",
+            HitTiming::Delayed => "delayed",
+            HitTiming::OutOfBand => "out-of-band",
+            HitTiming::Unknown => "unknown",
+        }
+    }
+
+    pub fn parse(s: Option<&str>) -> Self {
+        match s {
+            Some("in-session") => HitTiming::InSession,
+            Some("delayed") => HitTiming::Delayed,
+            Some("out-of-band") => HitTiming::OutOfBand,
+            _ => HitTiming::Unknown,
+        }
+    }
+
+    /// Classify a hit at `hit_at` given the IP's latest page fetch at or before it.
+    pub fn classify(hit_at: i64, last_page_view_at: Option<i64>) -> Self {
+        match last_page_view_at {
+            Some(pv) if hit_at - pv <= IN_SESSION_WINDOW_SECS => HitTiming::InSession,
+            Some(_) => HitTiming::Delayed,
+            None => HitTiming::OutOfBand,
+        }
+    }
+}
+
+/// Record one fetch of a honeypot page and prune fetches past the retention period.
+pub fn record_page_view(
+    conn: &Connection,
+    received_at: i64,
+    remote_addr: &str,
+    user_agent: &str,
+    path: &str,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO page_views (received_at, remote_addr, user_agent, path)
+         VALUES (?1, ?2, ?3, ?4)",
+        params![received_at, remote_addr, user_agent, path],
+    )?;
+    conn.execute(
+        "DELETE FROM page_views WHERE received_at < ?1",
+        params![received_at - PAGE_VIEW_RETENTION_SECS],
+    )?;
     Ok(())
 }
 
@@ -166,12 +255,22 @@ pub fn insert_callback_event(
         ],
     )?;
 
+    let hit_at: i64 = now.parse().unwrap_or(0);
+    let last_page_view_at: Option<i64> = tx.query_row(
+        "SELECT MAX(received_at) FROM page_views
+         WHERE remote_addr = ?1 AND received_at <= ?2 AND received_at >= ?3",
+        params![remote_addr, hit_at, hit_at - PAGE_VIEW_RETENTION_SECS],
+        |row| row.get(0),
+    )?;
+    let timing = HitTiming::classify(hit_at, last_page_view_at);
+
     tx.execute(
         "INSERT INTO hits (
              nonce, tier, received_at, remote_addr, session_id, user_agent,
-             extra_headers, t4_capability, t5_proof, t5_proof_valid
+             extra_headers, t4_capability, t5_proof, t5_proof_valid,
+             timing, last_page_view_at
          )
-         SELECT ?1, ?2, CAST(?3 AS INTEGER), ?4, ?5, ?6, ?7, ?8, ?9, ?10
+         SELECT ?1, ?2, CAST(?3 AS INTEGER), ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?12, ?13
          WHERE (SELECT COUNT(*) FROM hits WHERE nonce = ?1) < ?11",
         params![
             nonce,
@@ -185,6 +284,8 @@ pub fn insert_callback_event(
             t5_proof,
             t5_proof_valid,
             MAX_HITS_PER_NONCE,
+            timing.as_str(),
+            last_page_view_at,
         ],
     )?;
 
@@ -418,8 +519,11 @@ pub fn query_report_sessions(conn: &Connection) -> rusqlite::Result<Vec<ReportSe
     Ok(sessions)
 }
 
-/// One stored hit on a nonce that fired more than once, with context for
-/// spotting delayed or out-of-band fetches.
+/// One stored hit on a nonce that fired more than once.
+///
+/// Nonces are baked into the generated page, so on a public site every visitor
+/// shares them: repeat hits are usually different visitors. `timing` (relative
+/// to that IP's own page fetches) is what separates in-session from later use.
 pub struct RepeatHit {
     pub nonce: String,
     pub tier: u8,
@@ -428,12 +532,10 @@ pub struct RepeatHit {
     pub received_at: i64,
     /// When the page carrying this nonce was generated (None if unknown).
     pub seeded_at: Option<i64>,
-    pub first_received_at: i64,
     pub remote_addr: String,
     pub user_agent: String,
     pub classification: String,
-    pub same_ip_as_first: bool,
-    pub same_ua_as_first: bool,
+    pub timing: HitTiming,
     /// Hits stored for this nonce (capped at MAX_HITS_PER_NONCE).
     pub stored_hits: u32,
     /// Total fires recorded in `events` (not capped).
@@ -444,8 +546,7 @@ pub struct RepeatHit {
 pub fn query_repeat_hits(conn: &Connection) -> rusqlite::Result<Vec<RepeatHit>> {
     let mut stmt = conn.prepare(
         "SELECT h.nonce, h.tier, h.received_at, h.remote_addr, h.user_agent, h.extra_headers,
-                CAST(n.generated_at AS INTEGER),
-                f.received_at, f.remote_addr, f.user_agent,
+                CAST(n.generated_at AS INTEGER), h.timing,
                 g.stored, COALESCE(e.fire_count, g.stored),
                 (SELECT COUNT(*) FROM hits x WHERE x.nonce = h.nonce AND x.id <= h.id)
          FROM hits h
@@ -458,29 +559,111 @@ pub fn query_repeat_hits(conn: &Connection) -> rusqlite::Result<Vec<RepeatHit>> 
     )?;
     let rows = stmt
         .query_map([], |row| {
-            let remote_addr: String = row.get::<_, Option<String>>(3)?.unwrap_or_default();
-            let user_agent: String = row.get::<_, Option<String>>(4)?.unwrap_or_default();
             let extra_headers: Option<String> = row.get(5)?;
-            let first_ip: String = row.get::<_, Option<String>>(8)?.unwrap_or_default();
-            let first_ua: String = row.get::<_, Option<String>>(9)?.unwrap_or_default();
+            let timing: Option<String> = row.get(7)?;
             Ok(RepeatHit {
                 nonce: row.get(0)?,
                 tier: row.get(1)?,
                 received_at: row.get(2)?,
-                seeded_at: row.get(6)?,
-                first_received_at: row.get(7)?,
-                same_ip_as_first: remote_addr == first_ip,
-                same_ua_as_first: user_agent == first_ua,
-                remote_addr,
-                user_agent,
+                remote_addr: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                user_agent: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
                 classification: parse_classification(extra_headers.as_deref()),
-                stored_hits: row.get(10)?,
-                total_fires: row.get(11)?,
-                hit_number: row.get(12)?,
+                seeded_at: row.get(6)?,
+                timing: HitTiming::parse(timing.as_deref()),
+                stored_hits: row.get(8)?,
+                total_fires: row.get(9)?,
+                hit_number: row.get(10)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows)
+}
+
+/// Stored hits per tier, split by timing label.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct TimingCounts {
+    pub tier: u8,
+    pub in_session: u32,
+    pub delayed: u32,
+    pub out_of_band: u32,
+    pub unknown: u32,
+}
+
+/// Count stored hits per tier by timing label. Tiers with no hits are omitted.
+pub fn query_hit_timing_counts(conn: &Connection) -> rusqlite::Result<Vec<TimingCounts>> {
+    let mut stmt = conn.prepare(
+        "SELECT tier,
+                SUM(timing = 'in-session'),
+                SUM(timing = 'delayed'),
+                SUM(timing = 'out-of-band'),
+                SUM(timing IS NULL OR timing NOT IN ('in-session', 'delayed', 'out-of-band'))
+         FROM hits GROUP BY tier ORDER BY tier",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(TimingCounts {
+                tier: row.get(0)?,
+                in_session: row.get::<_, Option<u32>>(1)?.unwrap_or(0),
+                delayed: row.get::<_, Option<u32>>(2)?.unwrap_or(0),
+                out_of_band: row.get::<_, Option<u32>>(3)?.unwrap_or(0),
+                unknown: row.get::<_, Option<u32>>(4)?.unwrap_or(0),
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+/// A delayed or out-of-band hit, for the report's Hit Timing table.
+pub struct NotableHit {
+    pub nonce: String,
+    pub tier: u8,
+    pub received_at: i64,
+    pub timing: HitTiming,
+    /// Latest page fetch from the same IP before the hit (None for out-of-band).
+    pub last_page_view_at: Option<i64>,
+    pub seeded_at: Option<i64>,
+    pub remote_addr: String,
+    pub user_agent: String,
+    pub classification: String,
+}
+
+/// The most recent delayed / out-of-band hits (up to `limit`), plus the total count.
+pub fn query_notable_hits(
+    conn: &Connection,
+    limit: u32,
+) -> rusqlite::Result<(Vec<NotableHit>, u32)> {
+    let total: u32 = conn.query_row(
+        "SELECT COUNT(*) FROM hits WHERE timing IN ('delayed', 'out-of-band')",
+        [],
+        |r| r.get(0),
+    )?;
+    let mut stmt = conn.prepare(
+        "SELECT h.nonce, h.tier, h.received_at, h.timing, h.last_page_view_at,
+                CAST(n.generated_at AS INTEGER), h.remote_addr, h.user_agent, h.extra_headers
+         FROM hits h
+         LEFT JOIN nonce_map n ON n.nonce = h.nonce
+         WHERE h.timing IN ('delayed', 'out-of-band')
+         ORDER BY h.received_at DESC, h.id DESC
+         LIMIT ?1",
+    )?;
+    let rows = stmt
+        .query_map(params![limit], |row| {
+            let timing: Option<String> = row.get(3)?;
+            let extra_headers: Option<String> = row.get(8)?;
+            Ok(NotableHit {
+                nonce: row.get(0)?,
+                tier: row.get(1)?,
+                received_at: row.get(2)?,
+                timing: HitTiming::parse(timing.as_deref()),
+                last_page_view_at: row.get(4)?,
+                seeded_at: row.get(5)?,
+                remote_addr: row.get::<_, Option<String>>(6)?.unwrap_or_default(),
+                user_agent: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
+                classification: parse_classification(extra_headers.as_deref()),
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok((rows, total))
 }
 
 /// Parse the classification string from the extra_headers JSON blob.
@@ -1086,8 +1269,8 @@ mod tests {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(
-            version, 2,
-            "user_version must remain 2 after multiple run_migrations calls"
+            version, 3,
+            "user_version must remain 3 after multiple run_migrations calls"
         );
     }
 
@@ -1097,7 +1280,7 @@ mod tests {
         let version: u32 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 2, "fresh DB must end at user_version=2");
+        assert_eq!(version, 3, "fresh DB must end at user_version=3");
     }
 
     // --- Phase 13 STORE-04 first-write-wins replay tests (D-13-19 / RESEARCH Risk 6) ---
@@ -1295,14 +1478,149 @@ mod tests {
         assert_eq!(hits.len(), 2, "only the nonce with >1 hit is listed");
         assert!(hits.iter().all(|h| h.nonce == "nonce001"));
         assert_eq!(hits[0].hit_number, 1);
-        assert!(hits[0].same_ip_as_first && hits[0].same_ua_as_first);
         assert_eq!(hits[1].hit_number, 2);
-        assert!(!hits[1].same_ip_as_first, "different IP must be flagged");
-        assert!(hits[1].same_ua_as_first);
+        assert_eq!(hits[1].remote_addr, "2.2.2.2");
+        assert_eq!(
+            hits[1].timing,
+            HitTiming::OutOfBand,
+            "no page fetch recorded"
+        );
         assert!(
             hits[1].seeded_at.is_some(),
             "seeded_at comes from nonce_map"
         );
         assert_eq!((hits[1].stored_hits, hits[1].total_fires), (2, 2));
+    }
+
+    fn now_secs() -> i64 {
+        chrono_now().parse().unwrap()
+    }
+
+    fn timing_of_last_hit(conn: &Connection) -> (Option<String>, Option<i64>) {
+        conn.query_row(
+            "SELECT timing, last_page_view_at FROM hits ORDER BY id DESC LIMIT 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_hit_timing_classify_boundaries() {
+        assert_eq!(HitTiming::classify(1000, Some(1000)), HitTiming::InSession);
+        assert_eq!(
+            HitTiming::classify(1000 + IN_SESSION_WINDOW_SECS, Some(1000)),
+            HitTiming::InSession
+        );
+        assert_eq!(
+            HitTiming::classify(1001 + IN_SESSION_WINDOW_SECS, Some(1000)),
+            HitTiming::Delayed
+        );
+        assert_eq!(HitTiming::classify(1000, None), HitTiming::OutOfBand);
+        assert_eq!(HitTiming::parse(None), HitTiming::Unknown);
+        for t in [
+            HitTiming::InSession,
+            HitTiming::Delayed,
+            HitTiming::OutOfBand,
+        ] {
+            assert_eq!(HitTiming::parse(Some(t.as_str())), t);
+        }
+    }
+
+    #[test]
+    fn test_hit_after_recent_page_view_is_in_session() {
+        let conn = in_memory_conn();
+        let now = now_secs();
+        record_page_view(&conn, now - 60, "1.1.1.1", "AgentA/1.0", "/").unwrap();
+        fire(&conn, "nonce001", "1.1.1.1", "AgentA/1.0");
+        let (timing, pv) = timing_of_last_hit(&conn);
+        assert_eq!(timing.as_deref(), Some("in-session"));
+        assert_eq!(pv, Some(now - 60));
+    }
+
+    #[test]
+    fn test_hit_long_after_page_view_is_delayed() {
+        let conn = in_memory_conn();
+        let now = now_secs();
+        record_page_view(&conn, now - 3 * 86400, "1.1.1.1", "AgentA/1.0", "/").unwrap();
+        fire(&conn, "nonce001", "1.1.1.1", "AgentA/1.0");
+        assert_eq!(timing_of_last_hit(&conn).0.as_deref(), Some("delayed"));
+    }
+
+    #[test]
+    fn test_hit_from_ip_that_never_fetched_is_out_of_band() {
+        let conn = in_memory_conn();
+        let now = now_secs();
+        record_page_view(&conn, now - 60, "1.1.1.1", "AgentA/1.0", "/").unwrap();
+        fire(&conn, "nonce001", "9.9.9.9", "Fetcher/1.0");
+        let (timing, pv) = timing_of_last_hit(&conn);
+        assert_eq!(timing.as_deref(), Some("out-of-band"));
+        assert_eq!(pv, None);
+    }
+
+    #[test]
+    fn test_page_views_pruned_after_retention() {
+        let conn = in_memory_conn();
+        let now = now_secs();
+        record_page_view(
+            &conn,
+            now - PAGE_VIEW_RETENTION_SECS - 10,
+            "1.1.1.1",
+            "A",
+            "/",
+        )
+        .unwrap();
+        record_page_view(&conn, now, "2.2.2.2", "B", "/").unwrap();
+        let n: u32 = conn
+            .query_row("SELECT COUNT(*) FROM page_views", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 1, "old fetch pruned");
+    }
+
+    #[test]
+    fn test_timing_counts_and_notable_hits() {
+        let conn = in_memory_conn();
+        let now = now_secs();
+        insert_nonce(&conn, "nonce001", 1, "t1-html", "html_comment").unwrap();
+        record_page_view(&conn, now - 10, "1.1.1.1", "A", "/").unwrap();
+        record_page_view(&conn, now - 7200, "2.2.2.2", "B", "/").unwrap();
+        fire(&conn, "nonce001", "1.1.1.1", "A"); // in-session
+        fire(&conn, "nonce001", "2.2.2.2", "B"); // delayed
+        fire(&conn, "nonce001", "3.3.3.3", "C"); // out-of-band
+                                                 // A pre-v3 hit with no timing.
+        conn.execute(
+            "INSERT INTO hits (nonce, tier, received_at) VALUES ('old', 2, 1)",
+            [],
+        )
+        .unwrap();
+
+        let counts = query_hit_timing_counts(&conn).unwrap();
+        assert_eq!(
+            counts,
+            vec![
+                TimingCounts {
+                    tier: 1,
+                    in_session: 1,
+                    delayed: 1,
+                    out_of_band: 1,
+                    unknown: 0
+                },
+                TimingCounts {
+                    tier: 2,
+                    unknown: 1,
+                    ..Default::default()
+                },
+            ]
+        );
+
+        let (notable, total) = query_notable_hits(&conn, 10).unwrap();
+        assert_eq!(total, 2);
+        assert_eq!(notable[0].timing, HitTiming::OutOfBand, "newest first");
+        assert_eq!(notable[1].timing, HitTiming::Delayed);
+        assert_eq!(notable[1].last_page_view_at, Some(now - 7200));
+        assert!(notable[1].seeded_at.is_some());
+
+        let (limited, total) = query_notable_hits(&conn, 1).unwrap();
+        assert_eq!((limited.len(), total), (1, 2));
     }
 }

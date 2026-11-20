@@ -81,6 +81,7 @@ async fn build_test_state(
         nonce_map,
         crawler_catalog,
         trusted_proxies: Default::default(),
+        page_view_tx: None,
     });
 
     (app_state, output_dir, mappings)
@@ -466,6 +467,7 @@ async fn build_t4_t5_state(
         nonce_map,
         crawler_catalog,
         trusted_proxies: Default::default(),
+        page_view_tx: None,
     });
 
     (app_state, output_dir, dir)
@@ -754,4 +756,45 @@ async fn test_client_ip_from_trusted_proxy() {
         let event = callback_rx.recv().await.expect("callback event emitted");
         assert_eq!(event.fingerprint.source_ip.to_string(), expected);
     }
+}
+
+/// Successful fetches of site files are recorded as page views (with the
+/// trusted-proxy client IP); callbacks, /stats and missing files are not.
+#[tokio::test]
+async fn test_page_fetches_are_recorded() {
+    let dir = init_and_generate();
+    let (callback_tx, _callback_rx) = mpsc::channel(16);
+    let (state, output_dir, mappings) = build_test_state(&dir, callback_tx).await;
+    let mut state = Arc::try_unwrap(state)
+        .ok()
+        .expect("sole owner of test state");
+    let (page_view_tx, mut page_view_rx) = mpsc::channel(16);
+    state.page_view_tx = Some(page_view_tx);
+    state.trusted_proxies =
+        honeyprompt::client_ip::TrustedProxies::parse(&["127.0.0.1".to_string()]).unwrap();
+    let app = test_router(Arc::new(state), output_dir);
+
+    let cb = format!("/cb/v1/{}", mappings[0].nonce);
+    for uri in ["/", "/robots.txt", cb.as_str(), "/stats", "/no-such-file"] {
+        app.clone()
+            .oneshot(
+                Request::builder()
+                    .uri(uri)
+                    .header("x-forwarded-for", "203.0.113.7")
+                    .header("user-agent", "PageAgent/1.0")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+    }
+
+    let mut views = Vec::new();
+    while let Ok(v) = page_view_rx.try_recv() {
+        views.push(v);
+    }
+    let paths: Vec<&str> = views.iter().map(|v| v.path.as_str()).collect();
+    assert_eq!(paths, ["/", "/robots.txt"]);
+    assert!(views.iter().all(|v| v.remote_addr == "203.0.113.7"));
+    assert!(views.iter().all(|v| v.user_agent == "PageAgent/1.0"));
 }

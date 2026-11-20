@@ -103,6 +103,34 @@ pub async fn db_writer_task(
     }
 }
 
+/// Persist page fetches sent by the server's page-fetch middleware.
+pub async fn page_view_writer_task(
+    mut page_view_rx: mpsc::Receiver<crate::server::PageView>,
+    conn: tokio_rusqlite::Connection,
+) {
+    while let Some(view) = page_view_rx.recv().await {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let result = conn
+            .call(move |c| {
+                crate::store::record_page_view(
+                    c,
+                    now,
+                    &view.remote_addr,
+                    &view.user_agent,
+                    &view.path,
+                )
+                .map_err(tokio_rusqlite::Error::from)
+            })
+            .await;
+        if let Err(e) = result {
+            eprintln!("warning: failed to record page fetch: {}", e);
+        }
+    }
+}
+
 /// Receive AppEvents from broadcast and print structured log lines to stdout.
 ///
 /// If `json_mode` is true, emits JSON lines (one per event).

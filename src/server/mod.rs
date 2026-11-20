@@ -4,9 +4,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use axum::extract::{ConnectInfo, Path as AxumPath, State};
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::IntoResponse;
+use axum::extract::{ConnectInfo, Path as AxumPath, Request, State};
+use axum::http::{HeaderMap, Method, StatusCode};
+use axum::middleware::{self, Next};
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use base64::{engine::general_purpose, Engine as _};
@@ -38,6 +39,66 @@ pub struct AppState {
     pub crawler_catalog: CrawlerCatalog,
     /// Proxies whose X-Forwarded-For is honoured when resolving the client IP.
     pub trusted_proxies: crate::client_ip::TrustedProxies,
+    /// Where page fetches are sent for recording (None: not recorded).
+    pub page_view_tx: Option<mpsc::Sender<PageView>>,
+}
+
+/// One fetch of a honeypot page (index.html, robots.txt, ai.txt, ...).
+#[derive(Debug, Clone)]
+pub struct PageView {
+    pub remote_addr: String,
+    pub user_agent: String,
+    pub path: String,
+}
+
+/// Longest request path stored for a page fetch.
+const MAX_PAGE_PATH_CHARS: usize = 128;
+
+/// Middleware: record successful GET/HEAD fetches of the static site so hits can
+/// later be compared with when that IP fetched the page. Callbacks and /stats
+/// are not page fetches.
+async fn record_page_fetch(
+    State(state): State<Arc<AppState>>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let tx = match &state.page_view_tx {
+        Some(tx) => tx.clone(),
+        None => return next.run(req).await,
+    };
+    let path = req.uri().path().to_string();
+    let is_page = matches!(*req.method(), Method::GET | Method::HEAD)
+        && !path.starts_with("/cb/")
+        && path != "/stats";
+    // `MockConnectInfo` is what in-process tests install instead of `ConnectInfo`.
+    let peer = req
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0.ip())
+        .or_else(|| {
+            req.extensions()
+                .get::<axum::extract::connect_info::MockConnectInfo<SocketAddr>>()
+                .map(|c| c.0.ip())
+        });
+    let headers = if is_page {
+        Some(req.headers().clone())
+    } else {
+        None
+    };
+
+    let response = next.run(req).await;
+
+    let fetched = matches!(response.status(), StatusCode::OK | StatusCode::NOT_MODIFIED);
+    if let (true, Some(peer), Some(headers)) = (fetched, peer, headers) {
+        let client_ip = state.trusted_proxies.resolve(peer, &headers);
+        let fingerprint = crate::fingerprint::extract(client_ip, &headers);
+        let _ = tx.try_send(PageView {
+            remote_addr: client_ip.to_string(),
+            user_agent: fingerprint.user_agent,
+            path: path.chars().take(MAX_PAGE_PATH_CHARS).collect(),
+        });
+    }
+    response
 }
 
 /// Axum handler for GET /cb/v1/{nonce}.
@@ -248,6 +309,10 @@ pub fn build_router(state: Arc<AppState>, output_dir: PathBuf) -> Router {
         .route("/cb/v5/{nonce}/{proof}", get(t5_callback_handler)) // NEW (D-13-14)
         .route("/stats", get(stats_handler))
         .fallback_service(ServeDir::new(output_dir))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            record_page_fetch,
+        ))
         .layer(RequestBodyLimitLayer::new(MAX_REQUEST_BODY_BYTES))
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,
@@ -340,6 +405,11 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
     ));
     tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone()));
     tokio::spawn(crate::broker::stdout_logger_task(log_rx, json_mode));
+    let (page_view_tx, page_view_rx) = mpsc::channel::<PageView>(256);
+    tokio::spawn(crate::broker::page_view_writer_task(
+        page_view_rx,
+        conn.clone(),
+    ));
 
     // Build router
     let trusted_proxies = crate::client_ip::TrustedProxies::parse(&config.trusted_proxies)?;
@@ -354,6 +424,7 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
         nonce_map,
         crawler_catalog,
         trusted_proxies,
+        page_view_tx: Some(page_view_tx),
     };
     let app = build_router(Arc::new(app_state), output_dir);
 

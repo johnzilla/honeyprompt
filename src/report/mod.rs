@@ -34,7 +34,6 @@ fn format_timestamp(epoch_str: &str) -> String {
         .unwrap_or_else(|| epoch_str.to_string())
 }
 
-/// Map tier number to proof level label.
 /// Format a span of seconds compactly: "45s", "12m", "3h 5m", "2d 4h".
 fn format_duration(secs: i64) -> String {
     if secs < 0 {
@@ -57,49 +56,119 @@ fn format_duration(secs: i64) -> String {
     }
 }
 
+/// Most delayed / out-of-band hits listed individually in the report.
+const MAX_NOTABLE_HITS: u32 = 200;
+
+/// Render the "Hit Timing" section: per-tier counts by timing label, then the
+/// delayed and out-of-band hits individually.
+fn hit_timing_section(
+    counts: &[crate::store::TimingCounts],
+    notable: &[crate::store::NotableHit],
+    notable_total: u32,
+) -> String {
+    use crate::store::{HitTiming, IN_SESSION_WINDOW_SECS, PAGE_VIEW_RETENTION_SECS};
+    let mut md = String::new();
+    md.push_str("## Hit Timing\n\n");
+    md.push_str(&format!(
+        "Each hit is compared with page fetches from the same client IP. \
+         **in-session**: that IP fetched the page within {} before the hit. \
+         **delayed**: it fetched the page earlier than that. \
+         **out-of-band**: no fetch from that IP in the previous {}, so whatever read the \
+         page is not what fired the callback (a pipeline, a cache, a harvested copy). \
+         **unknown**: the hit predates page-fetch recording.\n\n",
+        format_duration(IN_SESSION_WINDOW_SECS),
+        format_duration(PAGE_VIEW_RETENTION_SECS),
+    ));
+    md.push_str(
+        "These labels describe the network path, not intent. An agent whose browser and \
+         fetch tool use different cloud IPs shows as out-of-band even when it acted \
+         during its visit, and a client whose IP changes (mobile, CGNAT) can be mislabelled.\n\n",
+    );
+    if counts.is_empty() {
+        md.push_str("No hits stored yet.\n\n");
+        return md;
+    }
+    md.push_str("| Tier | In-session | Delayed | Out-of-band | Unknown |\n");
+    md.push_str("|------|------------|---------|-------------|---------|\n");
+    for c in counts {
+        md.push_str(&format!(
+            "| {} | {} | {} | {} | {} |\n",
+            c.tier, c.in_session, c.delayed, c.out_of_band, c.unknown
+        ));
+    }
+    md.push('\n');
+
+    if notable.is_empty() {
+        md.push_str("No delayed or out-of-band hits.\n\n");
+        return md;
+    }
+    md.push_str("### Delayed and out-of-band hits\n\n");
+    md.push_str("| Time | Tier | Nonce | Timing | Since Page Fetch | Since Seeding | Source IP | User Agent | Classification |\n");
+    md.push_str("|------|------|-------|--------|------------------|---------------|-----------|------------|----------------|\n");
+    for h in notable {
+        let since_fetch = match (h.timing, h.last_page_view_at) {
+            (HitTiming::OutOfBand, _) | (_, None) => "never".to_string(),
+            (_, Some(pv)) => format_duration(h.received_at - pv),
+        };
+        let since_seed = h
+            .seeded_at
+            .map(|s| format_duration(h.received_at - s))
+            .unwrap_or_else(|| "—".to_string());
+        md.push_str(&format!(
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+            format_timestamp(&h.received_at.to_string()),
+            h.tier,
+            md_escape(&h.nonce),
+            h.timing.as_str(),
+            since_fetch,
+            since_seed,
+            md_escape(&h.remote_addr),
+            md_escape(&h.user_agent),
+            md_escape(&h.classification),
+        ));
+    }
+    md.push('\n');
+    if notable_total as usize > notable.len() {
+        md.push_str(&format!(
+            "*Showing the {} most recent of {} delayed or out-of-band hits.*\n\n",
+            notable.len(),
+            notable_total
+        ));
+    }
+    md
+}
+
 /// Render the "Repeat Hits" section: every stored hit for nonces that fired
 /// more than once.
 fn repeat_hits_section(hits: &[crate::store::RepeatHit]) -> String {
     let mut md = String::new();
+    md.push_str("## Repeat Hits\n\n");
     md.push_str(
-        "## Repeat Hits
-
-",
-    );
-    md.push_str(
-        "Every stored hit for nonces that fired more than once. A later hit from a \
-         different IP or user-agent, long after the first, suggests the page content \
-         was retained and fetched again out of band.\n\n",
+        "Every stored hit for nonces that fired more than once. Nonces are baked into \
+         the page, so on a public site repeat hits are usually different visitors; the \
+         Timing column (see Hit Timing) is what separates in-session use from later use.\n\n",
     );
     if hits.is_empty() {
         md.push_str("No nonce has fired more than once.\n\n");
         return md;
     }
-    md.push_str("| Nonce | Tier | Hit | Time | Since Seeding | Since First Hit | Source IP | User Agent | Same IP | Same UA | Classification |\n");
-    md.push_str("|-------|------|-----|------|---------------|-----------------|-----------|------------|---------|---------|----------------|\n");
+    md.push_str("| Nonce | Tier | Hit | Time | Since Seeding | Timing | Source IP | User Agent | Classification |\n");
+    md.push_str("|-------|------|-----|------|---------------|--------|-----------|------------|----------------|\n");
     for h in hits {
         let since_seed = h
             .seeded_at
             .map(|s| format_duration(h.received_at - s))
             .unwrap_or_else(|| "—".to_string());
-        let since_first = if h.hit_number == 1 {
-            "first".to_string()
-        } else {
-            format_duration(h.received_at - h.first_received_at)
-        };
-        let yes_no = |b: bool| if b { "yes" } else { "**no**" };
         md.push_str(&format!(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
             md_escape(&h.nonce),
             h.tier,
             h.hit_number,
             format_timestamp(&h.received_at.to_string()),
             since_seed,
-            since_first,
+            h.timing.as_str(),
             md_escape(&h.remote_addr),
             md_escape(&h.user_agent),
-            yes_no(h.same_ip_as_first),
-            yes_no(h.same_ua_as_first),
             md_escape(&h.classification),
         ));
     }
@@ -121,6 +190,7 @@ fn repeat_hits_section(hits: &[crate::store::RepeatHit]) -> String {
     md
 }
 
+/// Map tier number to proof level label.
 fn proof_level(tier: u8) -> &'static str {
     match tier {
         1 => "Arbitrary Callback",
@@ -287,6 +357,12 @@ pub fn generate_report(conn: &Connection) -> anyhow::Result<String> {
     }
     md.push('\n');
 
+    let (notable, notable_total) = crate::store::query_notable_hits(conn, MAX_NOTABLE_HITS)?;
+    md.push_str(&hit_timing_section(
+        &crate::store::query_hit_timing_counts(conn)?,
+        &notable,
+        notable_total,
+    ));
     md.push_str(&repeat_hits_section(&crate::store::query_repeat_hits(
         conn,
     )?));

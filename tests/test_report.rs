@@ -621,10 +621,10 @@ fn test_report_full_5tier_markdown() {
     );
 }
 
-/// The report lists every hit for nonces that fired more than once, with
-/// time since seeding and a flag for hits from a new IP.
+/// The report labels each hit against page fetches from the same IP (Hit
+/// Timing) and lists every hit for nonces that fired more than once.
 #[test]
-fn test_report_repeat_hits_section() {
+fn test_report_hit_timing_and_repeat_hits() {
     let (_tmp, conn) = temp_conn();
     conn.execute(
         "INSERT INTO nonce_map (nonce, tier, payload_id, embedding_loc, generated_at)
@@ -632,6 +632,12 @@ fn test_report_repeat_hits_section() {
         [],
     )
     .unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    // 1.1.1.1 fetched the page just before its hit; 9.9.9.9 never did.
+    store::record_page_view(&conn, now - 30, "1.1.1.1", "AgentA/1.0", "/").unwrap();
     for (ip, ua) in [("1.1.1.1", "AgentA/1.0"), ("9.9.9.9", "Harvester/3.0")] {
         store::insert_callback_event(
             &conn,
@@ -655,26 +661,48 @@ fn test_report_repeat_hits_section() {
         [],
     )
     .unwrap();
-    conn.execute(
-        "UPDATE hits SET received_at = 1700000060 WHERE remote_addr = '1.1.1.1'",
-        [],
-    )
-    .unwrap();
 
     let md = report::generate_report(&conn).unwrap();
+    assert!(md.contains("## Hit Timing"), "timing section missing");
+    assert!(
+        md.contains("| 1 | 1 | 0 | 1 | 0 |"),
+        "tier 1 counts: 1 in-session, 1 out-of-band\n{md}"
+    );
+    let notable = md
+        .lines()
+        .find(|l| l.contains("| out-of-band | never |"))
+        .expect("out-of-band hit row missing");
+    assert!(notable.contains("9.9.9.9") && notable.contains("3d 0h"));
+    assert!(
+        !md.lines()
+            .any(|l| l.contains("| in-session | ") && l.contains("never")),
+        "in-session hits are not listed individually"
+    );
+
     assert!(md.contains("## Repeat Hits"), "section heading missing");
     let row = md
         .lines()
-        .find(|l| l.contains("9.9.9.9") && l.contains("Harvester/3.0"))
+        .find(|l| l.starts_with("| abcdef0123456789 |") && l.contains("9.9.9.9"))
         .expect("second hit row missing");
     assert!(row.contains("3d 0h"), "since-seeding missing: {row}");
-    assert!(row.contains("2d 23h"), "since-first-hit missing: {row}");
-    assert!(row.contains("**no**"), "new IP must be flagged: {row}");
+    assert!(row.contains("| out-of-band |"), "timing missing: {row}");
     let first = md
         .lines()
-        .find(|l| l.contains("1.1.1.1") && l.contains("| first |"))
+        .find(|l| l.starts_with("| abcdef0123456789 |") && l.contains("1.1.1.1"))
         .expect("first hit row missing");
-    assert!(first.contains("| 1m |"), "first hit since seeding: {first}");
+    assert!(
+        first.contains("| in-session |"),
+        "first hit timing: {first}"
+    );
+}
+
+/// With no hits, Hit Timing says so; with no repeats, Repeat Hits says so.
+#[test]
+fn test_report_hit_timing_empty() {
+    let (_tmp, conn) = temp_conn();
+    let md = report::generate_report(&conn).unwrap();
+    assert!(md.contains("## Hit Timing"));
+    assert!(md.contains("No hits stored yet."));
 }
 
 /// With no repeated nonces, the section says so instead of rendering a table.
