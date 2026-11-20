@@ -29,13 +29,15 @@ Caddy auto-provisions a Let's Encrypt certificate on first request.
 
 ## Redeploy
 
-Build and push a new image locally, then pull on the droplet:
+Images are built by GitHub Actions (`.github/workflows/docker.yml`) on GitHub's x86_64 runner — never locally. Pushing a `v*` tag builds and pushes `ghcr.io/johnzilla/honeyprompt:latest` and `:<version>`. To rebuild an existing tag: Actions → Docker Image → Run workflow → enter the tag.
+
+Once the workflow is green, pull on the droplet:
 
 ```bash
-docker build -t ghcr.io/johnzilla/honeyprompt:latest .
-docker push ghcr.io/johnzilla/honeyprompt:latest
 ssh root@YOUR_DROPLET_IP "cd /opt/honeyprompt && docker compose pull && docker compose up -d"
 ```
+
+One-time setup: the ghcr package must allow this repo's Actions to write to it (package settings → Manage Actions access → add `johnzilla/honeyprompt` with Write).
 
 ## Verify
 
@@ -47,7 +49,13 @@ docker compose logs honeyprompt       # "honeyprompt serve ... ready"
 ## Data
 
 - Config, generated site, nonce map and SQLite DB persist in the `hp-data` Docker volume — survives image updates. To rotate all nonces, stop the stack, `docker volume rm honeyprompt_hp-data`, and start it again
-- Backup: `ssh root@DROPLET "docker compose -f /opt/honeyprompt/docker-compose.yml cp honeyprompt:/landing/.honeyprompt/events.db -" > events-backup.db`
+- Backup (stop first so the WAL is consistent; `docker cp` works on stopped containers). On the droplet:
+  ```bash
+  cd /opt/honeyprompt && docker compose stop honeyprompt
+  docker cp "$(docker compose ps -aq honeyprompt)":/landing/.honeyprompt /root/hp-backup
+  docker compose start honeyprompt
+  ```
+  Then `scp -r root@DROPLET:/root/hp-backup .` from your machine. The directory holds `events.db` plus its `-wal`/`-shm` files and the session salt.
 
 ## Monitor
 

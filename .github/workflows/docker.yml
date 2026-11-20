@@ -1,0 +1,61 @@
+name: Docker Image
+
+# Builds the deploy image on GitHub's x86_64 runner and pushes it to ghcr.io.
+# Runs on every v* tag; can also be run by hand for an existing tag
+# (Actions → Docker Image → Run workflow → tag: v5.0.1).
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build, e.g. v5.0.1'
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/johnzilla/honeyprompt
+
+jobs:
+  image:
+    name: Build and push image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        id: tag
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          echo "ref=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: ${{ steps.tag.outputs.ref }}
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ steps.tag.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.tag.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
