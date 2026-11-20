@@ -25,6 +25,9 @@ Group=honeyprompt
 WorkingDirectory=/var/lib/honeyprompt
 # First start creates /var/lib/honeyprompt/honeyprompt.toml for {DOMAIN} and
 # generates the site there; later starts reuse it. Binds 0.0.0.0:8080.
+# Behind a reverse proxy on this host (Caddy/nginx → localhost:8080)? Append
+# `--trusted-proxies 127.0.0.1 ::1` so the real client IP is recorded, and bind
+# to 127.0.0.1:8080 (--bind) so clients can't bypass the proxy.
 ExecStart=/usr/local/bin/honeyprompt serve /var/lib/honeyprompt --domain {DOMAIN}
 Restart=always
 RestartSec=5

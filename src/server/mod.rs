@@ -36,6 +36,8 @@ pub struct AppState {
     pub callback_tx: mpsc::Sender<RawCallbackEvent>,
     pub nonce_map: HashMap<String, NonceMeta>,
     pub crawler_catalog: CrawlerCatalog,
+    /// Proxies whose X-Forwarded-For is honoured when resolving the client IP.
+    pub trusted_proxies: crate::client_ip::TrustedProxies,
 }
 
 /// Axum handler for GET /cb/v1/{nonce}.
@@ -66,7 +68,8 @@ pub async fn callback_handler(
     };
 
     // Extract fingerprint (pure function — no I/O)
-    let fingerprint = crate::fingerprint::extract(peer_addr.ip(), &headers);
+    let client_ip = state.trusted_proxies.resolve(peer_addr.ip(), &headers);
+    let fingerprint = crate::fingerprint::extract(client_ip, &headers);
 
     // Classify the user agent
     let classification = state.crawler_catalog.classify(&fingerprint.user_agent);
@@ -121,7 +124,8 @@ pub async fn t4_callback_handler(
         None => return StatusCode::NO_CONTENT, // D-13-09/D-13-15: nothing stored
     };
 
-    let fingerprint = crate::fingerprint::extract(peer_addr.ip(), &headers);
+    let client_ip = state.trusted_proxies.resolve(peer_addr.ip(), &headers);
+    let fingerprint = crate::fingerprint::extract(client_ip, &headers);
     let classification = state.crawler_catalog.classify(&fingerprint.user_agent);
 
     let event = RawCallbackEvent {
@@ -182,7 +186,8 @@ pub async fn t5_callback_handler(
     let expected = compute_expected_proof(seed, formula.a, formula.b, formula.modulus);
     let proof_valid = submitted == expected;
 
-    let fingerprint = crate::fingerprint::extract(peer_addr.ip(), &headers);
+    let client_ip = state.trusted_proxies.resolve(peer_addr.ip(), &headers);
+    let fingerprint = crate::fingerprint::extract(client_ip, &headers);
     let classification = state.crawler_catalog.classify(&fingerprint.user_agent);
 
     let event = RawCallbackEvent {
@@ -337,17 +342,25 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
     tokio::spawn(crate::broker::stdout_logger_task(log_rx, json_mode));
 
     // Build router
+    let trusted_proxies = crate::client_ip::TrustedProxies::parse(&config.trusted_proxies)?;
+    let trusted_display = if trusted_proxies.is_empty() {
+        "none (using TCP peer address)".to_string()
+    } else {
+        config.trusted_proxies.join(", ")
+    };
     let app_state = AppState {
         conn: conn.clone(),
         callback_tx,
         nonce_map,
         crawler_catalog,
+        trusted_proxies,
     };
     let app = build_router(Arc::new(app_state), output_dir);
 
     // Print startup info (D-09)
     println!("honeyprompt serve");
     println!("  bind:   {}", config.bind_address);
+    println!("  trusted proxies: {}", trusted_display);
     println!("  nonces: {}", nonce_count);
     println!("  db:     {}", db_path.display());
     println!("  ready");

@@ -1,6 +1,10 @@
 services:
   honeyprompt:
     image: ghcr.io/johnzilla/honeyprompt:latest
+    # Caddy reaches honeyprompt over the private Docker network and sets
+    # X-Forwarded-For to the real client. Trusting private ranges is safe here
+    # only because this service publishes no ports — never add `ports:` to it.
+    command: ["serve", "/landing", "--trusted-proxies", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
     volumes:
       # Whole project dir: config, generated site, nonce map, salt, events DB.
       # First start copies the image's honeyprompt.toml in and generates the site.

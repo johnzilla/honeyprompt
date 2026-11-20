@@ -1105,6 +1105,7 @@ pub async fn monitor(
             callback_tx,
             nonce_map,
             crawler_catalog,
+            trusted_proxies: crate::client_ip::TrustedProxies::parse(&config.trusted_proxies)?,
         });
         let app_router = crate::server::build_router(server_state, output_dir);
 

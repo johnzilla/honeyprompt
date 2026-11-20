@@ -255,6 +255,8 @@ The `--domain` flag enables zero-config mode: sets the callback base URL to your
 
 The nonce map (`.honeyprompt/callback-map.json`) is kept outside `output/` and is never served — anyone holding it could forge callbacks.
 
+Behind a reverse proxy, pass `--trusted-proxies` (or set `trusted_proxies` in `honeyprompt.toml`) with the proxy's IPs or CIDRs, e.g. `--trusted-proxies 127.0.0.1 ::1`. `X-Forwarded-For` is then read right to left and the first untrusted address is recorded as the client. Requests from any other peer use the TCP address, so clients can't spoof their IP. Without it, every callback behind a proxy records the proxy's IP.
+
 ### Monitor live callbacks
 
 ```sh
@@ -284,7 +286,7 @@ Runs a self-contained compliance test: spins up a honeypot server, waits for cal
 
 ## Status
 
-Current release: **v5.0.1** — all five proof tiers, `serve`, `monitor`, `report`, `test-agent`, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
+Current release: **v5.0.2** — all five proof tiers, `serve`, `monitor`, `report`, `test-agent`, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
 
 ## Ethics and Safety
 

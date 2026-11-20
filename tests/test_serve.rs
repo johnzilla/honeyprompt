@@ -80,6 +80,7 @@ async fn build_test_state(
         callback_tx,
         nonce_map,
         crawler_catalog,
+        trusted_proxies: Default::default(),
     });
 
     (app_state, output_dir, mappings)
@@ -464,6 +465,7 @@ async fn build_t4_t5_state(
         callback_tx,
         nonce_map,
         crawler_catalog,
+        trusted_proxies: Default::default(),
     });
 
     (app_state, output_dir, dir)
@@ -716,4 +718,40 @@ async fn test_oversized_body_rejected() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+/// Behind a trusted proxy, the recorded IP is the forwarded client, not the proxy.
+/// Without trust, a client-supplied X-Forwarded-For is ignored.
+#[tokio::test]
+async fn test_client_ip_from_trusted_proxy() {
+    for (trusted, expected) in [
+        (vec!["127.0.0.1".to_string()], "203.0.113.7"),
+        (vec![], "127.0.0.1"),
+    ] {
+        let dir = init_and_generate();
+        let (callback_tx, mut callback_rx) = mpsc::channel(16);
+        let (state, output_dir, mappings) = build_test_state(&dir, callback_tx).await;
+        let mut state = Arc::try_unwrap(state)
+            .ok()
+            .expect("sole owner of test state");
+        state.trusted_proxies =
+            honeyprompt::client_ip::TrustedProxies::parse(&trusted).expect("valid proxies");
+
+        let uri = format!("/cb/v1/{}", mappings[0].nonce);
+        let app = test_router(Arc::new(state), output_dir);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri(&uri)
+                    .header("x-forwarded-for", "203.0.113.7")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let event = callback_rx.recv().await.expect("callback event emitted");
+        assert_eq!(event.fingerprint.source_ip.to_string(), expected);
+    }
 }

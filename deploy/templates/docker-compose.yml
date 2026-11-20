@@ -16,7 +16,10 @@ services:
     image: ghcr.io/johnzilla/honeyprompt:latest
     # First start creates /data/honeyprompt.toml for {DOMAIN} and generates the
     # site; later starts reuse it, so nonces and events survive restarts.
-    command: ["serve", "/data", "--domain", "{DOMAIN}"]
+    # --trusted-proxies: Caddy reaches honeyprompt over the private Docker network
+    # and sets X-Forwarded-For to the real client. Safe only because this service
+    # publishes no ports — never add `ports:` to it.
+    command: ["serve", "/data", "--domain", "{DOMAIN}", "--trusted-proxies", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
     volumes:
       - hp-data:/data
     restart: always

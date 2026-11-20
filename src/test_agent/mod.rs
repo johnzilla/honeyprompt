@@ -228,6 +228,7 @@ async fn run_async(
         callback_tx,
         nonce_map,
         crawler_catalog,
+        trusted_proxies: Default::default(),
     };
     let app = build_router(Arc::new(app_state), output_dir);
 

@@ -24,6 +24,11 @@ pub struct Config {
 
     /// Visual theme for the generated page
     pub theme: String,
+
+    /// Reverse proxies whose `X-Forwarded-For` is trusted (IPs or CIDRs, e.g.
+    /// ["172.16.0.0/12"]). Empty = always use the TCP peer address.
+    #[serde(default)]
+    pub trusted_proxies: Vec<String>,
 }
 
 impl Default for Config {
@@ -34,6 +39,7 @@ impl Default for Config {
             tiers: vec![1, 2, 3],
             page_title: "Security Research Canary".to_string(),
             theme: "default".to_string(),
+            trusted_proxies: Vec::new(),
         }
     }
 }
@@ -123,6 +129,7 @@ mod tests {
             tiers: vec![2, 3],
             page_title: "Custom Title".to_string(),
             theme: "dark".to_string(),
+            trusted_proxies: Vec::new(),
         };
         let cfg = config_with_overrides(&loaded, None, None, None);
         assert_eq!(cfg, loaded);

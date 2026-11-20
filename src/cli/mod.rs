@@ -69,6 +69,10 @@ pub struct ServeArgs {
     /// Override which tiers to enable (e.g., --tiers 1 2 3)
     #[arg(long, num_args = 1..)]
     pub tiers: Option<Vec<u8>>,
+    /// Reverse proxies whose X-Forwarded-For is trusted for the client IP
+    /// (IPs or CIDRs, e.g., --trusted-proxies 172.16.0.0/12). Overrides config.
+    #[arg(long, num_args = 1..)]
+    pub trusted_proxies: Option<Vec<String>>,
 }
 
 #[derive(Parser)]

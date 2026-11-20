@@ -62,12 +62,15 @@ fn main() -> Result<()> {
                 let config_path = args.path.join("honeyprompt.toml");
                 if let (Some(domain), false) = (args.domain.as_deref(), config_path.exists()) {
                     std::fs::create_dir_all(args.path.join(".honeyprompt"))?;
-                    let cfg = config::config_with_overrides(
+                    let mut cfg = config::config_with_overrides(
                         &config::Config::default(),
                         Some(domain),
                         args.bind.as_deref(),
                         args.tiers.clone(),
                     );
+                    if let Some(tp) = &args.trusted_proxies {
+                        cfg.trusted_proxies = tp.clone();
+                    }
                     std::fs::write(&config_path, toml::to_string_pretty(&cfg)?)?;
                     println!("Created {}", config_path.display());
                 }
@@ -85,12 +88,15 @@ fn main() -> Result<()> {
 
                 // Build config from defaults + overrides
                 let base = config::Config::default();
-                let cfg = config::config_with_overrides(
+                let mut cfg = config::config_with_overrides(
                     &base,
                     Some(domain),
                     args.bind.as_deref(),
                     args.tiers.clone(),
                 );
+                if let Some(tp) = &args.trusted_proxies {
+                    cfg.trusted_proxies = tp.clone();
+                }
 
                 // Write config to tempdir
                 let config_path = tmp_path.join("honeyprompt.toml");
@@ -118,12 +124,15 @@ fn main() -> Result<()> {
                 let path = &args.path;
                 let config_path = path.join("honeyprompt.toml");
                 let base_cfg = config::load_config(&config_path)?;
-                let cfg = config::config_with_overrides(
+                let mut cfg = config::config_with_overrides(
                     &base_cfg,
                     args.domain.as_deref(),
                     args.bind.as_deref(),
                     args.tiers.clone(),
                 );
+                if let Some(tp) = &args.trusted_proxies {
+                    cfg.trusted_proxies = tp.clone();
+                }
 
                 // Generate on first run (no nonce map or page yet) or when
                 // --domain changed the callback_base_url.
