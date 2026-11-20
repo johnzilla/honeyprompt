@@ -216,7 +216,7 @@ async fn run_async(
         event_tx.clone(),
         session_salt,
     ));
-    let db_writer_handle = tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone()));
+    let db_writer_handle = tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone(), None));
 
     // Create CancellationToken for graceful shutdown coordination
     let token = CancellationToken::new();

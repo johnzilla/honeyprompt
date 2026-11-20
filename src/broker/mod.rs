@@ -50,6 +50,7 @@ pub async fn broker_task(
 pub async fn db_writer_task(
     mut event_rx: broadcast::Receiver<AppEvent>,
     conn: tokio_rusqlite::Connection,
+    alerts: Option<crate::webhook::AlertSender>,
 ) {
     loop {
         match event_rx.recv().await {
@@ -72,7 +73,7 @@ pub async fn db_writer_task(
                 let t5_proof_valid = event.t5_proof_valid;
                 let result = conn
                     .call(move |conn| {
-                        crate::store::insert_callback_event(
+                        crate::store::insert_callback_event_detailed(
                             conn,
                             &nonce,
                             tier,
@@ -89,8 +90,27 @@ pub async fn db_writer_task(
                         .map_err(tokio_rusqlite::Error::from)
                     })
                     .await;
-                if let Err(e) = result {
-                    eprintln!("warning: db_writer failed to persist event: {}", e);
+                match result {
+                    Ok(hit) => {
+                        if let Some(alerts) = &alerts {
+                            alerts.offer(crate::webhook::HitAlert {
+                                received_at: hit.received_at,
+                                tier: event.tier,
+                                nonce: event.nonce.clone(),
+                                payload_id: event.payload_id.clone(),
+                                timing: hit.timing,
+                                since_page_fetch_secs: hit
+                                    .last_page_view_at
+                                    .map(|pv| hit.received_at - pv),
+                                since_seeding_secs: hit.seeded_at.map(|s| hit.received_at - s),
+                                source_ip: event.fingerprint.source_ip.to_string(),
+                                user_agent: event.fingerprint.user_agent.clone(),
+                                classification: classify_label(&event.classification),
+                                t5_proof_valid: event.t5_proof_valid,
+                            });
+                        }
+                    }
+                    Err(e) => eprintln!("warning: db_writer failed to persist event: {}", e),
                 }
             }
             Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -413,7 +433,7 @@ mod tests {
             .unwrap();
 
         let (event_tx, event_rx) = broadcast::channel::<AppEvent>(16);
-        tokio::spawn(db_writer_task(event_rx, tk_conn.clone()));
+        tokio::spawn(db_writer_task(event_rx, tk_conn.clone(), None));
 
         // Send an AppEvent directly on broadcast
         let ip: IpAddr = "2.3.4.5".parse().unwrap();
@@ -492,5 +512,87 @@ mod tests {
         assert!(event_tx.send(app_event).is_ok());
         // Give task a moment to process
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+
+    /// A stored hit is handed to the webhook with its timing label and context.
+    #[tokio::test]
+    async fn test_db_writer_task_sends_webhook_alert() {
+        use std::sync::{Arc, Mutex};
+        let received: Arc<Mutex<Vec<serde_json::Value>>> = Arc::default();
+        let rec = received.clone();
+        let app = axum::Router::new().route(
+            "/hook",
+            axum::routing::post(move |body: axum::body::Bytes| {
+                let rec = rec.clone();
+                async move {
+                    rec.lock()
+                        .unwrap()
+                        .push(serde_json::from_slice(&body).unwrap());
+                    axum::http::StatusCode::OK
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let config = crate::config::Config {
+            callback_base_url: "https://honeyprompt.sh".into(),
+            webhook: crate::webhook::WebhookConfig {
+                url: Some(format!("http://127.0.0.1:{port}/hook")),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let webhook = crate::webhook::Webhook::from_config(&config, |_| None)
+            .unwrap()
+            .unwrap();
+        let alerts = crate::webhook::spawn(webhook).unwrap();
+
+        let tk_conn = tokio_rusqlite::Connection::open_in_memory().await.unwrap();
+        tk_conn
+            .call(|conn| {
+                crate::store::run_migrations(conn)?;
+                crate::store::insert_nonce(conn, "hook0001", 2, "t2-x", "html_comment")?;
+                Ok::<_, rusqlite::Error>(())
+            })
+            .await
+            .unwrap();
+        let (event_tx, event_rx) = broadcast::channel::<AppEvent>(16);
+        tokio::spawn(db_writer_task(event_rx, tk_conn.clone(), Some(alerts)));
+
+        let event = AppEvent {
+            nonce: "hook0001".to_string(),
+            tier: 2,
+            payload_id: "t2-x".to_string(),
+            embedding_loc: "html_comment".to_string(),
+            fingerprint: AgentFingerprint {
+                source_ip: "198.51.100.9".parse::<IpAddr>().unwrap(),
+                user_agent: "Harvester/3.0".to_string(),
+                headers: HashMap::new(),
+                received_at: 2000u64,
+            },
+            classification: AgentClass::Unknown,
+            session_id: "s".to_string(),
+            is_replay: false,
+            fire_count: 1,
+            received_at: 2000u64,
+            t4_capability: None,
+            t5_proof: None,
+            t5_proof_valid: None,
+            t5_formula: None,
+        };
+        event_tx.send(event).unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+        let got = received.lock().unwrap();
+        assert_eq!(got.len(), 1, "out-of-band hit is notable");
+        let hit = &got[0]["hit"];
+        assert_eq!(hit["timing"], "out-of-band");
+        assert_eq!(hit["tier"], 2);
+        assert_eq!(hit["source_ip"], "198.51.100.9");
+        assert_eq!(hit["user_agent"], "Harvester/3.0");
+        assert!(hit["since_seeding_secs"].as_i64().unwrap() >= 0);
+        assert_eq!(got[0]["deployment"], "honeyprompt.sh");
     }
 }

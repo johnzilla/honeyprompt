@@ -29,6 +29,9 @@ WorkingDirectory=/var/lib/honeyprompt
 # `--trusted-proxies 127.0.0.1 ::1` so the real client IP is recorded, and bind
 # to 127.0.0.1:8080 (--bind) so clients can't bypass the proxy.
 ExecStart=/usr/local/bin/honeyprompt serve /var/lib/honeyprompt --domain {DOMAIN}
+# Optional webhook settings (HONEYPROMPT_WEBHOOK_URL / _SECRET / _AUTH_HEADER),
+# one KEY=value per line; root-owned, chmod 600. The leading "-" means optional.
+EnvironmentFile=-/etc/honeyprompt/webhook.env
 Restart=always
 RestartSec=5
 StartLimitIntervalSec=600

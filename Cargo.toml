@@ -1,6 +1,6 @@
 [package]
 name = "honeyprompt"
-version = "5.2.0"
+version = "5.3.0"
 edition = "2021"
 
 [dependencies]
@@ -28,6 +28,10 @@ chrono = { version = "0.4", features = ["serde"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tempfile = "3"
 dialoguer = "0.11"
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+hmac = "0.12"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "1.0.12"
 
 [dev-dependencies]
 tempfile = "3"

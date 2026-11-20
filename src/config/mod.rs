@@ -29,6 +29,14 @@ pub struct Config {
     /// ["172.16.0.0/12"]). Empty = always use the TCP peer address.
     #[serde(default)]
     pub trusted_proxies: Vec<String>,
+
+    /// Outbound alerts (`[webhook]`). Fields can be overridden with
+    /// `HONEYPROMPT_WEBHOOK_*` environment variables.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::webhook::WebhookConfig::is_default"
+    )]
+    pub webhook: crate::webhook::WebhookConfig,
 }
 
 impl Default for Config {
@@ -40,6 +48,7 @@ impl Default for Config {
             page_title: "Security Research Canary".to_string(),
             theme: "default".to_string(),
             trusted_proxies: Vec::new(),
+            webhook: Default::default(),
         }
     }
 }
@@ -130,6 +139,7 @@ mod tests {
             page_title: "Custom Title".to_string(),
             theme: "dark".to_string(),
             trusted_proxies: Vec::new(),
+            webhook: Default::default(),
         };
         let cfg = config_with_overrides(&loaded, None, None, None);
         assert_eq!(cfg, loaded);

@@ -1097,7 +1097,10 @@ pub async fn monitor(
             event_tx,
             session_salt,
         ));
-        tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone()));
+        let alerts = crate::webhook::Webhook::from_config_and_env(config)?
+            .map(crate::webhook::spawn)
+            .transpose()?;
+        tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone(), alerts));
         let (page_view_tx, page_view_rx) = mpsc::channel::<crate::server::PageView>(256);
         tokio::spawn(crate::broker::page_view_writer_task(
             page_view_rx,

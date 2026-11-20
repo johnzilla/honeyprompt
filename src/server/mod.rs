@@ -403,7 +403,13 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
         event_tx,
         session_salt,
     ));
-    tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone()));
+    let webhook = crate::webhook::Webhook::from_config_and_env(config)?;
+    let webhook_display = webhook
+        .as_ref()
+        .map(|w| w.describe())
+        .unwrap_or_else(|| "none".to_string());
+    let alerts = webhook.map(crate::webhook::spawn).transpose()?;
+    tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone(), alerts));
     tokio::spawn(crate::broker::stdout_logger_task(log_rx, json_mode));
     let (page_view_tx, page_view_rx) = mpsc::channel::<PageView>(256);
     tokio::spawn(crate::broker::page_view_writer_task(
@@ -432,6 +438,7 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
     println!("honeyprompt serve");
     println!("  bind:   {}", config.bind_address);
     println!("  trusted proxies: {}", trusted_display);
+    println!("  webhook: {}", webhook_display);
     println!("  nonces: {}", nonce_count);
     println!("  db:     {}", db_path.display());
     println!("  ready");

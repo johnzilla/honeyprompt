@@ -191,7 +191,7 @@ fn repeat_hits_section(hits: &[crate::store::RepeatHit]) -> String {
 }
 
 /// Map tier number to proof level label.
-fn proof_level(tier: u8) -> &'static str {
+pub fn proof_level(tier: u8) -> &'static str {
     match tier {
         1 => "Arbitrary Callback",
         2 => "Conditional Branch",

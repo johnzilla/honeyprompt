@@ -9,6 +9,11 @@ services:
       # Whole project dir: config, generated site, nonce map, salt, events DB.
       # First start copies the image's honeyprompt.toml in and generates the site.
       - hp-data:/landing
+    # Optional webhook settings (HONEYPROMPT_WEBHOOK_URL / _SECRET / _AUTH_HEADER)
+    # in a .env file next to this compose file; keep it chmod 600, never commit it.
+    env_file:
+      - path: .env
+        required: false
     restart: always
 
   caddy:

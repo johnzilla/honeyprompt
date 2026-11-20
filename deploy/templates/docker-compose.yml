@@ -22,6 +22,11 @@ services:
     command: ["serve", "/data", "--domain", "{DOMAIN}", "--trusted-proxies", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
     volumes:
       - hp-data:/data
+    # Optional webhook settings (HONEYPROMPT_WEBHOOK_URL / _SECRET / _AUTH_HEADER)
+    # in a .env file next to this compose file; keep it chmod 600, never commit it.
+    env_file:
+      - path: .env
+        required: false
     restart: always
 
   caddy:

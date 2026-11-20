@@ -46,6 +46,31 @@ curl -I https://honeyprompt.sh       # HTTP/2 200
 docker compose logs honeyprompt       # "honeyprompt serve ... ready"
 ```
 
+## Webhook alerts (optional)
+
+Secrets go in `/opt/honeyprompt/.env` on the droplet (read by `docker-compose.yml`), not in the image or the repo:
+
+```bash
+cd /opt/honeyprompt
+install -m 600 /dev/null .env
+nano .env
+```
+
+```
+HONEYPROMPT_WEBHOOK_URL=https://alerts.example.com/honeyprompt
+HONEYPROMPT_WEBHOOK_SECRET=<output of: openssl rand -hex 32>
+```
+
+Then apply it and send a test alert:
+
+```bash
+docker compose up -d
+docker compose exec honeyprompt /usr/local/bin/honeyprompt webhook-test /landing
+docker compose logs honeyprompt | grep webhook    # "webhook: alerts.example.com (signed: yes, ...)"
+```
+
+`format` and `send` (see the main README) go in `honeyprompt.toml` inside the volume, or keep the defaults (`json`, `notable`).
+
 ## Data
 
 - Config, generated site, nonce map and SQLite DB persist in the `hp-data` Docker volume — survives image updates. To rotate all nonces, stop the stack, `docker volume rm honeyprompt_hp-data`, and start it again

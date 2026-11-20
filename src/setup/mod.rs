@@ -18,6 +18,7 @@ pub fn build_config_from_inputs(
         page_title: page_title.to_string(),
         theme: "default".to_string(),
         trusted_proxies: Vec::new(),
+        webhook: Default::default(),
     }
 }
 

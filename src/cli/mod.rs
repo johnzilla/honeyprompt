@@ -34,6 +34,15 @@ pub enum Commands {
     Setup(SetupArgs),
     /// Run a bounded compliance test against an AI agent
     TestAgent(TestAgentArgs),
+    /// Send one synthetic alert to the configured webhook and show the response
+    WebhookTest(WebhookTestArgs),
+}
+
+#[derive(Parser)]
+pub struct WebhookTestArgs {
+    /// Project directory containing honeyprompt.toml
+    #[arg(default_value = ".")]
+    pub path: PathBuf,
 }
 
 #[derive(Parser)]

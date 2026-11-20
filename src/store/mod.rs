@@ -211,7 +211,7 @@ pub const MAX_HITS_PER_NONCE: u32 = 1000;
 /// they are stored on INSERT but the `ON CONFLICT(nonce) DO UPDATE SET` clause does
 /// NOT overwrite them on replay (replay only touches last_seen_at, fire_count, is_replay).
 #[allow(clippy::too_many_arguments)]
-pub fn insert_callback_event(
+pub fn insert_callback_event_detailed(
     conn: &Connection,
     nonce: &str,
     tier: u8,
@@ -224,7 +224,7 @@ pub fn insert_callback_event(
     t4_capability: Option<&str>,
     t5_proof: Option<&str>,
     t5_proof_valid: Option<bool>,
-) -> rusqlite::Result<(u32, bool)> {
+) -> rusqlite::Result<InsertedHit> {
     let now = chrono_now();
     let tx = conn.unchecked_transaction()?;
     tx.execute(
@@ -294,9 +294,69 @@ pub fn insert_callback_event(
         params![nonce],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
+    let seeded_at: Option<i64> = tx
+        .query_row(
+            "SELECT CAST(generated_at AS INTEGER) FROM nonce_map WHERE nonce = ?1",
+            params![nonce],
+            |row| row.get(0),
+        )
+        .ok();
     tx.commit()?;
 
-    Ok((fire_count, is_replay_int != 0))
+    Ok(InsertedHit {
+        fire_count,
+        is_replay: is_replay_int != 0,
+        received_at: hit_at,
+        timing,
+        last_page_view_at,
+        seeded_at,
+    })
+}
+
+/// What `insert_callback_event_detailed` recorded, for alerting.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InsertedHit {
+    pub fire_count: u32,
+    pub is_replay: bool,
+    pub received_at: i64,
+    pub timing: HitTiming,
+    pub last_page_view_at: Option<i64>,
+    /// When the nonce's page was generated (None if the nonce is not in nonce_map).
+    pub seeded_at: Option<i64>,
+}
+
+/// Record a callback; see `insert_callback_event_detailed`. Returns
+/// `(fire_count, is_replay)`.
+#[allow(clippy::too_many_arguments)]
+pub fn insert_callback_event(
+    conn: &Connection,
+    nonce: &str,
+    tier: u8,
+    payload_id: &str,
+    embedding_loc: &str,
+    session_id: &str,
+    remote_addr: &str,
+    user_agent: &str,
+    extra_headers: &str,
+    t4_capability: Option<&str>,
+    t5_proof: Option<&str>,
+    t5_proof_valid: Option<bool>,
+) -> rusqlite::Result<(u32, bool)> {
+    let hit = insert_callback_event_detailed(
+        conn,
+        nonce,
+        tier,
+        payload_id,
+        embedding_loc,
+        session_id,
+        remote_addr,
+        user_agent,
+        extra_headers,
+        t4_capability,
+        t5_proof,
+        t5_proof_valid,
+    )?;
+    Ok((hit.fire_count, hit.is_replay))
 }
 
 /// Look up nonce metadata from the nonce_map table.

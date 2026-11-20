@@ -275,6 +275,60 @@ honeyprompt report --output report.md
 
 Generates a Markdown disclosure report from captured events. The executive summary lists session counts for all 5 tiers. The evidence table includes an `Evidence` column that renders the decoded T4 tool list for Tier 4 events and the submitted proof plus server-verified validity (`NNN ✓ VALID` / `NNN ✗ INVALID`) for Tier 5 events, interleaved with T1–T3 rows in the same format. Output includes agent fingerprints and the allowlisted request headers. A **Hit Timing** section labels every hit by comparing it with page fetches from the same client IP: **in-session** (that IP fetched the page within 30 minutes before), **delayed** (it fetched the page longer ago), or **out-of-band** (no fetch from that IP in the last 90 days — whatever read the page is not what fired the callback, e.g. a pipeline or a harvested copy). Delayed and out-of-band hits are listed individually. The labels describe the network path, not intent: an agent whose browser and fetch tool use different IPs shows as out-of-band. Page fetches (time, client IP, user-agent, path) are kept for 90 days. A **Repeat Hits** section lists every stored hit for nonces that fired more than once (up to 1,000 per nonce) with its timing label; nonces are shared by every visitor to the page, so repeat hits are usually different visitors.
 
+### Webhook alerts
+
+A delayed or out-of-band hit can arrive days after seeding, so `serve` and `monitor` can POST an alert for each hit. Off unless a URL is set:
+
+```toml
+[webhook]
+url = "https://alerts.example.com/honeyprompt"
+secret = "…"           # optional, enables signing (at least 32 characters: openssl rand -hex 32)
+auth_header = "…"      # optional, e.g. "Authorization: Bearer …"
+format = "json"        # "json" | "slack" | "discord"
+send = "notable"       # "notable" = delayed + out-of-band hits; "all" = every hit
+```
+
+Each field can instead come from an environment variable, which keeps secrets out of the config file: `HONEYPROMPT_WEBHOOK_URL`, `HONEYPROMPT_WEBHOOK_SECRET`, `HONEYPROMPT_WEBHOOK_AUTH_HEADER` (these override the file). The URL must be `https://` (plain `http://` only for localhost). HoneyPrompt never prints the secret, the auth header, or the URL's path and query — only the host. Redirects are not followed.
+
+```sh
+honeyprompt webhook-test      # sends one alert marked "test": true and prints the receiver's status
+```
+
+**JSON body** (`format = "json"`):
+
+```json
+{
+  "version": 1, "event": "hit", "test": false,
+  "delivery_id": "9f2c4e1a7b3d5f60", "deployment": "honeyprompt.sh",
+  "hit": {
+    "received_at": 1795187274, "tier": 3, "tier_name": "Computed Callback",
+    "nonce": "3a7dd59e33438bc8", "payload_id": "…", "timing": "out-of-band",
+    "since_page_fetch_secs": null, "since_seeding_secs": 259200,
+    "source_ip": "198.51.100.9", "user_agent": "Harvester/3.0",
+    "classification": "Unknown", "t5_proof_valid": null
+  },
+  "suppressed": 0
+}
+```
+
+`user_agent` comes from whoever hit the canary: treat it as untrusted. The `slack` and `discord` formats send a one-line summary instead, with agent-supplied text escaped (Slack `&<>`, Discord markdown, and Discord mentions disabled via `allowed_mentions`), because those services reject generic JSON and authenticate by their webhook URL alone.
+
+**Verifying signatures.** With a secret set, every request carries `X-HoneyPrompt-Signature: t=<unix time>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">` and `X-HoneyPrompt-Delivery: <id>`. Verify against the raw request body, before parsing it:
+
+```python
+import hmac, hashlib, time
+
+def verify(secret: bytes, header: str, body: bytes, tolerance: int = 300) -> bool:
+    parts = dict(p.split("=", 1) for p in header.split(",") if "=" in p)
+    t, sig = parts.get("t", ""), parts.get("v1", "")
+    if not t.isdigit() or abs(time.time() - int(t)) > tolerance:
+        return False  # missing or stale timestamp: possible replay
+    expected = hmac.new(secret, t.encode() + b"." + body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, sig)
+```
+
+**Delivery.** Alerts are queued (64) and sent by a background task, so a slow receiver never delays the honeypot. At most 30 alerts per minute are sent; the number skipped is reported in the next alert's `suppressed`. Each attempt times out after 5 s; network errors, 5xx and 429 are retried twice (after 1 s and 5 s) with the same `delivery_id` — use it to drop duplicates — and other 4xx are not retried. Alerts still queued when HoneyPrompt stops are lost; the hit itself is always in the database and the report. `test-agent` never sends alerts.
+
 ### Test an AI agent
 
 ```sh
@@ -286,7 +340,7 @@ Runs a self-contained compliance test: spins up a honeypot server, waits for cal
 
 ## Status
 
-Current release: **v5.2.0** — all five proof tiers, `serve`, `monitor`, `report`, `test-agent`, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
+Current release: **v5.3.0** — all five proof tiers, `serve`, `monitor`, `report`, `test-agent`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
 
 ## Ethics and Safety
 

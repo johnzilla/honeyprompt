@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use clap::Parser;
 use honeyprompt::cli::{Cli, Commands};
-use honeyprompt::{config, generator, monitor, report, server, setup, store, test_agent};
+use honeyprompt::{config, generator, monitor, report, server, setup, store, test_agent, webhook};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -191,6 +191,24 @@ fn main() -> Result<()> {
             }
             setup::run_setup(path)?;
             Ok(())
+        }
+        Commands::WebhookTest(args) => {
+            let cfg = config::load_config(&args.path.join("honeyprompt.toml"))?;
+            let Some(webhook) = webhook::Webhook::from_config_and_env(&cfg)? else {
+                bail!(
+                    "no webhook configured: set [webhook] url in honeyprompt.toml or {}",
+                    webhook::ENV_URL
+                );
+            };
+            println!("Sending a test alert to {}", webhook.describe());
+            let rt = tokio::runtime::Runtime::new()?;
+            match rt.block_on(webhook::send_test(&webhook)) {
+                Ok(status) => {
+                    println!("{} answered {}", webhook.host(), status);
+                    Ok(())
+                }
+                Err(e) => bail!("webhook test failed: {}", e),
+            }
         }
         Commands::TestAgent(args) => {
             let format = args.format.clone();

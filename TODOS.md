@@ -12,7 +12,6 @@ Source: https://www.dragos.com/blog/ai-supply-chain-security-canary-tokens. They
 
 - **Exfiltration test tier.** Plant a HoneyPrompt-minted fake token in the agent's private context; the honeypot page asks the agent to include it in a callback. Proves private data + untrusted content + exfil channel end to end, with synthetic data only. Fits `test-agent` as a CI gate.
 - **`honeyprompt seed`.** Mint labeled canary URLs for system prompts, CLAUDE.md, MCP tool descriptions, RAG docs, `.env.example`. Report which placement/route leaked.
-- **Webhook alerts.** Delayed hits need outbound notification, not someone watching the TUI.
 - Skip: real AWS keys (use Thinkst Canarytokens), fake SSH/git/DB services. Reconsider DNS canaries later.
 
 ## Parked: validation experiment
@@ -27,6 +26,7 @@ Bigger expansion ideas (federation, hosted benchmark site, leaderboard) only mak
 
 ## Shipped
 
+- 5.3.0 — webhook alerts: HMAC-SHA256-signed JSON (RustCrypto `hmac`), Slack and Discord formats with escaping, `send = notable | all`, rate limit 30/min with `suppressed` count, retries on 5xx/429, no redirects, secrets via `HONEYPROMPT_WEBHOOK_*` env vars and never logged; `honeyprompt webhook-test`. reqwest over rustls (`ring`, bundled webpki roots) — no OpenSSL or aws-lc.
 - 5.2.0 — page fetches recorded (`page_views`, 90-day retention); every hit labelled in-session / delayed / out-of-band against that IP's last page fetch; report gains a Hit Timing section. Repeat Hits drops the same-IP/UA-as-first columns (nonces are shared by all visitors, so they compared different people).
 - 5.1.0 — every callback stored in a new `hits` table (capped at 1,000 per nonce; `fire_count` keeps the true total); report gains a Repeat Hits section with time since seeding / since first hit and same-IP/UA flags. First step of the context-canary work.
 - 5.0.2 — real client IP behind a reverse proxy: `trusted_proxies` config / `--trusted-proxies` flag; `X-Forwarded-For` is honoured only from trusted peers, read right to left. Deploy compose files trust the private Docker ranges.
