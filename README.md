@@ -279,25 +279,9 @@ honeyprompt test-agent --listen 0.0.0.0:8080 --timeout 30 --format json
 
 Runs a self-contained compliance test: spins up a honeypot server, waits for callbacks, then outputs a pass/fail scorecard. Exit code 0 means no canaries triggered (safe agent). Exit code 1 means one or more canaries triggered. Designed for CI pipelines testing AI agent compliance.
 
-## Project Status
+## Status
 
-| Phase | Capability | Status |
-|-------|-----------|--------|
-| Phase 1 | Generation Pipeline — `init`, `generate`, payload catalog (Tiers 1-3), SQLite schema | Complete |
-| Phase 2 | Server and Detection — `serve`, callback listener, agent fingerprinting, event storage | Complete |
-| Phase 3 | TUI Monitor — live event display, filters, session-based counts, replay flagging | Complete |
-| Phase 4 | Report and Landing — `report` subcommand, Markdown disclosure report, instrumented landing page | Complete |
-| Phase 5 | Test Agent — `test-agent` subcommand, compliance scorecard, CI integration, GitHub Actions CI | Complete |
-| Phase 6 | Release Infrastructure — cross-platform binary releases, README installation guide | Complete |
-| Phase 7 | Live Demo Deployment — `honeyprompt serve` running at honeyprompt.sh with HTTPS and auto-restart | Complete |
-| Phase 8 | Public Launch — README polish, ethics section, discoverability | Complete |
-| Phase 9 | Server-Side Identity & Stats — footer identity, security.txt, /stats JSON endpoint | Complete |
-| Phase 10 | Landing Page — honeyprompt.dev with live stats from /stats API | Complete |
-| Phase 11 | Setup Wizard & Zero-Config Serve — `honeyprompt setup`, `--domain` flag, tempdir mode | Complete |
-| Phase 12 | Documentation & Deploy Templates — Deploy Your Own guide, deploy/templates/ for all platforms | Complete |
-| Phase 13 | Tiers 4 & 5 Backend — payload catalog extension, `/cb/v4/` + `/cb/v5/` routes, server-side proof verification, additive SQLite migration | Complete |
-| Phase 14 | Tiers 4 & 5 Surfacing — Monitor TUI EVIDENCE column + detail pane, 5-tier stats header, 6-state filter cycle, Markdown report Evidence column, executive summary T4/T5 rows | Complete |
-| Phase 15 | Tiers 4 & 5 Validation & Docs — test-agent scorecard extended to T4/T5, README 5-tier proof model documented, TODOS.md shipped section | Complete |
+Current release: **v5.0.0** — all five proof tiers, `serve`, `monitor`, `report`, `test-agent`, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
 
 ## Ethics and Safety
 
