@@ -96,7 +96,7 @@ fn test_v4_db_opens_unchanged() {
     let version: u32 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 4, "user_version must be 4 after migrating v4.0 DB");
+    assert_eq!(version, 5, "user_version must be 5 after migrating v4.0 DB");
     let hits_exists: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='hits'",
@@ -122,6 +122,12 @@ fn test_v4_db_opens_unchanged() {
         .expect("hits must have tier-6 columns");
     conn.prepare("SELECT exfil_match FROM events")
         .expect("events must have exfil_match");
+    conn.prepare("SELECT nonce, label, note, created_at, hit_count FROM seeds")
+        .expect("seeds table must exist");
+    conn.prepare(
+        "SELECT nonce, received_at, remote_addr, user_agent, classification FROM seed_hits",
+    )
+    .expect("seed_hits table must exist");
 
     // Existing T1-T3 rows must read back with original field values, with the
     // three new columns all NULL (additive migration — zero-touch on existing rows).
@@ -203,5 +209,5 @@ fn test_v4_db_migration_idempotent_across_reopen() {
     let version: u32 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 4, "user_version stable across reopen");
+    assert_eq!(version, 5, "user_version stable across reopen");
 }

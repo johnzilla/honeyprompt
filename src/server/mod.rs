@@ -44,6 +44,41 @@ pub struct AppState {
     /// Tier 6: this test-agent run's canary token. `None` outside
     /// `test-agent --exfil`, which makes `/cb/v6/` record nothing.
     pub exfil_canary: Option<String>,
+    /// Where fetches of seeded canaries (`/r/{nonce}`) are sent (None: not recorded).
+    pub seed_hit_tx: Option<mpsc::Sender<SeedHit>>,
+}
+
+/// A fetch of `/r/{nonce}`, before checking that the nonce is a seed.
+#[derive(Debug, Clone)]
+pub struct SeedHit {
+    pub nonce: String,
+    pub remote_addr: String,
+    pub user_agent: String,
+    pub classification: String,
+}
+
+/// GET /r/{nonce}: a seeded canary. The response is the same warning page for
+/// every nonce, so probing reveals nothing; the writer task decides whether the
+/// nonce is a seed and records it.
+pub async fn seed_handler(
+    AxumPath(nonce): AxumPath<String>,
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> axum::response::Html<&'static str> {
+    if let (Some(tx), true) = (&state.seed_hit_tx, crate::nonce::is_valid_nonce(&nonce)) {
+        let client_ip = state.trusted_proxies.resolve(peer_addr.ip(), &headers);
+        let fingerprint = crate::fingerprint::extract(client_ip, &headers);
+        let classification =
+            crate::broker::classify_label(&state.crawler_catalog.classify(&fingerprint.user_agent));
+        let _ = tx.try_send(SeedHit {
+            nonce,
+            remote_addr: client_ip.to_string(),
+            user_agent: fingerprint.user_agent,
+            classification,
+        });
+    }
+    axum::response::Html(crate::seed::SEED_PAGE_HTML)
 }
 
 /// Longest `/cb/v6/` value considered for a match (`HPCANARY-` + 16 hex is 25).
@@ -87,6 +122,7 @@ async fn record_page_fetch(
     let path = req.uri().path().to_string();
     let is_page = matches!(*req.method(), Method::GET | Method::HEAD)
         && !path.starts_with("/cb/")
+        && !path.starts_with("/r/")
         && path != "/stats";
     // `MockConnectInfo` is what in-process tests install instead of `ConnectInfo`.
     let peer = req
@@ -374,6 +410,7 @@ pub fn build_router(state: Arc<AppState>, output_dir: PathBuf) -> Router {
         .route("/cb/v4/{nonce}/{b64_payload}", get(t4_callback_handler)) // NEW (D-13-14)
         .route("/cb/v5/{nonce}/{proof}", get(t5_callback_handler)) // NEW (D-13-14)
         .route("/cb/v6/{nonce}/{value}", get(t6_callback_handler))
+        .route("/r/{nonce}", get(seed_handler))
         .route("/stats", get(stats_handler))
         .fallback_service(ServeDir::new(output_dir))
         .layer(middleware::from_fn_with_state(
@@ -476,6 +513,17 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
         .map(|w| w.describe())
         .unwrap_or_else(|| "none".to_string());
     let alerts = webhook.map(crate::webhook::spawn).transpose()?;
+    let (seed_hit_tx, seed_hit_rx) = mpsc::channel::<SeedHit>(256);
+    tokio::spawn(crate::broker::seed_hit_writer_task(
+        seed_hit_rx,
+        conn.clone(),
+        alerts.clone(),
+        if json_mode {
+            crate::broker::SeedLog::Json
+        } else {
+            crate::broker::SeedLog::Text
+        },
+    ));
     tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone(), alerts));
     tokio::spawn(crate::broker::stdout_logger_task(log_rx, json_mode));
     let (page_view_tx, page_view_rx) = mpsc::channel::<PageView>(256);
@@ -499,6 +547,7 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
         trusted_proxies,
         page_view_tx: Some(page_view_tx),
         exfil_canary: None,
+        seed_hit_tx: Some(seed_hit_tx),
     };
     let app = build_router(Arc::new(app_state), output_dir);
 

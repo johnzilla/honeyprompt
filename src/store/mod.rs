@@ -130,6 +130,31 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
             ",
         )?;
     }
+    // v5: seeded canaries (`honeyprompt seed`). Kept apart from `events`/`hits`
+    // because seed hits are not tier detections.
+    if version < 5 {
+        conn.execute_batch(
+            "
+            CREATE TABLE IF NOT EXISTS seeds (
+                nonce           TEXT PRIMARY KEY,
+                label           TEXT NOT NULL UNIQUE,
+                note            TEXT,
+                created_at      INTEGER NOT NULL,
+                hit_count       INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS seed_hits (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                nonce           TEXT NOT NULL,
+                received_at     INTEGER NOT NULL,
+                remote_addr     TEXT,
+                user_agent      TEXT,
+                classification  TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_seed_hits_nonce ON seed_hits(nonce);
+            PRAGMA user_version = 5;
+            ",
+        )?;
+    }
     Ok(())
 }
 
@@ -678,6 +703,158 @@ pub fn exfil_summary(conn: &Connection) -> rusqlite::Result<ExfilSummary> {
             })
         },
     )
+}
+
+/// Most hits stored per seed; `seeds.hit_count` keeps the true total.
+pub const MAX_HITS_PER_SEED: u32 = 1000;
+
+/// Create a seed. Fails if the label (or nonce) already exists.
+pub fn insert_seed(
+    conn: &Connection,
+    nonce: &str,
+    label: &str,
+    note: Option<&str>,
+    created_at: i64,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO seeds (nonce, label, note, created_at) VALUES (?1, ?2, ?3, ?4)",
+        params![nonce, label, note, created_at],
+    )?;
+    Ok(())
+}
+
+/// The seed a recorded hit belongs to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SeedRef {
+    pub label: String,
+    pub note: Option<String>,
+    pub created_at: i64,
+}
+
+/// Record a fetch of `/r/{nonce}`. Returns `None` (and stores nothing) when the
+/// nonce is not a seed. Every hit bumps `hit_count`; rows stop at the cap.
+pub fn record_seed_hit(
+    conn: &Connection,
+    nonce: &str,
+    received_at: i64,
+    remote_addr: &str,
+    user_agent: &str,
+    classification: &str,
+) -> rusqlite::Result<Option<SeedRef>> {
+    let tx = conn.unchecked_transaction()?;
+    let seed = tx.query_row(
+        "SELECT label, note, created_at FROM seeds WHERE nonce = ?1",
+        params![nonce],
+        |r| {
+            Ok(SeedRef {
+                label: r.get(0)?,
+                note: r.get(1)?,
+                created_at: r.get(2)?,
+            })
+        },
+    );
+    let seed = match seed {
+        Ok(s) => s,
+        Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    tx.execute(
+        "UPDATE seeds SET hit_count = hit_count + 1 WHERE nonce = ?1",
+        params![nonce],
+    )?;
+    tx.execute(
+        "INSERT INTO seed_hits (nonce, received_at, remote_addr, user_agent, classification)
+         SELECT ?1, ?2, ?3, ?4, ?5
+         WHERE (SELECT COUNT(*) FROM seed_hits WHERE nonce = ?1) < ?6",
+        params![
+            nonce,
+            received_at,
+            remote_addr,
+            user_agent,
+            classification,
+            MAX_HITS_PER_SEED
+        ],
+    )?;
+    tx.commit()?;
+    Ok(Some(seed))
+}
+
+/// One seed with its hit statistics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SeedSummary {
+    pub label: String,
+    pub note: Option<String>,
+    pub nonce: String,
+    pub created_at: i64,
+    /// Every hit, including ones past the storage cap.
+    pub hit_count: u32,
+    pub first_hit_at: Option<i64>,
+    pub last_hit_at: Option<i64>,
+    /// Distinct client IPs among stored hits.
+    pub distinct_ips: u32,
+}
+
+/// All seeds, oldest first.
+pub fn list_seeds(conn: &Connection) -> rusqlite::Result<Vec<SeedSummary>> {
+    let mut stmt = conn.prepare(
+        "SELECT s.label, s.note, s.nonce, s.created_at, s.hit_count,
+                MIN(h.received_at), MAX(h.received_at), COUNT(DISTINCT h.remote_addr)
+         FROM seeds s LEFT JOIN seed_hits h ON h.nonce = s.nonce
+         GROUP BY s.nonce
+         ORDER BY s.created_at, s.label",
+    )?;
+    let rows = stmt
+        .query_map([], |r| {
+            Ok(SeedSummary {
+                label: r.get(0)?,
+                note: r.get(1)?,
+                nonce: r.get(2)?,
+                created_at: r.get(3)?,
+                hit_count: r.get(4)?,
+                first_hit_at: r.get(5)?,
+                last_hit_at: r.get(6)?,
+                distinct_ips: r.get(7)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+/// One stored seed hit, for the report.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SeedHitRow {
+    pub label: String,
+    pub received_at: i64,
+    pub created_at: i64,
+    pub remote_addr: String,
+    pub user_agent: String,
+    pub classification: String,
+}
+
+/// The most recent stored seed hits (up to `limit`) and the stored total.
+pub fn recent_seed_hits(conn: &Connection, limit: u32) -> rusqlite::Result<(Vec<SeedHitRow>, u32)> {
+    let total: u32 = conn.query_row("SELECT COUNT(*) FROM seed_hits", [], |r| r.get(0))?;
+    let mut stmt = conn.prepare(
+        "SELECT s.label, h.received_at, s.created_at, h.remote_addr, h.user_agent, h.classification
+         FROM seed_hits h JOIN seeds s ON s.nonce = h.nonce
+         ORDER BY h.received_at DESC, h.id DESC
+         LIMIT ?1",
+    )?;
+    let rows = stmt
+        .query_map(params![limit], |r| {
+            Ok(SeedHitRow {
+                label: r.get(0)?,
+                received_at: r.get(1)?,
+                created_at: r.get(2)?,
+                remote_addr: r.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                user_agent: r.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                classification: r
+                    .get::<_, Option<String>>(5)?
+                    .unwrap_or_else(|| "Unknown".to_string()),
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok((rows, total))
 }
 
 /// Stored hits per tier, split by timing label.
@@ -1370,8 +1547,8 @@ mod tests {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(
-            version, 4,
-            "user_version must remain 4 after multiple run_migrations calls"
+            version, 5,
+            "user_version must remain 5 after multiple run_migrations calls"
         );
     }
 
@@ -1381,7 +1558,7 @@ mod tests {
         let version: u32 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 4, "fresh DB must end at user_version=4");
+        assert_eq!(version, 5, "fresh DB must end at user_version=5");
     }
 
     // --- Phase 13 STORE-04 first-write-wins replay tests (D-13-19 / RESEARCH Risk 6) ---
@@ -1776,5 +1953,79 @@ mod tests {
             .map(|r| r.unwrap())
             .collect();
         assert_eq!(lens, [30, 25, 9]);
+    }
+
+    #[test]
+    fn test_seed_insert_duplicate_label_rejected() {
+        let conn = in_memory_conn();
+        insert_seed(
+            &conn,
+            "aaaaaaaaaaaaaaaa",
+            "claude-md",
+            Some("api repo"),
+            100,
+        )
+        .unwrap();
+        assert!(insert_seed(&conn, "bbbbbbbbbbbbbbbb", "claude-md", None, 101).is_err());
+    }
+
+    #[test]
+    fn test_seed_hits_recorded_only_for_known_seeds_and_capped() {
+        let conn = in_memory_conn();
+        insert_seed(
+            &conn,
+            "aaaaaaaaaaaaaaaa",
+            "claude-md",
+            Some("api repo"),
+            100,
+        )
+        .unwrap();
+        insert_seed(&conn, "cccccccccccccccc", "unused", None, 100).unwrap();
+        assert_eq!(
+            record_seed_hit(&conn, "ffffffffffffffff", 200, "1.1.1.1", "UA", "Unknown").unwrap(),
+            None
+        );
+        let seed = record_seed_hit(&conn, "aaaaaaaaaaaaaaaa", 200, "1.1.1.1", "UA", "Unknown")
+            .unwrap()
+            .unwrap();
+        assert_eq!(seed.label, "claude-md");
+        assert_eq!(seed.note.as_deref(), Some("api repo"));
+        for i in 0..(MAX_HITS_PER_SEED + 2) {
+            record_seed_hit(
+                &conn,
+                "aaaaaaaaaaaaaaaa",
+                300 + i as i64,
+                "2.2.2.2",
+                "UA2",
+                "KnownCrawler:Google",
+            )
+            .unwrap();
+        }
+        let seeds = list_seeds(&conn).unwrap();
+        assert_eq!(seeds.len(), 2);
+        let s = &seeds[0];
+        assert_eq!(s.label, "claude-md");
+        assert_eq!(
+            s.hit_count,
+            MAX_HITS_PER_SEED + 3,
+            "true total keeps counting"
+        );
+        assert_eq!(s.first_hit_at, Some(200));
+        assert_eq!(s.distinct_ips, 2);
+        assert_eq!(seeds[1].hit_count, 0);
+        assert_eq!(seeds[1].first_hit_at, None);
+
+        let (rows, total) = recent_seed_hits(&conn, 5).unwrap();
+        assert_eq!(total, MAX_HITS_PER_SEED, "stored rows stop at the cap");
+        assert_eq!(rows.len(), 5);
+        assert_eq!(rows[0].classification, "KnownCrawler:Google");
+        // Seed hits never touch the tier tables.
+        let events: u32 = conn
+            .query_row("SELECT COUNT(*) FROM events", [], |r| r.get(0))
+            .unwrap();
+        let hits: u32 = conn
+            .query_row("SELECT COUNT(*) FROM hits", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!((events, hits), (0, 0));
     }
 }

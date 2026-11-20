@@ -1,7 +1,9 @@
 use anyhow::{bail, Result};
 use clap::Parser;
-use honeyprompt::cli::{Cli, Commands};
-use honeyprompt::{config, generator, monitor, report, server, setup, store, test_agent, webhook};
+use honeyprompt::cli::{Cli, Commands, SeedCommand};
+use honeyprompt::{
+    config, generator, monitor, report, seed, server, setup, store, test_agent, webhook,
+};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -192,6 +194,33 @@ fn main() -> Result<()> {
             setup::run_setup(path)?;
             Ok(())
         }
+        Commands::Seed(args) => match args.command {
+            SeedCommand::Add(a) => {
+                let cfg = config::load_config(&a.path.join("honeyprompt.toml"))?;
+                let conn =
+                    store::open_or_create_db(&a.path.join(".honeyprompt").join("events.db"))?;
+                let added = seed::add(&conn, &cfg, &a.label, a.note.as_deref(), a.format)?;
+                eprintln!("Created seed {:?} -> {}", a.label, added.url);
+                if seed::is_local_base(&cfg.callback_base_url) {
+                    eprintln!(
+                        "warning: callback_base_url is {}; nothing outside this machine can reach this seed",
+                        cfg.callback_base_url
+                    );
+                }
+                println!("{}", added.snippet);
+                Ok(())
+            }
+            SeedCommand::List(a) => {
+                let cfg = config::load_config(&a.path.join("honeyprompt.toml"))?;
+                let conn =
+                    store::open_or_create_db(&a.path.join(".honeyprompt").join("events.db"))?;
+                print!(
+                    "{}",
+                    seed::render_list(&store::list_seeds(&conn)?, &cfg.callback_base_url)
+                );
+                Ok(())
+            }
+        },
         Commands::WebhookTest(args) => {
             let cfg = config::load_config(&args.path.join("honeyprompt.toml"))?;
             let Some(webhook) = webhook::Webhook::from_config_and_env(&cfg)? else {

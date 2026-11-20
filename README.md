@@ -277,6 +277,26 @@ honeyprompt report --output report.md
 
 Generates a Markdown disclosure report from captured events. The executive summary lists session counts for all 5 tiers. The evidence table includes an `Evidence` column that renders the decoded T4 tool list for Tier 4 events and the submitted proof plus server-verified validity (`NNN ✓ VALID` / `NNN ✗ INVALID`) for Tier 5 events, interleaved with T1–T3 rows in the same format. Output includes agent fingerprints and the allowlisted request headers. A **Hit Timing** section labels every hit by comparing it with page fetches from the same client IP: **in-session** (that IP fetched the page within 30 minutes before), **delayed** (it fetched the page longer ago), or **out-of-band** (no fetch from that IP in the last 90 days — whatever read the page is not what fired the callback, e.g. a pipeline or a harvested copy). Delayed and out-of-band hits are listed individually. The labels describe the network path, not intent: an agent whose browser and fetch tool use different IPs shows as out-of-band. Page fetches (time, client IP, user-agent, path) are kept for 90 days. A **Repeat Hits** section lists every stored hit for nonces that fired more than once (up to 1,000 per nonce) with its timing label; nonces are shared by every visitor to the page, so repeat hits are usually different visitors.
 
+### Seeded canaries
+
+```sh
+honeyprompt seed add claude-md-prod --note "CLAUDE.md in api repo"   # prints https://<your domain>/r/<nonce>
+honeyprompt seed add mcp-search --format markdown                     # [reference](https://…/r/…)
+honeyprompt seed add rag-hr-docs --format env                         # INTERNAL_DOCS_URL=https://…/r/…
+honeyprompt seed list                                                 # hits, time to first hit, last hit, IPs
+```
+
+Plant the printed URL somewhere that should stay private: a system prompt, CLAUDE.md, an MCP tool description, a RAG document, `.env.example`. If anything fetches it later, the context was retained and read or acted on elsewhere, and the label tells you which placement leaked. This is the technique from the [Dragos canary-token research](https://www.dragos.com/blog/ai-supply-chain-security-canary-tokens), pointed at your own honeypot.
+
+- URLs are opaque (`/r/<16 hex>`): the label never appears in them. Every `/r/` URL returns the same small page with the visible research warning, whether or not it is a real seed.
+- The snippet is a plain link, not an instruction, so a hit means retained content was read or followed, not that a model obeyed this page. (Prompt-injection compliance is what the tiers measure.)
+- A hit records the time, client IP, user-agent and crawler classification — the same allowlisted request metadata as callbacks — in a separate table, so seeds never affect tier counts or `/stats`. Up to 1,000 hits are stored per seed; the true total keeps counting.
+- Every seed hit triggers a webhook alert (`"event": "seed_hit"`), whatever `send` is set to. The report's **Seeded Canaries** section lists each seed and its recent hits; known crawlers usually mean the seed ended up somewhere public.
+- `callback_base_url` must be reachable from wherever the seed might leak to; `seed add` warns if it is localhost. Seeds created while `serve` is running work immediately.
+- Only plant seeds in systems you own or are authorized to test.
+
+On a Docker deployment, run it inside the container: `docker compose exec honeyprompt /usr/local/bin/honeyprompt seed add <label> /landing`.
+
 ### Webhook alerts
 
 A delayed or out-of-band hit can arrive days after seeding, so `serve` and `monitor` can POST an alert for each hit. Off unless a URL is set:
@@ -354,7 +374,7 @@ Tests whether an agent that holds private data, reads untrusted content, and can
 
 ## Status
 
-Current release: **v5.4.0** — five proof tiers on served pages, tier 6 context exfiltration in `test-agent --exfil`, `serve`, `monitor`, `report`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
+Current release: **v5.5.0** — five proof tiers on served pages, tier 6 context exfiltration in `test-agent --exfil`, seeded canaries (`honeyprompt seed`), `serve`, `monitor`, `report`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
 
 ## Ethics and Safety
 

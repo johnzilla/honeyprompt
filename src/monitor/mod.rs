@@ -1101,6 +1101,13 @@ pub async fn monitor(
         let alerts = crate::webhook::Webhook::from_config_and_env(config)?
             .map(crate::webhook::spawn)
             .transpose()?;
+        let (seed_hit_tx, seed_hit_rx) = mpsc::channel::<crate::server::SeedHit>(256);
+        tokio::spawn(crate::broker::seed_hit_writer_task(
+            seed_hit_rx,
+            conn.clone(),
+            alerts.clone(),
+            crate::broker::SeedLog::Quiet,
+        ));
         tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone(), alerts));
         let (page_view_tx, page_view_rx) = mpsc::channel::<crate::server::PageView>(256);
         tokio::spawn(crate::broker::page_view_writer_task(
@@ -1117,6 +1124,7 @@ pub async fn monitor(
             trusted_proxies: crate::client_ip::TrustedProxies::parse(&config.trusted_proxies)?,
             page_view_tx: Some(page_view_tx),
             exfil_canary: None,
+            seed_hit_tx: Some(seed_hit_tx),
         });
         let app_router = crate::server::build_router(server_state, output_dir);
 

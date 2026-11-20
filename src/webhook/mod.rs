@@ -237,7 +237,7 @@ impl Webhook {
         self
     }
 
-    /// Serialize the request body for `alert` in the configured format.
+    /// Serialize the request body for a tier hit in the configured format.
     pub fn build_body(
         &self,
         alert: &HitAlert,
@@ -245,27 +245,79 @@ impl Webhook {
         suppressed: u64,
         test: bool,
     ) -> Vec<u8> {
-        let value = match self.format {
-            WebhookFormat::Json => serde_json::to_value(JsonBody {
+        self.build_alert_body(&Alert::Hit(alert.clone()), delivery_id, suppressed, test)
+    }
+
+    /// Serialize the request body for any alert in the configured format.
+    pub fn build_alert_body(
+        &self,
+        alert: &Alert,
+        delivery_id: &str,
+        suppressed: u64,
+        test: bool,
+    ) -> Vec<u8> {
+        let value = match (self.format, alert) {
+            (WebhookFormat::Json, Alert::Hit(hit)) => serde_json::to_value(JsonBody {
                 version: 1,
                 event: "hit",
                 test,
                 delivery_id,
                 deployment: &self.deployment,
-                hit: JsonHit::from(alert),
+                hit: JsonHit::from(hit),
                 suppressed,
             })
             .expect("alert body serializes"),
-            WebhookFormat::Slack => serde_json::json!({
-                "text": slack_text(&self.deployment, alert, suppressed, test),
+            (WebhookFormat::Json, Alert::Seed(s)) => serde_json::json!({
+                "version": 1,
+                "event": "seed_hit",
+                "test": test,
+                "delivery_id": delivery_id,
+                "deployment": &self.deployment,
+                "seed": {
+                    "label": &s.label,
+                    "note": &s.note,
+                    "nonce": &s.nonce,
+                    "created_at": s.created_at,
+                    "since_seeding_secs": s.received_at - s.created_at,
+                },
+                "hit": {
+                    "received_at": s.received_at,
+                    "source_ip": &s.source_ip,
+                    "user_agent": truncate(&s.user_agent),
+                    "classification": &s.classification,
+                },
+                "suppressed": suppressed,
             }),
-            WebhookFormat::Discord => serde_json::json!({
-                "content": discord_text(&self.deployment, alert, suppressed, test),
+            (WebhookFormat::Slack, a) => serde_json::json!({
+                "text": slack_text(&self.deployment, a, suppressed, test),
+            }),
+            (WebhookFormat::Discord, a) => serde_json::json!({
+                "content": discord_text(&self.deployment, a, suppressed, test),
                 "allowed_mentions": { "parse": [] },
             }),
         };
         serde_json::to_vec(&value).expect("alert body serializes")
     }
+}
+
+/// A fetch of a seeded canary URL (`/r/{nonce}`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SeedAlert {
+    pub received_at: i64,
+    pub label: String,
+    pub note: Option<String>,
+    pub nonce: String,
+    pub created_at: i64,
+    pub source_ip: String,
+    pub user_agent: String,
+    pub classification: String,
+}
+
+/// Anything the webhook can report.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Alert {
+    Hit(HitAlert),
+    Seed(SeedAlert),
 }
 
 #[derive(Serialize)]
@@ -356,38 +408,75 @@ fn discord_escape(s: &str) -> String {
     out
 }
 
-fn summary_line(deployment: &str, a: &HitAlert, suppressed: u64, test: bool) -> String {
-    let mut s = format!(
-        "{}HoneyPrompt: tier {} ({}) {} hit on {} from {}",
-        if test { "[TEST] " } else { "" },
-        a.tier,
-        crate::report::proof_level(a.tier),
-        a.timing.as_str(),
-        deployment,
-        a.source_ip,
-    );
+fn summary_line(deployment: &str, a: &Alert, suppressed: u64, test: bool) -> String {
+    let mut s = String::from(if test { "[TEST] " } else { "" });
+    match a {
+        Alert::Hit(h) => s.push_str(&format!(
+            "HoneyPrompt: tier {} ({}) {} hit on {} from {}",
+            h.tier,
+            crate::report::proof_level(h.tier),
+            h.timing.as_str(),
+            deployment,
+            h.source_ip,
+        )),
+        Alert::Seed(sd) => s.push_str(&format!(
+            "HoneyPrompt: seeded canary fetched on {} from {}, {} after seeding",
+            deployment,
+            sd.source_ip,
+            crate::report::format_duration(sd.received_at - sd.created_at),
+        )),
+    }
     if suppressed > 0 {
         s.push_str(&format!(" ({suppressed} earlier alerts suppressed)"));
     }
     s
 }
 
-fn slack_text(deployment: &str, a: &HitAlert, suppressed: u64, test: bool) -> String {
-    format!(
-        "{} | UA `{}` | {}",
-        slack_escape(&summary_line(deployment, a, suppressed, test)),
-        slack_escape(&code_safe(&a.user_agent)),
-        slack_escape(&a.classification),
-    )
+/// (user agent, classification, seed label, seed note) for the chat formats.
+fn chat_fields(a: &Alert) -> (&str, &str, Option<&str>, Option<&str>) {
+    match a {
+        Alert::Hit(h) => (&h.user_agent, &h.classification, None, None),
+        Alert::Seed(s) => (
+            &s.user_agent,
+            &s.classification,
+            Some(s.label.as_str()),
+            s.note.as_deref(),
+        ),
+    }
 }
 
-fn discord_text(deployment: &str, a: &HitAlert, suppressed: u64, test: bool) -> String {
-    format!(
-        "{} | UA `{}` | {}",
-        discord_escape(&summary_line(deployment, a, suppressed, test)),
-        code_safe(&a.user_agent),
-        discord_escape(&a.classification),
-    )
+fn slack_text(deployment: &str, a: &Alert, suppressed: u64, test: bool) -> String {
+    let (ua, class, label, note) = chat_fields(a);
+    let mut out = slack_escape(&summary_line(deployment, a, suppressed, test));
+    if let Some(l) = label {
+        out.push_str(&format!(" | seed `{}`", slack_escape(&code_safe(l))));
+    }
+    if let Some(n) = note {
+        out.push_str(&format!(" | note: {}", slack_escape(&truncate(n))));
+    }
+    out.push_str(&format!(
+        " | UA `{}` | {}",
+        slack_escape(&code_safe(ua)),
+        slack_escape(class)
+    ));
+    out
+}
+
+fn discord_text(deployment: &str, a: &Alert, suppressed: u64, test: bool) -> String {
+    let (ua, class, label, note) = chat_fields(a);
+    let mut out = discord_escape(&summary_line(deployment, a, suppressed, test));
+    if let Some(l) = label {
+        out.push_str(&format!(" | seed `{}`", code_safe(l)));
+    }
+    if let Some(n) = note {
+        out.push_str(&format!(" | note: {}", discord_escape(&truncate(n))));
+    }
+    out.push_str(&format!(
+        " | UA `{}` | {}",
+        code_safe(ua),
+        discord_escape(class)
+    ));
+    out
 }
 
 /// Hex HMAC-SHA256 over `"{timestamp}.{body}"`.
@@ -532,14 +621,25 @@ pub async fn send_test(webhook: &Webhook) -> Result<StatusCode, DeliveryError> {
 /// filtered here; a full queue drops the alert and counts it as suppressed.
 #[derive(Clone)]
 pub struct AlertSender {
-    tx: mpsc::Sender<HitAlert>,
+    tx: mpsc::Sender<Alert>,
     send: WebhookSend,
     dropped: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl AlertSender {
     pub fn offer(&self, alert: HitAlert) {
-        if wanted(self.send, alert.timing) && self.tx.try_send(alert).is_err() {
+        if wanted(self.send, alert.timing) {
+            self.push(Alert::Hit(alert));
+        }
+    }
+
+    /// Seed hits are always sent, whatever `send` is.
+    pub fn offer_seed(&self, alert: SeedAlert) {
+        self.push(Alert::Seed(alert));
+    }
+
+    fn push(&self, alert: Alert) {
+        if self.tx.try_send(alert).is_err() {
             self.dropped
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
@@ -561,7 +661,7 @@ pub fn spawn(webhook: Webhook) -> anyhow::Result<AlertSender> {
 }
 
 async fn delivery_task(
-    mut rx: mpsc::Receiver<HitAlert>,
+    mut rx: mpsc::Receiver<Alert>,
     client: reqwest::Client,
     webhook: Webhook,
     dropped: Arc<std::sync::atomic::AtomicU64>,
@@ -581,7 +681,7 @@ async fn delivery_task(
         sent_in_window += 1;
         let total_suppressed = suppressed + dropped.swap(0, std::sync::atomic::Ordering::Relaxed);
         let id = delivery_id();
-        let body = webhook.build_body(&alert, &id, total_suppressed, false);
+        let body = webhook.build_alert_body(&alert, &id, total_suppressed, false);
         match deliver(&client, &webhook, &id, &body, true).await {
             Ok(_) => suppressed = 0,
             Err(e) => {
@@ -1104,5 +1204,93 @@ mod tests {
         let second: serde_json::Value = serde_json::from_slice(&g.requests[1].1).unwrap();
         assert_eq!(second["hit"]["user_agent"], "b");
         assert_eq!(second["suppressed"], 2);
+    }
+
+    fn seed_alert(label: &str, note: Option<&str>, ua: &str) -> SeedAlert {
+        SeedAlert {
+            received_at: 1_000_000 + 12 * 86400,
+            label: label.into(),
+            note: note.map(str::to_string),
+            nonce: "3a7dd59e33438bc8".into(),
+            created_at: 1_000_000,
+            source_ip: "198.51.100.9".into(),
+            user_agent: ua.into(),
+            classification: "Unknown".into(),
+        }
+    }
+
+    #[test]
+    fn seed_json_body() {
+        let w = webhook(
+            "https://a.example.com",
+            None,
+            WebhookFormat::Json,
+            WebhookSend::Notable,
+        );
+        let a = Alert::Seed(seed_alert(
+            "claude-md-prod",
+            Some("api repo"),
+            "Harvester/3.0",
+        ));
+        let v: serde_json::Value =
+            serde_json::from_slice(&w.build_alert_body(&a, "id9", 0, false)).unwrap();
+        assert_eq!(v["event"], "seed_hit");
+        assert_eq!(v["seed"]["label"], "claude-md-prod");
+        assert_eq!(v["seed"]["note"], "api repo");
+        assert_eq!(v["seed"]["since_seeding_secs"], 12 * 86400);
+        assert_eq!(v["hit"]["source_ip"], "198.51.100.9");
+        assert_eq!(v["deployment"], "honeyprompt.sh");
+    }
+
+    #[test]
+    fn seed_chat_formats_escape_label_note_and_ua() {
+        let a = Alert::Seed(seed_alert(
+            "claude-md",
+            Some("<!channel> @everyone **x**"),
+            "<https://evil.example|x> `y`",
+        ));
+        let slack = webhook(
+            "https://a.example.com",
+            None,
+            WebhookFormat::Slack,
+            WebhookSend::All,
+        );
+        let v: serde_json::Value =
+            serde_json::from_slice(&slack.build_alert_body(&a, "id", 0, false)).unwrap();
+        let text = v["text"].as_str().unwrap();
+        assert!(!text.contains('<') && !text.contains('>'), "{text}");
+        assert!(text.contains("seed `claude-md`"), "{text}");
+        assert!(text.contains("12d 0h after seeding"), "{text}");
+
+        let discord = webhook(
+            "https://a.example.com",
+            None,
+            WebhookFormat::Discord,
+            WebhookSend::All,
+        );
+        let v: serde_json::Value =
+            serde_json::from_slice(&discord.build_alert_body(&a, "id", 0, false)).unwrap();
+        assert_eq!(v["allowed_mentions"]["parse"], serde_json::json!([]));
+        let content = v["content"].as_str().unwrap();
+        assert!(content.contains("\\@everyone \\*\\*x\\*\\*"), "{content}");
+    }
+
+    #[tokio::test]
+    async fn seed_alerts_are_sent_even_in_notable_mode() {
+        let (url, rx) = receiver(vec![200]).await;
+        let w = fast(webhook(
+            &url,
+            None,
+            WebhookFormat::Json,
+            WebhookSend::Notable,
+        ));
+        let sender = spawn(w).unwrap();
+        sender.offer(alert(HitTiming::InSession, "filtered"));
+        sender.offer_seed(seed_alert("claude-md", None, "UA"));
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let g = rx.lock().unwrap();
+        assert_eq!(g.requests.len(), 1);
+        let v: serde_json::Value = serde_json::from_slice(&g.requests[0].1).unwrap();
+        assert_eq!(v["event"], "seed_hit");
     }
 }

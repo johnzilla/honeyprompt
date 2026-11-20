@@ -83,6 +83,7 @@ async fn build_test_state(
         trusted_proxies: Default::default(),
         page_view_tx: None,
         exfil_canary: None,
+        seed_hit_tx: None,
     });
 
     (app_state, output_dir, mappings)
@@ -470,6 +471,7 @@ async fn build_t4_t5_state(
         trusted_proxies: Default::default(),
         page_view_tx: None,
         exfil_canary: None,
+        seed_hit_tx: None,
     });
 
     (app_state, output_dir, dir)
@@ -799,4 +801,66 @@ async fn test_page_fetches_are_recorded() {
     assert_eq!(paths, ["/", "/robots.txt"]);
     assert!(views.iter().all(|v| v.remote_addr == "203.0.113.7"));
     assert!(views.iter().all(|v| v.user_agent == "PageAgent/1.0"));
+}
+
+/// `/r/{nonce}` returns the same warning page for every nonce; valid-format
+/// nonces are handed to the seed writer, garbage is not, and seed fetches are
+/// not page views.
+#[tokio::test]
+async fn test_seed_route_is_uniform_and_not_a_page_view() {
+    let dir = init_and_generate();
+    let (callback_tx, mut callback_rx) = mpsc::channel(16);
+    let (state, output_dir, _mappings) = build_test_state(&dir, callback_tx).await;
+    let mut state = Arc::try_unwrap(state)
+        .ok()
+        .expect("sole owner of test state");
+    let (seed_tx, mut seed_rx) = mpsc::channel(16);
+    let (page_view_tx, mut page_view_rx) = mpsc::channel(16);
+    state.seed_hit_tx = Some(seed_tx);
+    state.page_view_tx = Some(page_view_tx);
+    let app = test_router(Arc::new(state), output_dir);
+
+    let mut bodies = Vec::new();
+    for uri in [
+        "/r/3a7dd59e33438bc8",
+        "/r/ffffffffffffffff",
+        "/r/not-a-nonce",
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(uri)
+                    .header("user-agent", "SeedFetcher/1.0")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        let body = axum::body::to_bytes(response.into_body(), 1 << 20)
+            .await
+            .unwrap();
+        bodies.push(body);
+    }
+    assert!(
+        bodies.windows(2).all(|w| w[0] == w[1]),
+        "identical responses"
+    );
+    assert!(String::from_utf8_lossy(&bodies[0]).contains("SECURITY RESEARCH CANARY"));
+
+    let mut nonces = Vec::new();
+    while let Ok(h) = seed_rx.try_recv() {
+        assert_eq!(h.user_agent, "SeedFetcher/1.0");
+        nonces.push(h.nonce);
+    }
+    assert_eq!(nonces, ["3a7dd59e33438bc8", "ffffffffffffffff"]);
+    assert!(
+        page_view_rx.try_recv().is_err(),
+        "seed fetches are not page views"
+    );
+    assert!(
+        callback_rx.try_recv().is_err(),
+        "seed fetches are not tier callbacks"
+    );
 }

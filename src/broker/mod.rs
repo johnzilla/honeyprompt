@@ -154,6 +154,83 @@ pub async fn page_view_writer_task(
     }
 }
 
+/// How the seed writer logs recorded seed hits to stdout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeedLog {
+    /// No output (the monitor's TUI owns the terminal).
+    Quiet,
+    Text,
+    Json,
+}
+
+/// Persist fetches of seeded canaries and alert on the ones that are real seeds.
+pub async fn seed_hit_writer_task(
+    mut seed_hit_rx: mpsc::Receiver<crate::server::SeedHit>,
+    conn: tokio_rusqlite::Connection,
+    alerts: Option<crate::webhook::AlertSender>,
+    log: SeedLog,
+) {
+    while let Some(hit) = seed_hit_rx.recv().await {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let h = hit.clone();
+        let result = conn
+            .call(move |c| {
+                crate::store::record_seed_hit(
+                    c,
+                    &h.nonce,
+                    now,
+                    &h.remote_addr,
+                    &h.user_agent,
+                    &h.classification,
+                )
+                .map_err(tokio_rusqlite::Error::from)
+            })
+            .await;
+        match result {
+            Ok(Some(seed)) => {
+                match log {
+                    SeedLog::Quiet => {}
+                    SeedLog::Text => println!(
+                        "{} seed={} ip={} ua=\"{}\"",
+                        now,
+                        seed.label,
+                        hit.remote_addr,
+                        hit.user_agent.chars().take(60).collect::<String>()
+                    ),
+                    SeedLog::Json => println!(
+                        "{}",
+                        serde_json::json!({
+                            "timestamp": now,
+                            "event": "seed_hit",
+                            "seed": &seed.label,
+                            "ip": &hit.remote_addr,
+                            "ua": &hit.user_agent,
+                            "classification": &hit.classification,
+                        })
+                    ),
+                }
+                if let Some(alerts) = &alerts {
+                    alerts.offer_seed(crate::webhook::SeedAlert {
+                        received_at: now,
+                        label: seed.label,
+                        note: seed.note,
+                        nonce: hit.nonce,
+                        created_at: seed.created_at,
+                        source_ip: hit.remote_addr,
+                        user_agent: hit.user_agent,
+                        classification: hit.classification,
+                    });
+                }
+            }
+            Ok(None) => {} // not a seed: nothing stored
+            Err(e) => eprintln!("warning: failed to record seed hit: {}", e),
+        }
+    }
+}
+
 /// Receive AppEvents from broadcast and print structured log lines to stdout.
 ///
 /// If `json_mode` is true, emits JSON lines (one per event).
@@ -220,7 +297,7 @@ fn build_extra_headers(
 }
 
 /// Convert AgentClass to a stable string label for storage/logging.
-fn classify_label(classification: &AgentClass) -> String {
+pub fn classify_label(classification: &AgentClass) -> String {
     match classification {
         AgentClass::KnownCrawler { provider } => format!("KnownCrawler:{}", provider),
         AgentClass::KnownAgent { provider } => format!("KnownAgent:{}", provider),
@@ -603,5 +680,82 @@ mod tests {
         assert_eq!(hit["user_agent"], "Harvester/3.0");
         assert!(hit["since_seeding_secs"].as_i64().unwrap() >= 0);
         assert_eq!(got[0]["deployment"], "honeyprompt.sh");
+    }
+
+    /// Real seeds are stored and alerted; unknown nonces are ignored.
+    #[tokio::test]
+    async fn test_seed_hit_writer_records_and_alerts() {
+        use std::sync::{Arc, Mutex};
+        let received: Arc<Mutex<Vec<serde_json::Value>>> = Arc::default();
+        let rec = received.clone();
+        let app = axum::Router::new().route(
+            "/hook",
+            axum::routing::post(move |body: axum::body::Bytes| {
+                let rec = rec.clone();
+                async move {
+                    rec.lock()
+                        .unwrap()
+                        .push(serde_json::from_slice(&body).unwrap());
+                    axum::http::StatusCode::OK
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let config = crate::config::Config {
+            webhook: crate::webhook::WebhookConfig {
+                url: Some(format!("http://127.0.0.1:{port}/hook")),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let alerts = crate::webhook::spawn(
+            crate::webhook::Webhook::from_config(&config, |_| None)
+                .unwrap()
+                .unwrap(),
+        )
+        .unwrap();
+
+        let tk_conn = tokio_rusqlite::Connection::open_in_memory().await.unwrap();
+        tk_conn
+            .call(|c| {
+                crate::store::run_migrations(c)?;
+                crate::store::insert_seed(c, "aaaaaaaaaaaaaaaa", "claude-md", Some("repo"), 1)?;
+                Ok::<_, rusqlite::Error>(())
+            })
+            .await
+            .unwrap();
+        let (tx, rx) = mpsc::channel(16);
+        tokio::spawn(seed_hit_writer_task(
+            rx,
+            tk_conn.clone(),
+            Some(alerts),
+            SeedLog::Quiet,
+        ));
+        for nonce in ["aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"] {
+            tx.send(crate::server::SeedHit {
+                nonce: nonce.into(),
+                remote_addr: "198.51.100.9".into(),
+                user_agent: "Harvester/3.0".into(),
+                classification: "Unknown".into(),
+            })
+            .await
+            .unwrap();
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+        let stored: u32 = tk_conn
+            .call(|c| {
+                c.query_row("SELECT COUNT(*) FROM seed_hits", [], |r| r.get(0))
+                    .map_err(tokio_rusqlite::Error::from)
+            })
+            .await
+            .unwrap();
+        assert_eq!(stored, 1, "only the real seed is stored");
+        let got = received.lock().unwrap();
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0]["seed"]["label"], "claude-md");
+        assert_eq!(got[0]["hit"]["user_agent"], "Harvester/3.0");
     }
 }

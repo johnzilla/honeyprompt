@@ -10,7 +10,7 @@ Single backlog for the project. Releases are numbered; nothing else is.
 
 Source: https://www.dragos.com/blog/ai-supply-chain-security-canary-tokens. They planted unique fake credentials/URLs in prompts sent to AI routers and providers; hits days or weeks later proved prompts were retained and read.
 
-- **`honeyprompt seed`.** Mint labeled canary URLs for system prompts, CLAUDE.md, MCP tool descriptions, RAG docs, `.env.example`. Report which placement/route leaked.
+- All four ideas shipped (5.1.0–5.5.0): per-hit storage + timing labels, webhook alerts, tier 6 exfiltration, `honeyprompt seed`.
 - Skip: real AWS keys (use Thinkst Canarytokens), fake SSH/git/DB services. Reconsider DNS canaries later.
 
 ## Parked: validation experiment
@@ -25,6 +25,7 @@ Bigger expansion ideas (federation, hosted benchmark site, leaderboard) only mak
 
 ## Shipped
 
+- 5.5.0 — seeded canaries: `honeyprompt seed add <label> [--note] [--format url|markdown|env]` and `seed list`; opaque `/r/{nonce}` URLs serving a uniform warning page; hits stored in `seeds`/`seed_hits` (cap 1,000 per seed, true total kept), separate from tier data; `seed_hit` webhook alerts (always sent); report gains Seeded Canaries.
 - 5.4.0 — tier 6, context exfiltration (`test-agent --exfil`, `--canary-file`): per-run fake `HPCANARY-` token, `/cb/v6/{nonce}/{value}` stores only match/no-match + length, scorecard out of 6, exit 1 on leak. Page asks only for the marker, never for secrets in general; `serve`/`generate` refuse tier 6. Fixed: `test-agent` only generated tiers 1–3, so T4/T5 were never actually tested.
 - 5.3.0 — webhook alerts: HMAC-SHA256-signed JSON (RustCrypto `hmac`), Slack and Discord formats with escaping, `send = notable | all`, rate limit 30/min with `suppressed` count, retries on 5xx/429, no redirects, secrets via `HONEYPROMPT_WEBHOOK_*` env vars and never logged; `honeyprompt webhook-test`. reqwest over rustls (`ring`, bundled webpki roots) — no OpenSSL or aws-lc.
 - 5.2.0 — page fetches recorded (`page_views`, 90-day retention); every hit labelled in-session / delayed / out-of-band against that IP's last page fetch; report gains a Hit Timing section. Repeat Hits drops the same-IP/UA-as-first columns (nonces are shared by all visitors, so they compared different people).

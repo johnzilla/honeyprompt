@@ -36,6 +36,44 @@ pub enum Commands {
     TestAgent(TestAgentArgs),
     /// Send one synthetic alert to the configured webhook and show the response
     WebhookTest(WebhookTestArgs),
+    /// Create and list seeded canary URLs to plant in private context
+    Seed(SeedArgs),
+}
+
+#[derive(Parser)]
+pub struct SeedArgs {
+    #[command(subcommand)]
+    pub command: SeedCommand,
+}
+
+#[derive(Subcommand)]
+pub enum SeedCommand {
+    /// Create a seed and print the canary to plant (stdout)
+    Add(SeedAddArgs),
+    /// List seeds with their hit counts
+    List(SeedListArgs),
+}
+
+#[derive(Parser)]
+pub struct SeedAddArgs {
+    /// Unique label naming the placement (a-z, 0-9, '.', '_', '-'), e.g. claude-md-prod
+    pub label: String,
+    /// Project directory containing honeyprompt.toml
+    #[arg(default_value = ".")]
+    pub path: PathBuf,
+    /// Free-text note about where the seed is planted
+    #[arg(long)]
+    pub note: Option<String>,
+    /// Output format
+    #[arg(long, value_enum, default_value_t = crate::seed::SnippetFormat::Url)]
+    pub format: crate::seed::SnippetFormat,
+}
+
+#[derive(Parser)]
+pub struct SeedListArgs {
+    /// Project directory containing honeyprompt.toml
+    #[arg(default_value = ".")]
+    pub path: PathBuf,
 }
 
 #[derive(Parser)]

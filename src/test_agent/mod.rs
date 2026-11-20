@@ -321,6 +321,7 @@ async fn run_async(
         trusted_proxies: Default::default(),
         page_view_tx: None,
         exfil_canary: canary.clone(),
+        seed_hit_tx: None,
     };
     let app = build_router(Arc::new(app_state), output_dir);
 

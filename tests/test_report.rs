@@ -712,3 +712,49 @@ fn test_report_repeat_hits_empty() {
     let md = report::generate_report(&conn).unwrap();
     assert!(md.contains("No nonce has fired more than once."));
 }
+
+/// Seeds and their hits appear in the Seeded Canaries section.
+#[test]
+fn test_report_seeded_canaries() {
+    let (_tmp, conn) = temp_conn();
+    let md = report::generate_report(&conn).unwrap();
+    assert!(md.contains("## Seeded Canaries"));
+    assert!(md.contains("No seeds."));
+
+    store::insert_seed(
+        &conn,
+        "aaaaaaaaaaaaaaaa",
+        "claude-md",
+        Some("api | repo"),
+        1_700_000_000,
+    )
+    .unwrap();
+    store::insert_seed(&conn, "bbbbbbbbbbbbbbbb", "unused", None, 1_700_000_000).unwrap();
+    store::record_seed_hit(
+        &conn,
+        "aaaaaaaaaaaaaaaa",
+        1_700_000_000 + 12 * 86400,
+        "198.51.100.9",
+        "Harvester/3.0",
+        "Unknown",
+    )
+    .unwrap();
+    let md = report::generate_report(&conn).unwrap();
+    let row = md
+        .lines()
+        .find(|l| l.starts_with("| claude-md |"))
+        .expect("seed row");
+    assert!(row.contains(r"api \| repo"), "note escaped: {row}");
+    assert!(row.contains("| 1 | 12d 0h |"), "{row}");
+    let hit = md
+        .lines()
+        .find(|l| l.contains("| claude-md |") && l.contains("Harvester/3.0"))
+        .expect("hit row");
+    assert!(
+        hit.contains("198.51.100.9") && hit.contains("12d 0h"),
+        "{hit}"
+    );
+    assert!(md
+        .lines()
+        .any(|l| l.starts_with("| unused |") && l.contains("| 0 | — |")));
+}

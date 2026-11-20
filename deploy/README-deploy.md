@@ -71,6 +71,16 @@ docker compose logs honeyprompt | grep webhook    # "webhook: alerts.example.com
 
 `format` and `send` (see the main README) go in `honeyprompt.toml` inside the volume, or keep the defaults (`json`, `notable`).
 
+## Seeded canaries
+
+```bash
+cd /opt/honeyprompt
+docker compose exec honeyprompt /usr/local/bin/honeyprompt seed add claude-md-prod /landing --note "CLAUDE.md in api repo"
+docker compose exec honeyprompt /usr/local/bin/honeyprompt seed list /landing
+```
+
+The first command prints the URL to plant. No restart is needed.
+
 ## Data
 
 - Config, generated site, nonce map and SQLite DB persist in the `hp-data` Docker volume — survives image updates. To rotate all nonces, stop the stack, `docker volume rm honeyprompt_hp-data`, and start it again
