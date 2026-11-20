@@ -25,8 +25,6 @@ Bigger expansion ideas (federation, hosted benchmark site, leaderboard) only mak
 
 ## Small stuff
 
-- **Unused dependency.** `axum-client-ip` is in Cargo.toml but nothing uses it; remove it.
-
 - **Disclosure email.** security.txt uses the GitHub Security Advisories URL as contact. Set up security@honeyprompt.dev (forwarding service) and update it.
 
 ## Shipped
