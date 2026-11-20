@@ -10,7 +10,6 @@ Single backlog for the project. Releases are numbered; nothing else is.
 
 Source: https://www.dragos.com/blog/ai-supply-chain-security-canary-tokens. They planted unique fake credentials/URLs in prompts sent to AI routers and providers; hits days or weeks later proved prompts were retained and read.
 
-- **Record every hit.** The store upserts on nonce, so replays keep only the first IP/UA. For leak detection the later hits *are* the evidence. Add a per-hit table and "time since seeding" in reports. Prerequisite for the rest.
 - **Exfiltration test tier.** Plant a HoneyPrompt-minted fake token in the agent's private context; the honeypot page asks the agent to include it in a callback. Proves private data + untrusted content + exfil channel end to end, with synthetic data only. Fits `test-agent` as a CI gate.
 - **`honeyprompt seed`.** Mint labeled canary URLs for system prompts, CLAUDE.md, MCP tool descriptions, RAG docs, `.env.example`. Report which placement/route leaked.
 - **Obeyed-now vs harvested-later.** Classify callbacks as in-session compliance vs delayed out-of-band fetches (different network, days later).
@@ -29,6 +28,7 @@ Bigger expansion ideas (federation, hosted benchmark site, leaderboard) only mak
 
 ## Shipped
 
+- 5.1.0 — every callback stored in a new `hits` table (capped at 1,000 per nonce; `fire_count` keeps the true total); report gains a Repeat Hits section with time since seeding / since first hit and same-IP/UA flags. First step of the context-canary work.
 - 5.0.2 — real client IP behind a reverse proxy: `trusted_proxies` config / `--trusted-proxies` flag; `X-Forwarded-For` is honoured only from trusted peers, read right to left. Deploy compose files trust the private Docker ranges.
 
 - 5.0.1 (security) — nonce map moved to `.honeyprompt/` and no longer served or committed; generated sites untracked and created by `serve` on first start; header allowlist (credentials never stored); per-deployment salted session IDs; request timeout + body limit; `serve <path> --domain` creates a persistent project (Docker/systemd templates actually persist now); `test-agent` now loads T5 formulas, so Tier 5 hits are detected.

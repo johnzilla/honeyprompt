@@ -620,3 +620,67 @@ fn test_report_full_5tier_markdown() {
         md
     );
 }
+
+/// The report lists every hit for nonces that fired more than once, with
+/// time since seeding and a flag for hits from a new IP.
+#[test]
+fn test_report_repeat_hits_section() {
+    let (_tmp, conn) = temp_conn();
+    conn.execute(
+        "INSERT INTO nonce_map (nonce, tier, payload_id, embedding_loc, generated_at)
+         VALUES ('abcdef0123456789', 1, 't1-html-comment', 'html_comment', '1700000000')",
+        [],
+    )
+    .unwrap();
+    for (ip, ua) in [("1.1.1.1", "AgentA/1.0"), ("9.9.9.9", "Harvester/3.0")] {
+        store::insert_callback_event(
+            &conn,
+            "abcdef0123456789",
+            1,
+            "t1-html-comment",
+            "html_comment",
+            "sess",
+            ip,
+            ua,
+            r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+    }
+    // Pretend the second hit came three days after seeding.
+    conn.execute(
+        "UPDATE hits SET received_at = 1700000000 + 3*86400 WHERE remote_addr = '9.9.9.9'",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "UPDATE hits SET received_at = 1700000060 WHERE remote_addr = '1.1.1.1'",
+        [],
+    )
+    .unwrap();
+
+    let md = report::generate_report(&conn).unwrap();
+    assert!(md.contains("## Repeat Hits"), "section heading missing");
+    let row = md
+        .lines()
+        .find(|l| l.contains("9.9.9.9") && l.contains("Harvester/3.0"))
+        .expect("second hit row missing");
+    assert!(row.contains("3d 0h"), "since-seeding missing: {row}");
+    assert!(row.contains("2d 23h"), "since-first-hit missing: {row}");
+    assert!(row.contains("**no**"), "new IP must be flagged: {row}");
+    let first = md
+        .lines()
+        .find(|l| l.contains("1.1.1.1") && l.contains("| first |"))
+        .expect("first hit row missing");
+    assert!(first.contains("| 1m |"), "first hit since seeding: {first}");
+}
+
+/// With no repeated nonces, the section says so instead of rendering a table.
+#[test]
+fn test_report_repeat_hits_empty() {
+    let (_tmp, conn) = temp_conn();
+    let md = report::generate_report(&conn).unwrap();
+    assert!(md.contains("No nonce has fired more than once."));
+}

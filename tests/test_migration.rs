@@ -92,14 +92,19 @@ fn test_v4_db_opens_unchanged() {
         );
     }
 
-    // user_version must be 1.
+    // user_version must be at the latest schema (2 = hits table).
     let version: u32 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(
-        version, 1,
-        "STORE-03: user_version must be 1 after migrating v4.0 DB"
-    );
+    assert_eq!(version, 2, "user_version must be 2 after migrating v4.0 DB");
+    let hits_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='hits'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(hits_exists, 1, "hits table must exist after migration");
 
     // Existing T1-T3 rows must read back with original field values, with the
     // three new columns all NULL (additive migration — zero-touch on existing rows).
@@ -181,5 +186,5 @@ fn test_v4_db_migration_idempotent_across_reopen() {
     let version: u32 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 1, "user_version stable across reopen");
+    assert_eq!(version, 2, "user_version stable across reopen");
 }

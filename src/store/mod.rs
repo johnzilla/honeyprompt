@@ -73,10 +73,41 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
             ",
         )?;
     }
+    // v2: one row per callback. `events` keeps one summary row per nonce; `hits`
+    // keeps every individual hit so later fetches (a different network, days
+    // after seeding) are preserved as evidence. Rows are never updated.
+    if version < 2 {
+        conn.execute_batch(
+            "
+            CREATE TABLE IF NOT EXISTS hits (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                nonce           TEXT NOT NULL,
+                tier            INTEGER NOT NULL,
+                received_at     INTEGER NOT NULL,
+                remote_addr     TEXT,
+                session_id      TEXT,
+                user_agent      TEXT,
+                extra_headers   TEXT,
+                t4_capability   TEXT,
+                t5_proof        TEXT,
+                t5_proof_valid  INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_hits_nonce ON hits(nonce);
+            PRAGMA user_version = 2;
+            ",
+        )?;
+    }
     Ok(())
 }
 
-/// Insert or update a callback event in the events table using upsert (replay detection).
+/// Most hits stored per nonce. `events.fire_count` keeps counting past this, so
+/// the true total is still visible; the cap only bounds disk use when one URL
+/// is hammered.
+pub const MAX_HITS_PER_NONCE: u32 = 1000;
+
+/// Record a callback: upsert the per-nonce summary row in `events` (replay
+/// detection) and append a row to `hits` (up to `MAX_HITS_PER_NONCE` per nonce),
+/// in one transaction.
 ///
 /// SRV-07: No body parameter — metadata-only mode enforced by API design.
 ///
@@ -106,7 +137,8 @@ pub fn insert_callback_event(
     t5_proof_valid: Option<bool>,
 ) -> rusqlite::Result<(u32, bool)> {
     let now = chrono_now();
-    conn.execute(
+    let tx = conn.unchecked_transaction()?;
+    tx.execute(
         "INSERT INTO events (
              nonce, tier, payload_id, embedding_loc,
              first_seen_at, last_seen_at, fire_count, is_replay,
@@ -134,11 +166,34 @@ pub fn insert_callback_event(
         ],
     )?;
 
-    let (fire_count, is_replay_int): (u32, i64) = conn.query_row(
+    tx.execute(
+        "INSERT INTO hits (
+             nonce, tier, received_at, remote_addr, session_id, user_agent,
+             extra_headers, t4_capability, t5_proof, t5_proof_valid
+         )
+         SELECT ?1, ?2, CAST(?3 AS INTEGER), ?4, ?5, ?6, ?7, ?8, ?9, ?10
+         WHERE (SELECT COUNT(*) FROM hits WHERE nonce = ?1) < ?11",
+        params![
+            nonce,
+            tier,
+            now,
+            remote_addr,
+            session_id,
+            user_agent,
+            extra_headers,
+            t4_capability,
+            t5_proof,
+            t5_proof_valid,
+            MAX_HITS_PER_NONCE,
+        ],
+    )?;
+
+    let (fire_count, is_replay_int): (u32, i64) = tx.query_row(
         "SELECT fire_count, is_replay FROM events WHERE nonce = ?1",
         params![nonce],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
+    tx.commit()?;
 
     Ok((fire_count, is_replay_int != 0))
 }
@@ -361,6 +416,71 @@ pub fn query_report_sessions(conn: &Connection) -> rusqlite::Result<Vec<ReportSe
         .collect::<rusqlite::Result<Vec<_>>>()?;
 
     Ok(sessions)
+}
+
+/// One stored hit on a nonce that fired more than once, with context for
+/// spotting delayed or out-of-band fetches.
+pub struct RepeatHit {
+    pub nonce: String,
+    pub tier: u8,
+    /// 1-based position of this hit among the nonce's stored hits.
+    pub hit_number: u32,
+    pub received_at: i64,
+    /// When the page carrying this nonce was generated (None if unknown).
+    pub seeded_at: Option<i64>,
+    pub first_received_at: i64,
+    pub remote_addr: String,
+    pub user_agent: String,
+    pub classification: String,
+    pub same_ip_as_first: bool,
+    pub same_ua_as_first: bool,
+    /// Hits stored for this nonce (capped at MAX_HITS_PER_NONCE).
+    pub stored_hits: u32,
+    /// Total fires recorded in `events` (not capped).
+    pub total_fires: u32,
+}
+
+/// Every stored hit for nonces with more than one hit, ordered by nonce then time.
+pub fn query_repeat_hits(conn: &Connection) -> rusqlite::Result<Vec<RepeatHit>> {
+    let mut stmt = conn.prepare(
+        "SELECT h.nonce, h.tier, h.received_at, h.remote_addr, h.user_agent, h.extra_headers,
+                CAST(n.generated_at AS INTEGER),
+                f.received_at, f.remote_addr, f.user_agent,
+                g.stored, COALESCE(e.fire_count, g.stored),
+                (SELECT COUNT(*) FROM hits x WHERE x.nonce = h.nonce AND x.id <= h.id)
+         FROM hits h
+         JOIN (SELECT nonce, MIN(id) AS first_id, COUNT(*) AS stored
+               FROM hits GROUP BY nonce HAVING COUNT(*) > 1) g ON g.nonce = h.nonce
+         JOIN hits f ON f.id = g.first_id
+         LEFT JOIN nonce_map n ON n.nonce = h.nonce
+         LEFT JOIN events e ON e.nonce = h.nonce
+         ORDER BY f.received_at DESC, h.nonce, h.id",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            let remote_addr: String = row.get::<_, Option<String>>(3)?.unwrap_or_default();
+            let user_agent: String = row.get::<_, Option<String>>(4)?.unwrap_or_default();
+            let extra_headers: Option<String> = row.get(5)?;
+            let first_ip: String = row.get::<_, Option<String>>(8)?.unwrap_or_default();
+            let first_ua: String = row.get::<_, Option<String>>(9)?.unwrap_or_default();
+            Ok(RepeatHit {
+                nonce: row.get(0)?,
+                tier: row.get(1)?,
+                received_at: row.get(2)?,
+                seeded_at: row.get(6)?,
+                first_received_at: row.get(7)?,
+                same_ip_as_first: remote_addr == first_ip,
+                same_ua_as_first: user_agent == first_ua,
+                remote_addr,
+                user_agent,
+                classification: parse_classification(extra_headers.as_deref()),
+                stored_hits: row.get(10)?,
+                total_fires: row.get(11)?,
+                hit_number: row.get(12)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
 }
 
 /// Parse the classification string from the extra_headers JSON blob.
@@ -961,26 +1081,23 @@ mod tests {
         run_migrations(&conn).expect("first migration must succeed");
         run_migrations(&conn)
             .expect("second migration must be a no-op (D-13-17 idempotency via user_version gate)");
-        // Confirm user_version is still 1 (not 2 or higher)
+        // Confirm user_version is still at the latest schema
         let version: u32 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(
-            version, 1,
-            "user_version must remain 1 after multiple run_migrations calls"
+            version, 2,
+            "user_version must remain 2 after multiple run_migrations calls"
         );
     }
 
     #[test]
-    fn test_fresh_db_ends_at_user_version_1() {
+    fn test_fresh_db_ends_at_latest_user_version() {
         let conn = in_memory_conn();
         let version: u32 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(
-            version, 1,
-            "fresh DB must end at user_version=1 after Phase 13 migrations"
-        );
+        assert_eq!(version, 2, "fresh DB must end at user_version=2");
     }
 
     // --- Phase 13 STORE-04 first-write-wins replay tests (D-13-19 / RESEARCH Risk 6) ---
@@ -1086,5 +1203,106 @@ mod tests {
             stored_valid, 1,
             "D-13-19: first-write-wins for t5_proof_valid"
         );
+    }
+
+    // --- hits table (every callback stored) ---
+
+    fn fire(conn: &Connection, nonce: &str, ip: &str, ua: &str) {
+        insert_callback_event(
+            conn,
+            nonce,
+            1,
+            "t1-html",
+            "html_comment",
+            "sess",
+            ip,
+            ua,
+            r#"{"classification":"Unknown","headers":{}}"#,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+    }
+
+    fn hit_count(conn: &Connection, nonce: &str) -> u32 {
+        conn.query_row(
+            "SELECT COUNT(*) FROM hits WHERE nonce = ?1",
+            params![nonce],
+            |r| r.get(0),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_every_hit_gets_its_own_row() {
+        let conn = in_memory_conn();
+        insert_nonce(&conn, "nonce001", 1, "t1-html", "html_comment").unwrap();
+        fire(&conn, "nonce001", "1.1.1.1", "AgentA/1.0");
+        fire(&conn, "nonce001", "2.2.2.2", "ScraperB/2.0");
+        fire(&conn, "nonce001", "2.2.2.2", "ScraperB/2.0");
+
+        assert_eq!(hit_count(&conn, "nonce001"), 3);
+        let ips: Vec<String> = conn
+            .prepare("SELECT remote_addr FROM hits WHERE nonce = 'nonce001' ORDER BY id")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        assert_eq!(ips, ["1.1.1.1", "2.2.2.2", "2.2.2.2"]);
+        // The summary row still keeps the first fingerprint and counts every fire.
+        let (fire_count, ip): (u32, String) = conn
+            .query_row(
+                "SELECT fire_count, remote_addr FROM events WHERE nonce = 'nonce001'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((fire_count, ip.as_str()), (3, "1.1.1.1"));
+    }
+
+    #[test]
+    fn test_hits_capped_per_nonce_but_fire_count_continues() {
+        let conn = in_memory_conn();
+        insert_nonce(&conn, "nonce001", 1, "t1-html", "html_comment").unwrap();
+        for _ in 0..(MAX_HITS_PER_NONCE + 5) {
+            fire(&conn, "nonce001", "1.1.1.1", "AgentA/1.0");
+        }
+        fire(&conn, "nonce002", "1.1.1.1", "AgentA/1.0");
+        assert_eq!(hit_count(&conn, "nonce001"), MAX_HITS_PER_NONCE);
+        assert_eq!(hit_count(&conn, "nonce002"), 1, "cap is per nonce");
+        let fires: u32 = conn
+            .query_row(
+                "SELECT fire_count FROM events WHERE nonce = 'nonce001'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(fires, MAX_HITS_PER_NONCE + 5);
+    }
+
+    #[test]
+    fn test_query_repeat_hits() {
+        let conn = in_memory_conn();
+        insert_nonce(&conn, "nonce001", 1, "t1-html", "html_comment").unwrap();
+        insert_nonce(&conn, "nonce002", 1, "t1-html", "html_comment").unwrap();
+        fire(&conn, "nonce001", "1.1.1.1", "AgentA/1.0");
+        fire(&conn, "nonce001", "2.2.2.2", "AgentA/1.0");
+        fire(&conn, "nonce002", "3.3.3.3", "Once/1.0"); // single hit: excluded
+
+        let hits = query_repeat_hits(&conn).unwrap();
+        assert_eq!(hits.len(), 2, "only the nonce with >1 hit is listed");
+        assert!(hits.iter().all(|h| h.nonce == "nonce001"));
+        assert_eq!(hits[0].hit_number, 1);
+        assert!(hits[0].same_ip_as_first && hits[0].same_ua_as_first);
+        assert_eq!(hits[1].hit_number, 2);
+        assert!(!hits[1].same_ip_as_first, "different IP must be flagged");
+        assert!(hits[1].same_ua_as_first);
+        assert!(
+            hits[1].seeded_at.is_some(),
+            "seeded_at comes from nonce_map"
+        );
+        assert_eq!((hits[1].stored_hits, hits[1].total_fires), (2, 2));
     }
 }
