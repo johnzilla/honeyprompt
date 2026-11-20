@@ -981,6 +981,7 @@ async fn run_loop_attach(
                             received_at: first_seen_at,
                         };
                         let ev = AppEvent {
+                            exfil: None,
                             nonce,
                             tier,
                             payload_id,
@@ -1115,6 +1116,7 @@ pub async fn monitor(
             crawler_catalog,
             trusted_proxies: crate::client_ip::TrustedProxies::parse(&config.trusted_proxies)?,
             page_view_tx: Some(page_view_tx),
+            exfil_canary: None,
         });
         let app_router = crate::server::build_router(server_state, output_dir);
 
@@ -1176,6 +1178,7 @@ mod tests {
     ) -> AppEvent {
         let source_ip: IpAddr = ip.parse().unwrap();
         AppEvent {
+            exfil: None,
             nonce: "nonce123".to_string(),
             tier,
             payload_id: format!("t{}-test", tier),

@@ -18,6 +18,7 @@ pub async fn broker_task(
             &raw.fingerprint.user_agent,
         );
         let app_event = AppEvent {
+            exfil: raw.exfil,
             nonce: raw.nonce,
             tier: raw.tier,
             payload_id: raw.payload_id,
@@ -71,6 +72,7 @@ pub async fn db_writer_task(
                 let t4_capability = event.t4_capability.clone();
                 let t5_proof = event.t5_proof.clone();
                 let t5_proof_valid = event.t5_proof_valid;
+                let exfil = event.exfil;
                 let result = conn
                     .call(move |conn| {
                         crate::store::insert_callback_event_detailed(
@@ -86,6 +88,7 @@ pub async fn db_writer_task(
                             t4_capability.as_deref(),
                             t5_proof.as_deref(),
                             t5_proof_valid,
+                            exfil,
                         )
                         .map_err(tokio_rusqlite::Error::from)
                     })
@@ -243,6 +246,7 @@ mod tests {
             received_at: 1000u64,
         };
         RawCallbackEvent {
+            exfil: None,
             nonce: nonce.to_string(),
             tier,
             payload_id: format!("t{}-html", tier),
@@ -309,6 +313,7 @@ mod tests {
             received_at: 1000u64,
         };
         let raw = RawCallbackEvent {
+            exfil: None,
             nonce: "aaaaaaaaaaaaaaaa".to_string(),
             tier: 4,
             payload_id: "t4-tools-meta".to_string(),
@@ -356,6 +361,7 @@ mod tests {
             received_at: 1000u64,
         };
         let raw = RawCallbackEvent {
+            exfil: None,
             nonce: "bbbbbbbbbbbbbbbb".to_string(),
             tier: 5,
             payload_id: "t5-semantic-prose".to_string(),
@@ -438,6 +444,7 @@ mod tests {
         // Send an AppEvent directly on broadcast
         let ip: IpAddr = "2.3.4.5".parse().unwrap();
         let app_event = AppEvent {
+            exfil: None,
             nonce: "dbwrite01".to_string(),
             tier: 1,
             payload_id: "t1-html".to_string(),
@@ -488,6 +495,7 @@ mod tests {
 
         let ip: IpAddr = "3.4.5.6".parse().unwrap();
         let app_event = AppEvent {
+            exfil: None,
             nonce: "logtest01".to_string(),
             tier: 2,
             payload_id: "t2-cond".to_string(),
@@ -562,6 +570,7 @@ mod tests {
         tokio::spawn(db_writer_task(event_rx, tk_conn.clone(), Some(alerts)));
 
         let event = AppEvent {
+            exfil: None,
             nonce: "hook0001".to_string(),
             tier: 2,
             payload_id: "t2-x".to_string(),

@@ -82,6 +82,7 @@ async fn build_test_state(
         crawler_catalog,
         trusted_proxies: Default::default(),
         page_view_tx: None,
+        exfil_canary: None,
     });
 
     (app_state, output_dir, mappings)
@@ -468,6 +469,7 @@ async fn build_t4_t5_state(
         crawler_catalog,
         trusted_proxies: Default::default(),
         page_view_tx: None,
+        exfil_canary: None,
     });
 
     (app_state, output_dir, dir)

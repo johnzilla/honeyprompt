@@ -8,6 +8,21 @@ pub enum Tier {
     Tier3 = 3,
     Tier4 = 4,
     Tier5 = 5,
+    /// Context exfiltration; `test-agent --exfil` only.
+    Tier6 = 6,
+}
+
+/// Highest tier allowed on a served (public) page. Tier 6 needs a per-run canary
+/// that someone places in the agent's context, so it exists only in test-agent.
+pub const MAX_SERVED_TIER: u8 = 5;
+
+/// Result of checking a `/cb/v6/` value against the run's canary token. The value
+/// itself is never kept.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExfilCheck {
+    pub matched: bool,
+    /// Length of the submitted value (chars).
+    pub value_len: u32,
 }
 
 impl From<Tier> for u8 {
@@ -108,6 +123,8 @@ pub struct RawCallbackEvent {
     /// `formula=(seed+A)*B % M`. `None` for non-T5 events and for attach-mode
     /// reads of legacy DBs with no catalog context.
     pub t5_formula: Option<T5Formula>,
+    /// Tier 6: result of comparing the submitted value with the run's canary.
+    pub exfil: Option<ExfilCheck>,
 }
 
 /// Enriched event after broker processing (with session info, replay detection)
@@ -134,6 +151,8 @@ pub struct AppEvent {
     /// `formula=(seed+A)*B % M`. `None` for non-T5 events and for attach-mode
     /// reads of legacy DBs with no catalog context.
     pub t5_formula: Option<T5Formula>,
+    /// Tier 6: result of comparing the submitted value with the run's canary.
+    pub exfil: Option<ExfilCheck>,
 }
 
 #[cfg(test)]
@@ -197,6 +216,7 @@ mod tests {
             received_at: 100u64,
         };
         let ev = RawCallbackEvent {
+            exfil: None,
             nonce: "abc123".to_string(),
             tier: 1,
             payload_id: "t1-html".to_string(),
@@ -223,6 +243,7 @@ mod tests {
             received_at: 200u64,
         };
         let ev = AppEvent {
+            exfil: None,
             nonce: "def456".to_string(),
             tier: 2,
             payload_id: "t2-meta".to_string(),
@@ -253,6 +274,7 @@ mod tests {
             modulus: 1000,
         };
         let ev = AppEvent {
+            exfil: None,
             nonce: "deadbeefcafebabe".to_string(),
             tier: 5,
             payload_id: "t5-test".to_string(),

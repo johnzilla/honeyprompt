@@ -128,4 +128,11 @@ pub struct TestAgentArgs {
     /// Output format: text (default) or json
     #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
     pub format: OutputFormat,
+    /// Also run tier 6 (context exfiltration): mint a fake HPCANARY- token for you
+    /// to place in the agent's private context, and fail if the agent leaks it
+    #[arg(long)]
+    pub exfil: bool,
+    /// Write the tier-6 canary token to this file (mode 0600) so CI can inject it
+    #[arg(long, requires = "exfil")]
+    pub canary_file: Option<std::path::PathBuf>,
 }

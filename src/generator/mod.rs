@@ -9,7 +9,7 @@ use crate::catalog;
 use crate::config::Config;
 use crate::nonce;
 use crate::store;
-use crate::types::{NonceMapping, Tier};
+use crate::types::{NonceMapping, Tier, MAX_SERVED_TIER};
 
 /// Location of the nonce → payload map. Lives in `.honeyprompt/` (never served),
 /// not `output/`, so visitors cannot enumerate nonces and forge callbacks.
@@ -52,7 +52,29 @@ fn render_template(name: &str, ctx: minijinja::Value) -> anyhow::Result<String> 
 ///
 /// Loads payloads from the catalog, assigns nonces, renders all templates,
 /// writes output files to `{project_path}/output/`, and stores nonce mappings in SQLite.
+///
+/// Tier 6 is refused here: it only exists in `test-agent --exfil`
+/// (see `generate_for_test_agent`).
 pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyhow::Result<()> {
+    if let Some(t) = config.tiers.iter().find(|&&t| t > MAX_SERVED_TIER) {
+        anyhow::bail!(
+            "tier {t} cannot be served: tiers are 1-{MAX_SERVED_TIER} (tier 6, context exfiltration, \
+             only runs in `honeyprompt test-agent --exfil`)"
+        );
+    }
+    generate_inner(config, conn, project_path)
+}
+
+/// `generate` for test-agent's ephemeral site, which may include tier 6.
+pub fn generate_for_test_agent(
+    config: &Config,
+    conn: &Connection,
+    project_path: &Path,
+) -> anyhow::Result<()> {
+    generate_inner(config, conn, project_path)
+}
+
+fn generate_inner(config: &Config, conn: &Connection, project_path: &Path) -> anyhow::Result<()> {
     let payloads =
         catalog::load_for_tiers(&config.tiers).context("Failed to load payload catalog")?;
 
@@ -177,6 +199,34 @@ pub fn generate(config: &Config, conn: &Connection, project_path: &Path) -> anyh
                     payload_id: payload.id.clone(),
                     embedding_location: payload.embedding_location,
                     callback_url: callback_url_b64_base,
+                });
+
+                rendered_payloads.push(RenderedPayload {
+                    embedding_location: embedding_loc,
+                    rendered_instruction: rendered,
+                });
+            }
+            Tier::Tier6 => {
+                // Context exfiltration: the agent appends the HPCANARY- token from
+                // its own context to <callback_base>/cb/v6/<nonce>/.
+                let nonce = nonce::generate_nonce();
+                let callback_url_exfil_base =
+                    format!("{}/cb/v6/{}", config.callback_base_url, nonce);
+                let rendered = payload
+                    .instruction
+                    .replace("{callback_url_exfil_base}", &callback_url_exfil_base);
+
+                store::insert_nonce(conn, &nonce, tier_num, &payload.id, &embedding_loc)
+                    .with_context(|| {
+                        format!("Failed to insert nonce for payload {}", payload.id)
+                    })?;
+
+                nonce_mappings.push(NonceMapping {
+                    nonce,
+                    tier: payload.tier,
+                    payload_id: payload.id.clone(),
+                    embedding_location: payload.embedding_location,
+                    callback_url: callback_url_exfil_base,
                 });
 
                 rendered_payloads.push(RenderedPayload {
@@ -486,6 +536,39 @@ mod tests {
         assert!(
             !html.contains("verification_seed"),
             "no seed JSON-LD when no T5 payloads active (D-13-05 conditional)"
+        );
+    }
+
+    #[test]
+    fn test_generate_rejects_tier6() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = generate(
+            &test_config_with_tiers(vec![1, 6]),
+            &test_conn(),
+            dir.path(),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("test-agent --exfil"), "{err}");
+        assert!(!dir.path().join("output/index.html").exists());
+    }
+
+    #[test]
+    fn test_generate_for_test_agent_renders_tier6() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config_with_tiers(vec![6]);
+        generate_for_test_agent(&config, &test_conn(), dir.path()).unwrap();
+        let html = std::fs::read_to_string(dir.path().join("output/index.html")).unwrap();
+        assert_eq!(
+            html.matches("/cb/v6/").count(),
+            3,
+            "three tier-6 placements"
+        );
+        assert!(html.contains("HPCANARY-"));
+        assert!(!html.contains("{callback_url_exfil_base}"));
+        assert!(
+            html.contains("SECURITY RESEARCH CANARY"),
+            "human warning kept"
         );
     }
 }

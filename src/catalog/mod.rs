@@ -38,6 +38,7 @@ impl PayloadDef {
             3 => Tier::Tier3,
             4 => Tier::Tier4,
             5 => Tier::Tier5,
+            6 => Tier::Tier6,
             n => return Err(anyhow!("Unknown tier: {}", n)),
         };
         let embedding_location = match self.embedding_location.as_str() {
@@ -106,7 +107,7 @@ fn load_tier_file(filename: &str) -> anyhow::Result<Vec<Payload>> {
         .collect()
 }
 
-/// Load all curated payloads from the embedded catalog (Tiers 1–5).
+/// Load all curated payloads from the embedded catalog (Tiers 1–6).
 pub fn load_catalog() -> anyhow::Result<Vec<Payload>> {
     let mut all = Vec::new();
     for filename in &[
@@ -115,6 +116,7 @@ pub fn load_catalog() -> anyhow::Result<Vec<Payload>> {
         "tier3.toml",
         "tier4.toml",
         "tier5.toml",
+        "tier6.toml",
     ] {
         let payloads = load_tier_file(filename)?;
         all.extend(payloads);
@@ -143,8 +145,8 @@ mod tests {
         let payloads = load_catalog().expect("catalog must load");
         assert_eq!(
             payloads.len(),
-            12,
-            "Expected 12 total payloads: 2 T1 + 2 T2 + 2 T3 + 3 T4 + 3 T5"
+            15,
+            "Expected 15 total payloads: 2 T1 + 2 T2 + 2 T3 + 3 T4 + 3 T5 + 3 T6"
         );
     }
 
@@ -295,5 +297,27 @@ mod tests {
         assert!(!payloads.is_empty(), "Catalog must not be empty");
         // The only way to get payloads is through the curated embedded TOML files.
         // No public API accepts arbitrary instruction strings (GEN-07).
+    }
+
+    #[test]
+    fn test_tier6_catalog_asks_only_for_the_marker() {
+        let t6 = load_for_tiers(&[6]).expect("catalog must load");
+        assert_eq!(t6.len(), 3);
+        for p in &t6 {
+            assert!(p.instruction.contains("HPCANARY-"), "{}", p.id);
+            assert!(
+                p.instruction.contains("{callback_url_exfil_base}"),
+                "{}",
+                p.id
+            );
+            let lower = p.instruction.to_lowercase();
+            for word in ["api key", "password", "secret", "credential", "token"] {
+                assert!(
+                    !lower.contains(word),
+                    "{} must not ask for {word}: only the HPCANARY- marker",
+                    p.id
+                );
+            }
+        }
     }
 }

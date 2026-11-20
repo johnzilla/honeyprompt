@@ -198,6 +198,7 @@ pub fn proof_level(tier: u8) -> &'static str {
         3 => "Computed Callback",
         4 => "Capability Introspection", // NEW Phase 14 (D-14-09)
         5 => "Multi-step Compliance",    // NEW Phase 14 (D-14-09)
+        6 => "Context Exfiltration",
         _ => "Unknown",
     }
 }
