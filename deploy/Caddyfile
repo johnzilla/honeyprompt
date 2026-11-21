@@ -1,3 +1,18 @@
 honeyprompt.sh {
     reverse_proxy honeyprompt:8080
 }
+
+# Optional: public URL for `honeyprompt test-agent --public-url` (the validation
+# experiment, experiments/PROTOCOL.md). Pick your own subdomain and point its DNS
+# at this host. test-agent runs on the host itself, not in the honeyprompt
+# container (its image has no shell for --agent-cmd), so Caddy forwards to the
+# Docker host gateway; also add to the caddy service in docker-compose.yml:
+#     extra_hosts: ["host.docker.internal:host-gateway"]
+# and run test-agent with:
+#     --listen 172.17.0.1:8090 --public-url https://agents.example.com \
+#     --trusted-proxies 172.16.0.0/12
+# 172.17.0.1 is docker0, reachable from containers but not from the internet.
+#
+# agents.example.com {
+#     reverse_proxy host.docker.internal:8090
+# }

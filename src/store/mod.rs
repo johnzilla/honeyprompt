@@ -431,6 +431,25 @@ pub fn lookup_nonce(
 /// Returns a [u32; 5] array where index 0 = tier 1 count, ..., index 4 = tier 5 count.
 /// D-07: per-tier hit counts for the test-agent scorecard.
 /// D-15-06: extended from 3 to 5 tiers; KnownCrawler exclusion filter unchanged.
+/// Number of recorded page fetches.
+pub fn page_view_count(conn: &Connection) -> rusqlite::Result<u64> {
+    conn.query_row("SELECT COUNT(*) FROM page_views", [], |r| r.get(0))
+}
+
+/// Distinct non-empty User-Agent strings from page fetches and callbacks
+/// (at most 20, sorted). Used by `test-agent` to fingerprint the agent.
+pub fn distinct_user_agents(conn: &Connection) -> rusqlite::Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT ua FROM (
+             SELECT user_agent AS ua FROM page_views
+             UNION
+             SELECT user_agent AS ua FROM events
+         ) WHERE ua IS NOT NULL AND ua != '' ORDER BY ua LIMIT 20",
+    )?;
+    let rows = stmt.query_map([], |r| r.get(0))?;
+    rows.collect()
+}
+
 pub fn detections_by_tier(conn: &Connection) -> rusqlite::Result<[u32; 5]> {
     let mut counts = [0u32; 5];
     for tier in 1u8..=5 {

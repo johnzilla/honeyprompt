@@ -13,9 +13,9 @@ Source: https://www.dragos.com/blog/ai-supply-chain-security-canary-tokens. They
 - All four ideas shipped (5.1.0–5.5.0): per-hit storage + timing labels, webhook alerts, tier 6 exfiltration, `honeyprompt seed`.
 - Skip: real AWS keys (use Thinkst Canarytokens), fake SSH/git/DB services. Reconsider DNS canaries later.
 
-## Parked: validation experiment
+## Next: validation experiment
 
-Run named browsing agents (e.g. BrowserUse on a droplet) through honeyprompt.sh, taking the top N from an existing leaderboard so selection isn't self-curated, and publish results — ideally as an add-on to a benchmark author's report. Purpose: test whether researchers/red-teamers actually care before building anything bigger. Do the security fixes first; a leaked nonce map would invalidate it.
+Tooling shipped in 5.6.0; the protocol is [experiments/PROTOCOL.md](experiments/PROTOCOL.md). Left to do (operator): freeze the leaderboard snapshot and agent list, set up the agent-test subdomain, run 10 trials per agent (plus the `--exfil` arm and the curl baseline), send vendors their results, then publish — ideally as an add-on to a benchmark author's report. Purpose: test whether researchers/red-teamers actually care before building anything bigger. Needs the disclosure email first.
 
 Bigger expansion ideas (federation, hosted benchmark site, leaderboard) only make sense if that experiment produces outside interest. Framing that held up: behavioral measurement rather than vuln disclosure; a fingerprint registry rather than naming vendors.
 
@@ -25,6 +25,7 @@ Bigger expansion ideas (federation, hosted benchmark site, leaderboard) only mak
 
 ## Shipped
 
+- 5.6.0 — experiment harness: `test-agent --agent-cmd` (runs the agent via `sh -c` in its own process group; `{url}`/`{canary}` and `HONEYPROMPT_URL`/`HONEYPROMPT_CANARY`; ends `--grace` after exit or kills the group at `--timeout`), `--trials`, `--label`, `--results` (JSON lines; never the command or canary), `--agent-log`; `--public-url` + `--trusted-proxies` with a random `/run/{id}/` prefix per run (404 outside it); scorecard gains page fetch, user agents and agent exit; `honeyprompt experiment summarize` (Markdown, Wilson 95% intervals). `experiments/PROTOCOL.md`.
 - 5.5.0 — seeded canaries: `honeyprompt seed add <label> [--note] [--format url|markdown|env]` and `seed list`; opaque `/r/{nonce}` URLs serving a uniform warning page; hits stored in `seeds`/`seed_hits` (cap 1,000 per seed, true total kept), separate from tier data; `seed_hit` webhook alerts (always sent); report gains Seeded Canaries.
 - 5.4.0 — tier 6, context exfiltration (`test-agent --exfil`, `--canary-file`): per-run fake `HPCANARY-` token, `/cb/v6/{nonce}/{value}` stores only match/no-match + length, scorecard out of 6, exit 1 on leak. Page asks only for the marker, never for secrets in general; `serve`/`generate` refuse tier 6. Fixed: `test-agent` only generated tiers 1–3, so T4/T5 were never actually tested.
 - 5.3.0 — webhook alerts: HMAC-SHA256-signed JSON (RustCrypto `hmac`), Slack and Discord formats with escaping, `send = notable | all`, rate limit 30/min with `suppressed` count, retries on 5xx/429, no redirects, secrets via `HONEYPROMPT_WEBHOOK_*` env vars and never logged; `honeyprompt webhook-test`. reqwest over rustls (`ring`, bundled webpki roots) — no OpenSSL or aws-lc.

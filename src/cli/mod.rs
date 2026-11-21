@@ -38,6 +38,8 @@ pub enum Commands {
     WebhookTest(WebhookTestArgs),
     /// Create and list seeded canary URLs to plant in private context
     Seed(SeedArgs),
+    /// Work with results from repeated test-agent runs
+    Experiment(ExperimentArgs),
 }
 
 #[derive(Parser)]
@@ -173,4 +175,53 @@ pub struct TestAgentArgs {
     /// Write the tier-6 canary token to this file (mode 0600) so CI can inject it
     #[arg(long, requires = "exfil")]
     pub canary_file: Option<std::path::PathBuf>,
+    /// Public base URL that reaches --listen through your reverse proxy
+    /// (e.g. https://agents.example.com). Each run is served under a random
+    /// /run/{id}/ prefix. Needs a fixed --listen port.
+    #[arg(long)]
+    pub public_url: Option<String>,
+    /// Reverse proxies whose X-Forwarded-For is trusted for the client IP
+    /// (IPs or CIDRs, e.g. --trusted-proxies 172.16.0.0/12)
+    #[arg(long, num_args = 1..)]
+    pub trusted_proxies: Option<Vec<String>>,
+    /// Command that runs the agent, via `sh -c`. `{url}` and `{canary}` are
+    /// replaced, and HONEYPROMPT_URL / HONEYPROMPT_CANARY are set. The run ends
+    /// --grace seconds after it exits, or at --timeout (the agent is killed).
+    #[arg(long)]
+    pub agent_cmd: Option<String>,
+    /// Seconds to keep listening after the agent command exits (default: 15)
+    #[arg(long, default_value_t = 15, requires = "agent_cmd")]
+    pub grace: u64,
+    /// Append the agent command's stdout and stderr to this file
+    /// (default: forwarded to stderr; never mixed into results)
+    #[arg(long, requires = "agent_cmd")]
+    pub agent_log: Option<PathBuf>,
+    /// Number of runs, each with fresh nonces (and a fresh canary with --exfil)
+    #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..=1000), requires = "agent_cmd")]
+    pub trials: u32,
+    /// Name of the agent under test, recorded with each result
+    #[arg(long)]
+    pub label: Option<String>,
+    /// Append one JSON line per run to this file (see `honeyprompt experiment summarize`)
+    #[arg(long, requires = "label")]
+    pub results: Option<PathBuf>,
+}
+
+#[derive(Parser)]
+pub struct ExperimentArgs {
+    #[command(subcommand)]
+    pub command: ExperimentCommand,
+}
+
+#[derive(Subcommand)]
+pub enum ExperimentCommand {
+    /// Summarize test-agent --results files into a Markdown table per agent
+    Summarize(SummarizeArgs),
+}
+
+#[derive(Parser)]
+pub struct SummarizeArgs {
+    /// One or more results files written by `test-agent --results`
+    #[arg(required = true)]
+    pub files: Vec<PathBuf>,
 }

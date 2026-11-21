@@ -4,6 +4,7 @@ pub mod cli;
 pub mod client_ip;
 pub mod config;
 pub mod crawler_catalog;
+pub mod experiment;
 pub mod fingerprint;
 pub mod generator;
 pub mod monitor;

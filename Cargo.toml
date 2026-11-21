@@ -1,6 +1,6 @@
 [package]
 name = "honeyprompt"
-version = "5.5.0"
+version = "5.6.0"
 edition = "2021"
 
 [dependencies]
@@ -13,6 +13,8 @@ rust-embed = { version = "8.11", features = ["debug-embed"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
 getrandom = "0.4"
 hex = "0.4"
+libc = "0.2"
+tower = { version = "0.5", features = ["util"] }
 base64 = "0.22"
 thiserror = "2"
 anyhow = "1"
@@ -36,5 +38,4 @@ webpki-roots = "1.0.12"
 [dev-dependencies]
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
-tower = { version = "0.5", features = ["util"] }
 http = "1"

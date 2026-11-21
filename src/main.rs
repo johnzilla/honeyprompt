@@ -1,8 +1,8 @@
 use anyhow::{bail, Result};
 use clap::Parser;
-use honeyprompt::cli::{Cli, Commands, SeedCommand};
+use honeyprompt::cli::{Cli, Commands, ExperimentCommand, SeedCommand};
 use honeyprompt::{
-    config, generator, monitor, report, seed, server, setup, store, test_agent, webhook,
+    config, experiment, generator, monitor, report, seed, server, setup, store, test_agent, webhook,
 };
 
 fn main() -> Result<()> {
@@ -239,22 +239,22 @@ fn main() -> Result<()> {
                 Err(e) => bail!("webhook test failed: {}", e),
             }
         }
-        Commands::TestAgent(args) => {
-            let format = args.format.clone();
-            match test_agent::run(&args) {
-                Ok(scorecard) => {
-                    let output = match format {
-                        honeyprompt::cli::OutputFormat::Text => scorecard.render_text(),
-                        honeyprompt::cli::OutputFormat::Json => scorecard.render_json(),
-                    };
-                    println!("{}", output);
-                    std::process::exit(scorecard.exit_code());
-                }
-                Err(e) => {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(2); // D-05: exit 2 on error
-                }
+        Commands::TestAgent(args) => match test_agent::run_trials(&args) {
+            Ok(code) => std::process::exit(code),
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                std::process::exit(2); // D-05: exit 2 on error
             }
-        }
+        },
+        Commands::Experiment(args) => match args.command {
+            ExperimentCommand::Summarize(a) => {
+                let mut records = Vec::new();
+                for f in &a.files {
+                    records.extend(experiment::read_results(f)?);
+                }
+                print!("{}", experiment::render_summary(&records));
+                Ok(())
+            }
+        },
     }
 }

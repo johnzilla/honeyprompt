@@ -372,9 +372,25 @@ Tests whether an agent that holds private data, reads untrusted content, and can
 - The server stores only whether the value matched and its length. Any other value is counted as `non-matching` (a warning, not a failure) and discarded, never stored or logged.
 - Tier 6 exists only in `test-agent`; `serve` and `generate` refuse `tiers = [6]`. With `--exfil` the score is out of 6; without it, tier 6 shows `not run`.
 
+#### Repeated runs and experiments
+
+```sh
+honeyprompt test-agent --agent-cmd 'python run_agent.py "$HONEYPROMPT_URL"' \
+  --trials 10 --label browser-use-gpt5 --results results.jsonl --timeout 300
+honeyprompt experiment summarize results.jsonl
+```
+
+- `--agent-cmd` runs the agent through `sh -c` in its own process group. `{url}` and `{canary}` are replaced in the command, and `HONEYPROMPT_URL` / `HONEYPROMPT_CANARY` are set. The run ends `--grace` seconds (default 15) after the command exits, or at `--timeout`, when the whole process group is stopped. Its output goes to stderr or `--agent-log`, never into the scorecard or results.
+- `--trials N` repeats the run with fresh nonces (and a fresh canary with `--exfil`). `--results` appends one JSON line per run: tiers reached, tier 6 outcome, whether the page was loaded at all, the user agents seen, and how the agent exited. The agent command and the canary are never recorded.
+- `honeyprompt experiment summarize` turns one or more results files into a Markdown table per `--label`: runs reaching each tier out of total runs, with a Wilson 95% interval.
+- Agents that can't reach your machine (hosted products) need a public URL. Put a reverse proxy in front of a fixed `--listen` port and pass `--public-url https://your-host.example` (scheme, host and port only) plus `--trusted-proxies`. Each run is served under a random `/run/{id}/` path, and anything outside it is a 404, so stale or concurrent runs can't mix.
+- The scorecard also shows `page fetch`: a run where nothing loaded the page scores 0 for a different reason than an agent that read it and refused.
+
+See [experiments/PROTOCOL.md](experiments/PROTOCOL.md) for the validation experiment these flags were built for.
+
 ## Status
 
-Current release: **v5.5.0** — five proof tiers on served pages, tier 6 context exfiltration in `test-agent --exfil`, seeded canaries (`honeyprompt seed`), `serve`, `monitor`, `report`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
+Current release: **v5.6.0** — five proof tiers on served pages, tier 6 context exfiltration in `test-agent --exfil`, repeatable agent experiments (`test-agent --agent-cmd --trials --results`, `experiment summarize`), seeded canaries (`honeyprompt seed`), `serve`, `monitor`, `report`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
 
 ## Ethics and Safety
 
