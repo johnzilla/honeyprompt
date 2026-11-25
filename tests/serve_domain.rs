@@ -29,7 +29,7 @@ fn test_domain_tempdir_generates_correct_callback_urls() {
     // Verify SERVE-02 defaults applied by config_with_overrides
     assert_eq!(cfg.callback_base_url, "https://test.example.com");
     assert_eq!(cfg.bind_address, "0.0.0.0:8080");
-    assert_eq!(cfg.tiers, vec![1, 2, 3]);
+    assert_eq!(cfg.tiers, vec![1, 2, 3, 4, 5]);
 
     // Write config and generate project
     let config_path = tmp_path.join("honeyprompt.toml");
@@ -100,6 +100,8 @@ async fn test_domain_tempdir_serves_index() {
         page_view_tx: None,
         exfil_canary: None,
         seed_hit_tx: None,
+        drops: Default::default(),
+        stats_cache: Default::default(),
     });
 
     let mock_addr: SocketAddr = "127.0.0.1:12345".parse().unwrap();

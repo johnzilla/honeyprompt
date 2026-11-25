@@ -2,13 +2,18 @@ use tokio::sync::{broadcast, mpsc};
 
 use crate::types::{AgentClass, AppEvent, RawCallbackEvent};
 
-/// Receive RawCallbackEvents from mpsc, enrich with session_id, and broadcast AppEvent to all subscribers.
+/// Receive RawCallbackEvents, enrich them with a session_id, and pass them to
+/// the DB writer.
+///
+/// Pipeline: server → mpsc(256) → broker → mpsc(256) → `db_writer_task`, which
+/// persists each event and only then broadcasts it (with the real replay flag
+/// and fire count) to the TUI and stdout logger. The DB writer is never a
+/// broadcast subscriber, so it can't lag and lose events.
 ///
 /// The session_id is a salted SHA-256 of ip + ua (see `fingerprint::compute_session_id`).
-/// Broadcast send errors (no receivers) are silently dropped — events are best-effort.
 pub async fn broker_task(
     mut callback_rx: mpsc::Receiver<RawCallbackEvent>,
-    event_tx: broadcast::Sender<AppEvent>,
+    db_tx: mpsc::Sender<AppEvent>,
     session_salt: String,
 ) {
     while let Some(raw) = callback_rx.recv().await {
@@ -26,6 +31,7 @@ pub async fn broker_task(
             fingerprint: raw.fingerprint,
             classification: raw.classification,
             session_id,
+            // Placeholders: db_writer_task sets the real values after insert.
             is_replay: false,
             fire_count: 1,
             received_at: raw.received_at,
@@ -39,90 +45,85 @@ pub async fn broker_task(
             // detail pane can render `formula=(seed+A)*B % M` (D-14-02).
             t5_formula: raw.t5_formula,
         };
-        // Ignore send errors — no receivers means events are dropped safely.
-        let _ = event_tx.send(app_event);
+        // Backpressure instead of loss: wait for the writer. (Overflow is
+        // dropped, and counted, at the server's try_send.)
+        if db_tx.send(app_event).await.is_err() {
+            break; // writer gone: shutting down
+        }
     }
 }
 
-/// Receive AppEvents from broadcast and persist them to SQLite via tokio-rusqlite.
-///
-/// Handles broadcast lag gracefully: a warning is printed to stderr if events were dropped
-/// (Pitfall 4 from research). Exits when the broadcast channel is closed.
+/// Persist each AppEvent to SQLite, then broadcast it to the TUI and stdout
+/// logger with `is_replay` and `fire_count` as stored. Exits (dropping
+/// `out`, which closes the broadcast) once the broker's sender is gone and the
+/// queue is drained.
 pub async fn db_writer_task(
-    mut event_rx: broadcast::Receiver<AppEvent>,
+    mut event_rx: mpsc::Receiver<AppEvent>,
     conn: tokio_rusqlite::Connection,
     alerts: Option<crate::webhook::AlertSender>,
+    out: broadcast::Sender<AppEvent>,
 ) {
-    loop {
-        match event_rx.recv().await {
-            Ok(event) => {
-                let extra_headers =
-                    build_extra_headers(&event.classification, &event.fingerprint.headers);
-                let nonce = event.nonce.clone();
-                let tier = event.tier;
-                let payload_id = event.payload_id.clone();
-                let embedding_loc = event.embedding_loc.clone();
-                let session_id = event.session_id.clone();
-                let remote_addr = event.fingerprint.source_ip.to_string();
-                let user_agent = event.fingerprint.user_agent.clone();
-                // Phase 13: clone T4/T5 payload fields so the move-closure owns
-                // them; these replace the `None, None, None` placeholders from
-                // Plan 02. `t5_proof_valid` is `Option<bool>` (Copy), so no
-                // clone is needed.
-                let t4_capability = event.t4_capability.clone();
-                let t5_proof = event.t5_proof.clone();
-                let t5_proof_valid = event.t5_proof_valid;
-                let exfil = event.exfil;
-                let result = conn
-                    .call(move |conn| {
-                        crate::store::insert_callback_event_detailed(
-                            conn,
-                            &nonce,
-                            tier,
-                            &payload_id,
-                            &embedding_loc,
-                            &session_id,
-                            &remote_addr,
-                            &user_agent,
-                            &extra_headers,
-                            t4_capability.as_deref(),
-                            t5_proof.as_deref(),
-                            t5_proof_valid,
-                            exfil,
-                        )
-                        .map_err(tokio_rusqlite::Error::from)
-                    })
-                    .await;
-                match result {
-                    Ok(hit) => {
-                        if let Some(alerts) = &alerts {
-                            alerts.offer(crate::webhook::HitAlert {
-                                received_at: hit.received_at,
-                                tier: event.tier,
-                                nonce: event.nonce.clone(),
-                                payload_id: event.payload_id.clone(),
-                                timing: hit.timing,
-                                since_page_fetch_secs: hit
-                                    .last_page_view_at
-                                    .map(|pv| hit.received_at - pv),
-                                since_seeding_secs: hit.seeded_at.map(|s| hit.received_at - s),
-                                source_ip: event.fingerprint.source_ip.to_string(),
-                                user_agent: event.fingerprint.user_agent.clone(),
-                                classification: classify_label(&event.classification),
-                                t5_proof_valid: event.t5_proof_valid,
-                            });
-                        }
-                    }
-                    Err(e) => eprintln!("warning: db_writer failed to persist event: {}", e),
+    while let Some(mut event) = event_rx.recv().await {
+        let extra_headers = build_extra_headers(&event.classification, &event.fingerprint.headers);
+        let nonce = event.nonce.clone();
+        let tier = event.tier;
+        let payload_id = event.payload_id.clone();
+        let embedding_loc = event.embedding_loc.clone();
+        let session_id = event.session_id.clone();
+        let remote_addr = event.fingerprint.source_ip.to_string();
+        let user_agent = event.fingerprint.user_agent.clone();
+        // Phase 13: clone T4/T5 payload fields so the move-closure owns
+        // them; these replace the `None, None, None` placeholders from
+        // Plan 02. `t5_proof_valid` is `Option<bool>` (Copy), so no
+        // clone is needed.
+        let t4_capability = event.t4_capability.clone();
+        let t5_proof = event.t5_proof.clone();
+        let t5_proof_valid = event.t5_proof_valid;
+        let exfil = event.exfil;
+        let result = conn
+            .call(move |conn| {
+                crate::store::insert_callback_event_detailed(
+                    conn,
+                    &nonce,
+                    tier,
+                    &payload_id,
+                    &embedding_loc,
+                    &session_id,
+                    &remote_addr,
+                    &user_agent,
+                    &extra_headers,
+                    t4_capability.as_deref(),
+                    t5_proof.as_deref(),
+                    t5_proof_valid,
+                    exfil,
+                )
+                .map_err(tokio_rusqlite::Error::from)
+            })
+            .await;
+        match result {
+            Ok(hit) => {
+                event.is_replay = hit.is_replay;
+                event.fire_count = hit.fire_count;
+                if let Some(alerts) = &alerts {
+                    alerts.offer(crate::webhook::HitAlert {
+                        received_at: hit.received_at,
+                        tier: event.tier,
+                        nonce: event.nonce.clone(),
+                        payload_id: event.payload_id.clone(),
+                        timing: hit.timing,
+                        since_page_fetch_secs: hit.last_page_view_at.map(|pv| hit.received_at - pv),
+                        since_seeding_secs: hit.seeded_at.map(|s| hit.received_at - s),
+                        source_ip: event.fingerprint.source_ip.to_string(),
+                        user_agent: event.fingerprint.user_agent.clone(),
+                        classification: classify_label(&event.classification),
+                        t5_proof_valid: event.t5_proof_valid,
+                    });
                 }
             }
-            Err(broadcast::error::RecvError::Lagged(n)) => {
-                eprintln!("warning: db writer lagged, dropped {} events", n);
-            }
-            Err(broadcast::error::RecvError::Closed) => {
-                break;
-            }
+            Err(e) => eprintln!("warning: db_writer failed to persist event: {}", e),
         }
+        // No subscribers (serve without a logger, test-agent) is fine.
+        let _ = out.send(event);
     }
 }
 
@@ -314,6 +315,27 @@ mod tests {
 
     use crate::types::{AgentClass, AgentFingerprint, RawCallbackEvent, T5Formula};
 
+    fn make_app_event(nonce: &str, tier: u8) -> AppEvent {
+        let raw = make_raw_event(nonce, tier);
+        AppEvent {
+            exfil: raw.exfil,
+            nonce: raw.nonce,
+            tier: raw.tier,
+            payload_id: raw.payload_id,
+            embedding_loc: raw.embedding_loc,
+            fingerprint: raw.fingerprint,
+            classification: raw.classification,
+            session_id: "session000000001".to_string(),
+            is_replay: false,
+            fire_count: 1,
+            received_at: raw.received_at,
+            t4_capability: None,
+            t5_proof: None,
+            t5_proof_valid: None,
+            t5_formula: None,
+        }
+    }
+
     fn make_raw_event(nonce: &str, tier: u8) -> RawCallbackEvent {
         let ip: IpAddr = "1.2.3.4".parse().unwrap();
         let fp = AgentFingerprint {
@@ -343,7 +365,7 @@ mod tests {
     #[tokio::test]
     async fn test_broker_task_enriches_and_broadcasts() {
         let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(16);
-        let (event_tx, mut event_rx) = broadcast::channel::<AppEvent>(16);
+        let (event_tx, mut event_rx) = mpsc::channel::<AppEvent>(16);
 
         // Spawn the broker
         tokio::spawn(broker_task(callback_rx, event_tx, "test-salt".to_string()));
@@ -378,7 +400,7 @@ mod tests {
     #[tokio::test]
     async fn test_broker_task_propagates_t4_capability() {
         let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(16);
-        let (event_tx, mut event_rx) = broadcast::channel::<AppEvent>(16);
+        let (event_tx, mut event_rx) = mpsc::channel::<AppEvent>(16);
 
         tokio::spawn(broker_task(callback_rx, event_tx, "test-salt".to_string()));
 
@@ -426,7 +448,7 @@ mod tests {
     #[tokio::test]
     async fn test_broker_task_propagates_t5_proof() {
         let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(16);
-        let (event_tx, mut event_rx) = broadcast::channel::<AppEvent>(16);
+        let (event_tx, mut event_rx) = mpsc::channel::<AppEvent>(16);
 
         tokio::spawn(broker_task(callback_rx, event_tx, "test-salt".to_string()));
 
@@ -483,7 +505,7 @@ mod tests {
     #[tokio::test]
     async fn test_broker_task_t5_formula_none_when_raw_is_none() {
         let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(8);
-        let (event_tx, mut event_rx) = broadcast::channel::<AppEvent>(8);
+        let (event_tx, mut event_rx) = mpsc::channel::<AppEvent>(8);
         tokio::spawn(broker_task(callback_rx, event_tx, "test-salt".to_string()));
         // Helper defaults `t5_formula: None`; (nonce, tier) = ("n1", 1).
         let raw = make_raw_event("n1", 1);
@@ -493,6 +515,47 @@ mod tests {
             .expect("broker must broadcast within 500ms")
             .expect("broadcast must succeed");
         assert_eq!(received.t5_formula, None);
+    }
+
+    /// Review finding #5: the broadcast after insert carries the stored replay
+    /// flag and fire count, not the broker's placeholders.
+    #[tokio::test]
+    async fn test_db_writer_broadcasts_real_fire_count_and_replay() {
+        let tk_conn = tokio_rusqlite::Connection::open_in_memory().await.unwrap();
+        tk_conn
+            .call(|conn| {
+                crate::store::run_migrations(conn)?;
+                crate::store::insert_nonce(conn, "replay01", 1, "t1-html", "html_comment")?;
+                Ok::<_, rusqlite::Error>(())
+            })
+            .await
+            .unwrap();
+        let (event_tx, event_rx) = mpsc::channel::<AppEvent>(16);
+        let (out_tx, mut out_rx) = broadcast::channel::<AppEvent>(16);
+        tokio::spawn(db_writer_task(event_rx, tk_conn.clone(), None, out_tx));
+
+        for _ in 0..3 {
+            let mut ev = make_app_event("replay01", 1);
+            ev.session_id = "samesession00001".to_string();
+            event_tx.send(ev).await.unwrap();
+        }
+        let mut seen = Vec::new();
+        for _ in 0..3 {
+            let ev = tokio::time::timeout(std::time::Duration::from_secs(2), out_rx.recv())
+                .await
+                .expect("timed out waiting for persisted event")
+                .unwrap();
+            seen.push((ev.fire_count, ev.is_replay));
+        }
+        assert_eq!(seen, vec![(1, false), (2, true), (3, true)]);
+
+        // Closing the input drains the writer and closes the broadcast.
+        drop(event_tx);
+        let closed = tokio::time::timeout(std::time::Duration::from_secs(2), out_rx.recv()).await;
+        assert!(matches!(
+            closed,
+            Ok(Err(broadcast::error::RecvError::Closed))
+        ));
     }
 
     #[tokio::test]
@@ -515,8 +578,9 @@ mod tests {
             .await
             .unwrap();
 
-        let (event_tx, event_rx) = broadcast::channel::<AppEvent>(16);
-        tokio::spawn(db_writer_task(event_rx, tk_conn.clone(), None));
+        let (event_tx, event_rx) = mpsc::channel::<AppEvent>(16);
+        let (out_tx, _) = broadcast::channel::<AppEvent>(16);
+        tokio::spawn(db_writer_task(event_rx, tk_conn.clone(), None, out_tx));
 
         // Send an AppEvent directly on broadcast
         let ip: IpAddr = "2.3.4.5".parse().unwrap();
@@ -542,7 +606,7 @@ mod tests {
             t5_proof_valid: None,
             t5_formula: None,
         };
-        event_tx.send(app_event).unwrap();
+        event_tx.send(app_event).await.unwrap();
 
         // Wait for DB write to complete
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -643,8 +707,14 @@ mod tests {
             })
             .await
             .unwrap();
-        let (event_tx, event_rx) = broadcast::channel::<AppEvent>(16);
-        tokio::spawn(db_writer_task(event_rx, tk_conn.clone(), Some(alerts)));
+        let (event_tx, event_rx) = mpsc::channel::<AppEvent>(16);
+        let (out_tx, _) = broadcast::channel::<AppEvent>(16);
+        tokio::spawn(db_writer_task(
+            event_rx,
+            tk_conn.clone(),
+            Some(alerts),
+            out_tx,
+        ));
 
         let event = AppEvent {
             exfil: None,
@@ -668,7 +738,7 @@ mod tests {
             t5_proof_valid: None,
             t5_formula: None,
         };
-        event_tx.send(event).unwrap();
+        event_tx.send(event).await.unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
         let got = received.lock().unwrap();

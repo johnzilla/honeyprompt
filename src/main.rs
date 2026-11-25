@@ -136,13 +136,25 @@ fn main() -> Result<()> {
                     cfg.trusted_proxies = tp.clone();
                 }
 
-                // Generate on first run (no nonce map or page yet) or when
-                // --domain changed the callback_base_url.
+                // Generate on first run (no nonce map or page yet), when
+                // --domain changed the callback_base_url, or when the effective
+                // tiers (--tiers or the config file) differ from the site's.
                 let missing_site = !generator::callback_map_path(path).exists()
                     || !path.join("output").join("index.html").exists();
                 let domain_changed =
                     args.domain.is_some() && cfg.callback_base_url != base_cfg.callback_base_url;
-                if missing_site || domain_changed {
+                let wanted = generator::normalize_tiers(&cfg.tiers);
+                let tiers_changed = !missing_site
+                    && generator::generated_tiers(path)
+                        .map(|have| have != wanted)
+                        .unwrap_or(true);
+                if tiers_changed {
+                    let have = generator::generated_tiers(path)
+                        .map(|t| format!("{t:?}"))
+                        .unwrap_or_else(|_| "unreadable".into());
+                    println!("tiers changed ({have} -> {wanted:?}); regenerating site");
+                }
+                if missing_site || domain_changed || tiers_changed {
                     let db_path = path.join(".honeyprompt").join("events.db");
                     let conn = store::open_or_create_db(&db_path)?;
                     generator::generate(&cfg, &conn, path)?;

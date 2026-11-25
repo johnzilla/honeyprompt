@@ -17,12 +17,12 @@ Backlog and parked ideas live in `TODOS.md`. Releases are tagged `vX.Y.Z`; there
 - rust-embed for bundled assets (`assets/templates`, `assets/catalog`, `assets/crawlers`)
 - tokio runtime
 - GitHub Actions: `ci.yml` (fmt, clippy `-D warnings`, test) and `release.yml` (4-target binaries on `v*` tags)
-- Docker + Caddy deploy (`deploy/`); live demo honeyprompt.sh serves `landing/`; honeyprompt.dev is GitHub Pages from `docs/`
+- Docker + Caddy deploy (`deploy/`); live demo honeyprompt.sh runs `serve /landing --domain honeyprompt.sh` (the image ships no config); honeyprompt.dev is GitHub Pages from `docs/`
 
 ## Conventions
 
 - Async entry points use `tokio::runtime::Runtime::new()` in `main.rs`, not `#[tokio::main]`
-- Event pipeline: mpsc(256) for raw callbacks → broadcast(1024) for processed events
+- Event pipeline: server `try_send` (drops counted in `DropCounters`) → mpsc(256) → broker → mpsc(256) → DB writer → broadcast(1024) of persisted events (real replay/fire count) → TUI / stdout logger. Shutdown drains the stages in order
 - `build_router()` is the reusable Axum router constructor; peer address via `ConnectInfo<SocketAddr>` + `into_make_service_with_connect_info`
 - Config precedence: CLI flags > config file > defaults (`config_with_overrides`)
 - Unit tests in `#[cfg(test)] mod tests` per module; integration tests in `tests/`

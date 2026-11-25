@@ -420,7 +420,7 @@ pub fn run(args: &TestAgentArgs) -> anyhow::Result<Scorecard> {
 
     // Step 4: Build config in memory with the actual bound address
     // All served tiers, plus tier 6 with --exfil. (Config::default() only has
-    // tiers 1-3, which used to leave T4/T5 off the test page entirely.)
+    // tiers 1-3 before 5.7.0, which left T4/T5 off the test page entirely.)
     let mut tiers = vec![1, 2, 3, 4, 5];
     if args.exfil {
         tiers.push(6);
@@ -536,22 +536,22 @@ async fn run_async(
     conn.call(|c| crate::store::run_migrations(c).map_err(tokio_rusqlite::Error::from))
         .await?;
 
-    // Create event pipeline channels
+    // Event pipeline: server → mpsc → broker → mpsc → db writer. The writer's
+    // broadcast of persisted events has no subscribers here.
     let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(256);
+    let (db_tx, db_rx) = mpsc::channel(256);
     let (event_tx, _) = broadcast::channel(1024);
-
-    // Subscribe db_rx BEFORE spawning broker (no missed events)
-    let db_rx = event_tx.subscribe();
 
     // Spawn pipeline tasks
     // NOTE: no stdout_logger_task — test-agent is quiet during collection (D-06)
     let session_salt = crate::fingerprint::load_or_create_salt(&tmp_path.join(".honeyprompt"))?;
-    let broker_handle = tokio::spawn(crate::broker::broker_task(
-        callback_rx,
-        event_tx.clone(),
-        session_salt,
+    let broker_handle = tokio::spawn(crate::broker::broker_task(callback_rx, db_tx, session_salt));
+    let db_writer_handle = tokio::spawn(crate::broker::db_writer_task(
+        db_rx,
+        conn.clone(),
+        None,
+        event_tx,
     ));
-    let db_writer_handle = tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone(), None));
     // Record page fetches so the scorecard can tell "never loaded the page"
     // apart from "loaded it and ignored the payloads".
     let (page_view_tx, page_view_rx) = mpsc::channel::<crate::server::PageView>(256);
@@ -565,6 +565,7 @@ async fn run_async(
     let server_token = token.clone();
 
     // Build router via build_router() — NOT server::serve() (which installs Ctrl+C handler)
+    let drops = Arc::new(crate::server::DropCounters::default());
     let app_state = AppState {
         conn: conn.clone(),
         callback_tx,
@@ -574,6 +575,8 @@ async fn run_async(
         page_view_tx: Some(page_view_tx),
         exfil_canary: canary.clone(),
         seed_hit_tx: None,
+        drops: drops.clone(),
+        stats_cache: Default::default(),
     };
     let app = build_router(Arc::new(app_state), output_dir);
     // With --public-url, strip this run's prefix before routing; anything
@@ -630,16 +633,13 @@ async fn run_async(
     // AppState is Arc inside router — after server shuts down, Arc drops → callback_tx drops
     server_handle.await.ok();
 
-    // Broker exits when callback_rx closes (callback_tx dropped above with AppState)
-    // Await broker so its event_tx clone is dropped before we drop ours
+    // Broker exits when callback_rx closes (callback_tx dropped above with
+    // AppState); that drops its db_tx, so the writer drains and exits.
     broker_handle.await.ok();
-
-    // Now drop our event_tx — broadcast channel fully closed (broker's clone already gone)
-    // This signals db_writer_task to drain and exit (Pattern 4)
-    drop(event_tx);
-
-    // Wait for db_writer to drain all buffered events before querying
     db_writer_handle.await.ok();
+    if let Some(line) = drops.summary() {
+        eprintln!("  warning: {line} The scorecard may under-count.");
+    }
     // page_view_tx dropped with AppState when the server stopped
     page_view_handle.await.ok();
 

@@ -253,7 +253,9 @@ honeyprompt serve /var/lib/honeyprompt --domain your-domain.com
 
 Starts an HTTP server that serves the honeypot page and listens for callback beacons on the same port. Each incoming callback is fingerprinted and stored in SQLite.
 
-The `--domain` flag enables zero-config mode: sets the callback base URL to your domain, binds `0.0.0.0:8080`, and enables all tiers — no config file needed. Without a path it generates a throwaway site in a tempdir. With a path that has no config yet, it creates `honeyprompt.toml` there and generates the site, so nonces and events persist across restarts. `serve` also generates the site on its own if `output/` or the nonce map is missing.
+The `--domain` flag enables zero-config mode: it sets the callback base URL to your domain; a new project gets the defaults (bind `0.0.0.0:8080`, all served tiers 1–5; narrow with e.g. `--tiers 1 2 3`) — no config file needed. Without a path it generates a throwaway site in a tempdir. With a path that has no config yet, it creates `honeyprompt.toml` there and generates the site, so nonces and events persist across restarts. With an existing config, `--domain` changes only the URL. `serve` regenerates the site when `output/` or the nonce map is missing, when the URL changes, or when the tiers (from `--tiers` or the config) differ from the generated site's. Without `--domain` or a config, `serve` refuses to start — the Docker image ships no config, so pass `--domain` (`docker run … ghcr.io/johnzilla/honeyprompt serve /landing --domain your-domain.com`).
+
+On SIGTERM, SIGINT or SIGHUP, `serve` stops accepting requests, writes everything still queued (up to 5 s), and prints a summary. If a burst ever fills a queue, the dropped callbacks, page fetches and seed hits are counted: a warning on the first one, totals in the summary. `/stats` responses are cached for 5 seconds.
 
 The nonce map (`.honeyprompt/callback-map.json`) is kept outside `output/` and is never served — anyone holding it could forge callbacks.
 
@@ -390,7 +392,7 @@ See [experiments/PROTOCOL.md](experiments/PROTOCOL.md) for the validation experi
 
 ## Status
 
-Current release: **v5.6.1** — five proof tiers on served pages, tier 6 context exfiltration in `test-agent --exfil`, repeatable agent experiments (`test-agent --agent-cmd --trials --results`, `experiment summarize`), seeded canaries (`honeyprompt seed`), `serve`, `monitor`, `report`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
+Current release: **v5.7.0** — five proof tiers on served pages, tier 6 context exfiltration in `test-agent --exfil`, repeatable agent experiments (`test-agent --agent-cmd --trials --results`, `experiment summarize`), seeded canaries (`honeyprompt seed`), `serve`, `monitor`, `report`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
 
 ## Ethics and Safety
 

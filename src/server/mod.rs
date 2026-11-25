@@ -46,6 +46,86 @@ pub struct AppState {
     pub exfil_canary: Option<String>,
     /// Where fetches of seeded canaries (`/r/{nonce}`) are sent (None: not recorded).
     pub seed_hit_tx: Option<mpsc::Sender<SeedHit>>,
+    /// Events dropped because a queue was full. Shared so the caller can read
+    /// the totals after the server (and this state) is gone.
+    pub drops: Arc<DropCounters>,
+    /// Last `/stats` response, reused for [`STATS_CACHE_TTL`].
+    pub stats_cache: StatsCache,
+}
+
+/// What a full queue made the server drop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DropKind {
+    Callback,
+    PageView,
+    SeedHit,
+}
+
+/// Counts events dropped at the server's `try_send` because a queue was full
+/// (e.g. a flood of valid nonces). The first drop of each kind prints one
+/// warning unless `quiet` (the monitor's TUI owns the terminal); totals go in
+/// the shutdown summary.
+#[derive(Debug, Default)]
+pub struct DropCounters {
+    pub callbacks: std::sync::atomic::AtomicU64,
+    pub page_views: std::sync::atomic::AtomicU64,
+    pub seed_hits: std::sync::atomic::AtomicU64,
+    pub quiet: bool,
+}
+
+impl DropCounters {
+    /// Counters that never print (for the monitor TUI).
+    pub fn quiet() -> Self {
+        DropCounters {
+            quiet: true,
+            ..Default::default()
+        }
+    }
+
+    /// Count one dropped event.
+    pub fn record(&self, kind: DropKind) {
+        use std::sync::atomic::Ordering::Relaxed;
+        let (counter, what) = match kind {
+            DropKind::Callback => (&self.callbacks, "callbacks"),
+            DropKind::PageView => (&self.page_views, "page fetches"),
+            DropKind::SeedHit => (&self.seed_hits, "seed hits"),
+        };
+        if counter.fetch_add(1, Relaxed) == 0 && !self.quiet {
+            eprintln!("warning: queue full, dropping {what}; the total is printed at shutdown");
+        }
+    }
+
+    /// (callbacks, page views, seed hits).
+    pub fn totals(&self) -> (u64, u64, u64) {
+        use std::sync::atomic::Ordering::Relaxed;
+        (
+            self.callbacks.load(Relaxed),
+            self.page_views.load(Relaxed),
+            self.seed_hits.load(Relaxed),
+        )
+    }
+
+    /// One line for the shutdown summary, or `None` when nothing was dropped.
+    pub fn summary(&self) -> Option<String> {
+        let (c, p, s) = self.totals();
+        (c + p + s > 0).then(|| {
+            format!("Dropped (queue full): {c} callback(s), {p} page fetch(es), {s} seed hit(s).")
+        })
+    }
+}
+
+/// How long a `/stats` response is reused.
+pub const STATS_CACHE_TTL: Duration = Duration::from_secs(5);
+
+/// Cached `/stats` JSON. The async mutex is held across the query, so a burst
+/// of requests on a stale cache runs one query, not one each.
+pub type StatsCache = tokio::sync::Mutex<Option<(std::time::Instant, String)>>;
+
+/// Queue a callback, counting it if the queue is full.
+fn send_callback(state: &AppState, event: RawCallbackEvent) {
+    if state.callback_tx.try_send(event).is_err() {
+        state.drops.record(DropKind::Callback);
+    }
 }
 
 /// A fetch of `/r/{nonce}`, before checking that the nonce is a seed.
@@ -71,12 +151,15 @@ pub async fn seed_handler(
         let fingerprint = crate::fingerprint::extract(client_ip, &headers);
         let classification =
             crate::broker::classify_label(&state.crawler_catalog.classify(&fingerprint.user_agent));
-        let _ = tx.try_send(SeedHit {
+        let hit = SeedHit {
             nonce,
             remote_addr: client_ip.to_string(),
             user_agent: fingerprint.user_agent,
             classification,
-        });
+        };
+        if tx.try_send(hit).is_err() {
+            state.drops.record(DropKind::SeedHit);
+        }
     }
     axum::response::Html(crate::seed::SEED_PAGE_HTML)
 }
@@ -146,11 +229,14 @@ async fn record_page_fetch(
     if let (true, Some(peer), Some(headers)) = (fetched, peer, headers) {
         let client_ip = state.trusted_proxies.resolve(peer, &headers);
         let fingerprint = crate::fingerprint::extract(client_ip, &headers);
-        let _ = tx.try_send(PageView {
+        let view = PageView {
             remote_addr: client_ip.to_string(),
             user_agent: fingerprint.user_agent,
             path: path.chars().take(MAX_PAGE_PATH_CHARS).collect(),
-        });
+        };
+        if tx.try_send(view).is_err() {
+            state.drops.record(DropKind::PageView);
+        }
     }
     response
 }
@@ -206,8 +292,8 @@ pub async fn callback_handler(
         t5_formula: None,
     };
 
-    // Non-blocking send — drop if channel is full (best-effort delivery)
-    let _ = state.callback_tx.try_send(event);
+    // Non-blocking send — drop (and count) if the channel is full
+    send_callback(&state, event);
 
     StatusCode::NO_CONTENT
 }
@@ -259,7 +345,7 @@ pub async fn t4_callback_handler(
         // Phase 14: T4 handler does not know about T5 formulas.
         t5_formula: None,
     };
-    let _ = state.callback_tx.try_send(event);
+    send_callback(&state, event);
     StatusCode::NO_CONTENT
 }
 
@@ -323,7 +409,7 @@ pub async fn t5_callback_handler(
         // pane can render `formula=(seed+A)*B % M` (D-14-02). T5Formula is Copy.
         t5_formula: Some(*formula),
     };
-    let _ = state.callback_tx.try_send(event);
+    send_callback(&state, event);
     StatusCode::NO_CONTENT
 }
 
@@ -368,7 +454,7 @@ pub async fn t6_callback_handler(
         t5_formula: None,
         exfil: Some(exfil),
     };
-    let _ = state.callback_tx.try_send(event);
+    send_callback(&state, event);
     StatusCode::NO_CONTENT
 }
 
@@ -376,22 +462,43 @@ pub async fn t6_callback_handler(
 ///
 /// Returns aggregate callback statistics as JSON with CORS header.
 /// Returns 500 on database error.
+///
+/// The aggregate queries share the event writer's connection, so the JSON is
+/// cached for [`STATS_CACHE_TTL`]; anonymous hammering costs one query per
+/// window instead of one per request.
 pub async fn stats_handler(State(state): State<Arc<AppState>>) -> axum::response::Response {
-    match state
-        .conn
-        .call(|c| crate::store::query_report_summary(c).map_err(tokio_rusqlite::Error::from))
-        .await
-    {
-        Ok(summary) => {
-            let mut response = axum::Json(summary).into_response();
-            response.headers_mut().insert(
-                "access-control-allow-origin",
-                axum::http::HeaderValue::from_static("*"),
-            );
-            response
+    let mut cache = state.stats_cache.lock().await;
+    let fresh = cache
+        .as_ref()
+        .filter(|(at, _)| at.elapsed() < STATS_CACHE_TTL)
+        .map(|(_, body)| body.clone());
+    let body = match fresh {
+        Some(body) => body,
+        None => {
+            let result = state
+                .conn
+                .call(|c| {
+                    crate::store::query_report_summary(c).map_err(tokio_rusqlite::Error::from)
+                })
+                .await;
+            match result.map(|s| serde_json::to_string(&s)) {
+                Ok(Ok(body)) => {
+                    *cache = Some((std::time::Instant::now(), body.clone()));
+                    body
+                }
+                _ => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            }
         }
-        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-    }
+    };
+    drop(cache);
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "application/json"),
+            (axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"),
+        ],
+        body,
+    )
+        .into_response()
 }
 
 /// Per-request timeout. Every route is a cheap GET, so anything slower is a
@@ -492,21 +599,17 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
     conn.call(|c| crate::store::run_migrations(c).map_err(tokio_rusqlite::Error::from))
         .await?;
 
-    // Create event pipeline channels
+    // Event pipeline: server → mpsc → broker → mpsc → db writer → broadcast
+    // (persisted events, with real replay/fire-count) → stdout logger.
     let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(256);
+    let (db_tx, db_rx) = mpsc::channel(256);
     let (event_tx, _) = tokio::sync::broadcast::channel(1024);
-
-    // Subscribe consumers before spawning broker (so no events are missed)
-    let db_rx = event_tx.subscribe();
+    // Subscribe before anything can be broadcast (so no events are missed)
     let log_rx = event_tx.subscribe();
 
     // Spawn pipeline tasks
     let session_salt = crate::fingerprint::load_or_create_salt(&project_path.join(".honeyprompt"))?;
-    tokio::spawn(crate::broker::broker_task(
-        callback_rx,
-        event_tx,
-        session_salt,
-    ));
+    let broker_handle = tokio::spawn(crate::broker::broker_task(callback_rx, db_tx, session_salt));
     let webhook = crate::webhook::Webhook::from_config_and_env(config)?;
     let webhook_display = webhook
         .as_ref()
@@ -514,7 +617,7 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
         .unwrap_or_else(|| "none".to_string());
     let alerts = webhook.map(crate::webhook::spawn).transpose()?;
     let (seed_hit_tx, seed_hit_rx) = mpsc::channel::<SeedHit>(256);
-    tokio::spawn(crate::broker::seed_hit_writer_task(
+    let seed_handle = tokio::spawn(crate::broker::seed_hit_writer_task(
         seed_hit_rx,
         conn.clone(),
         alerts.clone(),
@@ -524,10 +627,15 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
             crate::broker::SeedLog::Text
         },
     ));
-    tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone(), alerts));
-    tokio::spawn(crate::broker::stdout_logger_task(log_rx, json_mode));
+    let db_handle = tokio::spawn(crate::broker::db_writer_task(
+        db_rx,
+        conn.clone(),
+        alerts,
+        event_tx,
+    ));
+    let log_handle = tokio::spawn(crate::broker::stdout_logger_task(log_rx, json_mode));
     let (page_view_tx, page_view_rx) = mpsc::channel::<PageView>(256);
-    tokio::spawn(crate::broker::page_view_writer_task(
+    let page_view_handle = tokio::spawn(crate::broker::page_view_writer_task(
         page_view_rx,
         conn.clone(),
     ));
@@ -539,6 +647,7 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
     } else {
         config.trusted_proxies.join(", ")
     };
+    let drops = Arc::new(DropCounters::default());
     let app_state = AppState {
         conn: conn.clone(),
         callback_tx,
@@ -548,6 +657,8 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
         page_view_tx: Some(page_view_tx),
         exfil_canary: None,
         seed_hit_tx: Some(seed_hit_tx),
+        drops: drops.clone(),
+        stats_cache: Default::default(),
     };
     let app = build_router(Arc::new(app_state), output_dir);
 
@@ -569,14 +680,39 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
     .with_graceful_shutdown(shutdown_signal())
     .await?;
 
+    // The router (and with it every sender) is gone now, so each stage drains
+    // its queue and exits in order. Bounded so `docker stop`'s 10 s grace holds.
+    let drain = async {
+        broker_handle.await.ok();
+        db_handle.await.ok();
+        log_handle.await.ok();
+        page_view_handle.await.ok();
+        seed_handle.await.ok();
+    };
+    if tokio::time::timeout(SHUTDOWN_DRAIN_TIMEOUT, drain)
+        .await
+        .is_err()
+    {
+        eprintln!(
+            "warning: writers still busy after {}s; unwritten events were lost",
+            SHUTDOWN_DRAIN_TIMEOUT.as_secs()
+        );
+    }
+
     // Post-shutdown summary stats (D-11)
     let detections = conn
         .call(|c| crate::store::count_detections(c).map_err(tokio_rusqlite::Error::from))
         .await?;
     println!("\nShutdown complete. {} detection(s) recorded.", detections);
+    if let Some(line) = drops.summary() {
+        println!("{line}");
+    }
 
     Ok(())
 }
+
+/// How long shutdown waits for queued events to be written.
+pub const SHUTDOWN_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Wait for SIGINT (Ctrl+C), SIGTERM (`docker stop`, `systemctl stop`) or
 /// SIGHUP (terminal closed), then print a shutdown notice to stderr.

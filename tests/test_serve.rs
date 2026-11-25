@@ -84,6 +84,8 @@ async fn build_test_state(
         page_view_tx: None,
         exfil_canary: None,
         seed_hit_tx: None,
+        drops: Default::default(),
+        stats_cache: Default::default(),
     });
 
     (app_state, output_dir, mappings)
@@ -472,6 +474,8 @@ async fn build_t4_t5_state(
         page_view_tx: None,
         exfil_canary: None,
         seed_hit_tx: None,
+        drops: Default::default(),
+        stats_cache: Default::default(),
     });
 
     (app_state, output_dir, dir)
@@ -863,4 +867,94 @@ async fn test_seed_route_is_uniform_and_not_a_page_view() {
         callback_rx.try_recv().is_err(),
         "seed fetches are not tier callbacks"
     );
+}
+
+/// Review #7: /stats is cached, so a burst costs one aggregate query per window.
+#[tokio::test]
+async fn test_stats_response_is_cached() {
+    let dir = init_and_generate();
+    let (callback_tx, _rx) = mpsc::channel(16);
+    let (state, output_dir, mappings) = build_test_state(&dir, callback_tx).await;
+    let get_total = |state: Arc<server::AppState>, out: std::path::PathBuf| async move {
+        let resp = test_router(state, out)
+            .oneshot(
+                Request::builder()
+                    .uri("/stats")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers()["access-control-allow-origin"], "*");
+        assert_eq!(resp.headers()["content-type"], "application/json");
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        v["total_sessions"].as_u64().unwrap()
+    };
+
+    assert_eq!(get_total(state.clone(), output_dir.clone()).await, 0);
+
+    // Record a hit behind the cache's back.
+    let nonce = mappings[0].nonce.clone();
+    state
+        .conn
+        .call(move |c| {
+            store::insert_callback_event(
+                c,
+                &nonce,
+                1,
+                "p",
+                "html_comment",
+                "sess-cache",
+                "203.0.113.5",
+                "CacheTest/1.0",
+                r#"{"classification":"Unknown","headers":{}}"#,
+                None,
+                None,
+                None,
+            )
+            .map_err(tokio_rusqlite::Error::from)
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(
+        get_total(state.clone(), output_dir.clone()).await,
+        0,
+        "served from cache within the TTL"
+    );
+    *state.stats_cache.lock().await = None; // expire
+    assert_eq!(get_total(state, output_dir).await, 1);
+}
+
+/// Review #8: callbacks dropped on a full queue are counted, not silently lost.
+#[tokio::test]
+async fn test_dropped_callbacks_are_counted() {
+    let dir = init_and_generate();
+    // Capacity 1 and nobody receiving: the first send queues, the rest drop.
+    let (callback_tx, _rx) = mpsc::channel(1);
+    let (state, output_dir, mappings) = build_test_state(&dir, callback_tx).await;
+    let nonce = &mappings[0].nonce;
+    for _ in 0..3 {
+        let resp = test_router(state.clone(), output_dir.clone())
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/cb/v1/{nonce}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::NO_CONTENT,
+            "drops are invisible to clients"
+        );
+    }
+    assert_eq!(state.drops.totals(), (2, 0, 0));
+    let line = state.drops.summary().unwrap();
+    assert!(line.contains("2 callback(s)"), "{line}");
 }

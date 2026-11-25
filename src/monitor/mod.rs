@@ -1086,22 +1086,17 @@ pub async fn monitor(
         conn.call(|c| crate::store::run_migrations(c).map_err(tokio_rusqlite::Error::from))
             .await?;
 
-        // Create event pipeline channels
+        // Event pipeline: server → mpsc → broker → mpsc → db writer →
+        // broadcast of persisted events (real replay flag / fire count) → TUI.
         let (callback_tx, callback_rx) = mpsc::channel::<RawCallbackEvent>(256);
+        let (db_tx, db_rx) = mpsc::channel::<AppEvent>(256);
         let (event_tx, _initial_rx) = tokio::sync::broadcast::channel::<AppEvent>(1024);
-
-        // Subscribe consumers BEFORE spawning broker (so no events are missed)
         let tui_rx = event_tx.subscribe();
-        let db_rx = event_tx.subscribe();
 
         // Spawn pipeline tasks (no stdout_logger_task — TUI replaces it)
         let session_salt =
             crate::fingerprint::load_or_create_salt(&project_path.join(".honeyprompt"))?;
-        tokio::spawn(crate::broker::broker_task(
-            callback_rx,
-            event_tx,
-            session_salt,
-        ));
+        tokio::spawn(crate::broker::broker_task(callback_rx, db_tx, session_salt));
         let alerts = crate::webhook::Webhook::from_config_and_env(config)?
             .map(crate::webhook::spawn)
             .transpose()?;
@@ -1112,7 +1107,12 @@ pub async fn monitor(
             alerts.clone(),
             crate::broker::SeedLog::Quiet,
         ));
-        tokio::spawn(crate::broker::db_writer_task(db_rx, conn.clone(), alerts));
+        tokio::spawn(crate::broker::db_writer_task(
+            db_rx,
+            conn.clone(),
+            alerts,
+            event_tx,
+        ));
         let (page_view_tx, page_view_rx) = mpsc::channel::<crate::server::PageView>(256);
         tokio::spawn(crate::broker::page_view_writer_task(
             page_view_rx,
@@ -1129,6 +1129,9 @@ pub async fn monitor(
             page_view_tx: Some(page_view_tx),
             exfil_canary: None,
             seed_hit_tx: Some(seed_hit_tx),
+            // Quiet: a warning on stderr would corrupt the TUI.
+            drops: Arc::new(crate::server::DropCounters::quiet()),
+            stats_cache: Default::default(),
         });
         let app_router = crate::server::build_router(server_state, output_dir);
 

@@ -17,6 +17,22 @@ pub fn callback_map_path(project_path: &Path) -> PathBuf {
     project_path.join(".honeyprompt").join("callback-map.json")
 }
 
+/// Sorted, de-duplicated tier list (how `tiers` compare for regeneration).
+pub fn normalize_tiers(tiers: &[u8]) -> Vec<u8> {
+    let mut t = tiers.to_vec();
+    t.sort_unstable();
+    t.dedup();
+    t
+}
+
+/// Tiers present in the generated site, read from its nonce map.
+pub fn generated_tiers(project_path: &Path) -> anyhow::Result<Vec<u8>> {
+    let json = std::fs::read_to_string(callback_map_path(project_path))?;
+    let mappings: Vec<crate::types::NonceMapping> = serde_json::from_str(&json)?;
+    let tiers: Vec<u8> = mappings.iter().map(|m| u8::from(m.tier)).collect();
+    Ok(normalize_tiers(&tiers))
+}
+
 /// Embedded Jinja templates from assets/templates/.
 #[derive(RustEmbed)]
 #[folder = "assets/templates/"]

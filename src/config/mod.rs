@@ -16,7 +16,7 @@ pub struct Config {
     /// Address and port to bind the callback server to (e.g., "0.0.0.0:8080")
     pub bind_address: String,
 
-    /// Which payload tiers to include in the generated honeypot (e.g., [1, 2, 3])
+    /// Which payload tiers to include in the generated honeypot (default: all served tiers, 1-5)
     pub tiers: Vec<u8>,
 
     /// Title shown in the honeypot page header
@@ -44,7 +44,7 @@ impl Default for Config {
         Self {
             callback_base_url: "http://localhost:8080".to_string(),
             bind_address: "0.0.0.0:8080".to_string(),
-            tiers: vec![1, 2, 3],
+            tiers: vec![1, 2, 3, 4, 5],
             page_title: "Security Research Canary".to_string(),
             theme: "default".to_string(),
             trusted_proxies: Vec::new(),
@@ -55,7 +55,14 @@ impl Default for Config {
 
 /// Read and parse a `honeyprompt.toml` config file from the given path.
 pub fn load_config(path: &Path) -> Result<Config> {
-    let contents = std::fs::read_to_string(path)?;
+    let contents = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => anyhow::bail!(
+            "no honeyprompt.toml at {} — run `honeyprompt init`, or pass --domain your-host.example to `serve` to create one",
+            path.display()
+        ),
+        Err(e) => anyhow::bail!("cannot read {}: {e}", path.display()),
+    };
     let config: Config = toml::from_str(&contents)?;
     Ok(config)
 }
@@ -83,11 +90,11 @@ pub fn config_with_overrides(
 ) -> Config {
     let mut cfg = base.clone();
 
+    // --domain sets only the callback URL. A new project gets the defaults'
+    // bind and tiers from `Config::default()`; an existing config keeps its own
+    // (it used to be reset to tiers 1-3, overriding the file).
     if let Some(d) = domain {
         cfg.callback_base_url = format!("https://{}", d);
-        // Domain implies these defaults unless explicitly overridden below
-        cfg.bind_address = "0.0.0.0:8080".to_string();
-        cfg.tiers = vec![1, 2, 3];
     }
 
     // Explicit flag overrides (applied after domain defaults — highest precedence)
@@ -113,7 +120,20 @@ mod tests {
         let cfg = config_with_overrides(&base, Some("example.com"), None, None);
         assert_eq!(cfg.callback_base_url, "https://example.com");
         assert_eq!(cfg.bind_address, "0.0.0.0:8080");
-        assert_eq!(cfg.tiers, vec![1, 2, 3]);
+        assert_eq!(cfg.tiers, vec![1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_domain_keeps_an_existing_configs_tiers_and_bind() {
+        let loaded = Config {
+            bind_address: "127.0.0.1:9000".into(),
+            tiers: vec![1, 2, 3, 4, 5],
+            ..Config::default()
+        };
+        let cfg = config_with_overrides(&loaded, Some("example.com"), None, None);
+        assert_eq!(cfg.callback_base_url, "https://example.com");
+        assert_eq!(cfg.bind_address, "127.0.0.1:9000");
+        assert_eq!(cfg.tiers, vec![1, 2, 3, 4, 5]);
     }
 
     #[test]
