@@ -268,7 +268,7 @@ honeyprompt monitor
 honeyprompt monitor /path/to/project
 ```
 
-Opens the TUI live event viewer. Displays incoming callbacks as they arrive with agent fingerprinting, 5-tier breakdown, and session grouping. The `EVIDENCE` column shows the decoded T4 capability list and T5 proof with a validity glyph (`✓`/`✗`), while an always-visible detail pane below the table renders the full capability list, T5 formula, or payload metadata for the currently selected row. Vim-style navigation, Tab cycles through all six tier filters (All → T1 → T2 → T3 → T4 → T5 → All). Can attach to a running server (`--attach`) or start integrated mode. The list keeps the newest 10,000 events (the database keeps everything); the header counts stay exact. In integrated mode, quitting stops the server and writes everything still queued; dropped or skipped events are shown in the status line and printed on exit.
+Opens the TUI live event viewer. Displays incoming callbacks as they arrive with agent fingerprinting, 5-tier breakdown, and session grouping. The `EVIDENCE` column shows the decoded T4 capability list and T5 proof with a validity glyph (`✓`/`✗`), while an always-visible detail pane below the table renders the full capability list, T5 formula, or payload metadata for the currently selected row. Vim-style navigation, Tab cycles through all six tier filters (All → T1 → T2 → T3 → T4 → T5 → All). Can attach to a running server (`--attach`) or start integrated mode. The list keeps the newest 10,000 events (the database keeps everything); the header counts stay exact. In integrated mode, quitting — with `q`, or SIGTERM / SIGHUP (e.g. `kill`, an ssh disconnect) — stops the server and writes everything still queued, and a signal in attach mode restores the terminal before exiting; dropped or skipped events are shown in the status line and printed on exit.
 
 ### Generate a disclosure report
 
@@ -392,7 +392,7 @@ See [experiments/PROTOCOL.md](experiments/PROTOCOL.md) for the validation experi
 
 ## Status
 
-Current release: **v5.7.2** — five proof tiers on served pages, tier 6 context exfiltration in `test-agent --exfil`, repeatable agent experiments (`test-agent --agent-cmd --trials --results`, `experiment summarize`), seeded canaries (`honeyprompt seed`), `serve`, `monitor`, `report`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
+Current release: **v5.7.3** — five proof tiers on served pages, tier 6 context exfiltration in `test-agent --exfil`, repeatable agent experiments (`test-agent --agent-cmd --trials --results`, `experiment summarize`), seeded canaries (`honeyprompt seed`), `serve`, `monitor`, `report`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
 
 ## Ethics and Safety
 

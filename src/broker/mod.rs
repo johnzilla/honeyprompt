@@ -120,7 +120,13 @@ pub async fn db_writer_task(
                     });
                 }
             }
-            Err(e) => eprintln!("warning: db_writer failed to persist event: {}", e),
+            Err(e) => {
+                // Not persisted: don't show it either. Subscribers (TUI,
+                // --json log) only ever see events that are in the DB, with
+                // their stored replay flag and fire count.
+                eprintln!("warning: db_writer failed to persist event: {}", e);
+                continue;
+            }
         }
         // No subscribers (serve without a logger, test-agent) is fine.
         let _ = out.send(event);
@@ -556,6 +562,34 @@ mod tests {
             closed,
             Ok(Err(broadcast::error::RecvError::Closed))
         ));
+    }
+
+    /// A failed insert is not broadcast: subscribers only see persisted events.
+    #[tokio::test]
+    async fn test_db_writer_does_not_broadcast_unpersisted_events() {
+        let tk_conn = tokio_rusqlite::Connection::open_in_memory().await.unwrap();
+        tk_conn
+            .call(|conn| {
+                crate::store::run_migrations(conn)?;
+                // Make every insert fail.
+                conn.execute_batch("DROP TABLE hits; DROP TABLE events;")?;
+                Ok::<_, rusqlite::Error>(())
+            })
+            .await
+            .unwrap();
+        let (event_tx, event_rx) = mpsc::channel::<AppEvent>(16);
+        let (out_tx, mut out_rx) = broadcast::channel::<AppEvent>(16);
+        let writer = tokio::spawn(db_writer_task(event_rx, tk_conn.clone(), None, out_tx));
+        event_tx.send(make_app_event("failing01", 1)).await.unwrap();
+        drop(event_tx);
+        writer.await.unwrap();
+        assert!(
+            matches!(
+                out_rx.recv().await,
+                Err(broadcast::error::RecvError::Closed)
+            ),
+            "nothing was broadcast before the channel closed"
+        );
     }
 
     #[tokio::test]

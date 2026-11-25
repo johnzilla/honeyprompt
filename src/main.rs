@@ -156,16 +156,21 @@ fn main() -> Result<()> {
                 let domain_changed =
                     args.domain.is_some() && cfg.callback_base_url != base_cfg.callback_base_url;
                 let wanted = generator::normalize_tiers(&cfg.tiers);
-                let tiers_changed = !missing_site
-                    && generator::generated_tiers(path)
-                        .map(|have| have != wanted)
-                        .unwrap_or(true);
-                if tiers_changed {
-                    let have = generator::generated_tiers(path)
-                        .map(|t| format!("{t:?}"))
-                        .unwrap_or_else(|_| "unreadable".into());
-                    println!("tiers changed ({have} -> {wanted:?}); regenerating site");
-                }
+                let tiers_changed = if missing_site {
+                    false
+                } else {
+                    match generator::generated_tiers(path) {
+                        Ok(have) if have == wanted => false,
+                        Ok(have) => {
+                            println!("tiers changed ({have:?} -> {wanted:?}); regenerating site");
+                            true
+                        }
+                        Err(_) => {
+                            println!("nonce map unreadable; regenerating site");
+                            true
+                        }
+                    }
+                };
                 if missing_site || domain_changed || tiers_changed {
                     let db_path = path.join(".honeyprompt").join("events.db");
                     let conn = store::open_or_create_db(&db_path)?;

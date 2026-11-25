@@ -969,15 +969,25 @@ fn handle_key_event(key: &KeyEvent, app: &mut AppState) -> bool {
 
 // --- Async run loops ---
 
-async fn run_loop(
-    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+/// Integrated-mode TUI loop. Returns the OS signal that ended it, if any
+/// (`q` / Ctrl-C keys and a closed event stream return `None`).
+async fn run_loop<B, K>(
+    terminal: &mut Terminal<B>,
     mut event_rx: broadcast::Receiver<AppEvent>,
     app: &mut AppState,
-) -> anyhow::Result<()> {
-    let mut key_stream = EventStream::new();
+    mut key_stream: K,
+    shutdown: impl std::future::Future<Output = &'static str>,
+) -> anyhow::Result<Option<&'static str>>
+where
+    B: ratatui::backend::Backend,
+    B::Error: std::error::Error + Send + Sync + 'static,
+    K: futures::Stream<Item = std::io::Result<Event>> + Unpin,
+{
     let mut tick = tokio::time::interval(Duration::from_millis(16));
+    tokio::pin!(shutdown);
     loop {
         tokio::select! {
+            name = &mut shutdown => return Ok(Some(name)),
             _ = tick.tick() => {
                 terminal.draw(|f| render(f, app))?;
             }
@@ -999,21 +1009,31 @@ async fn run_loop(
             }
         }
     }
-    Ok(())
+    Ok(None)
 }
 
-async fn run_loop_attach(
-    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+/// Attach-mode TUI loop (polls the DB). Returns the OS signal that ended it,
+/// if any, so the terminal is restored instead of left in raw mode.
+async fn run_loop_attach<B, K>(
+    terminal: &mut Terminal<B>,
     conn: tokio_rusqlite::Connection,
     app: &mut AppState,
-) -> anyhow::Result<()> {
-    let mut key_stream = EventStream::new();
+    mut key_stream: K,
+    shutdown: impl std::future::Future<Output = &'static str>,
+) -> anyhow::Result<Option<&'static str>>
+where
+    B: ratatui::backend::Backend,
+    B::Error: std::error::Error + Send + Sync + 'static,
+    K: futures::Stream<Item = std::io::Result<Event>> + Unpin,
+{
     let mut tick = tokio::time::interval(Duration::from_millis(16));
     let mut poll = tokio::time::interval(Duration::from_millis(250));
     let mut last_seen_id: i64 = 0;
+    tokio::pin!(shutdown);
 
     loop {
         tokio::select! {
+            name = &mut shutdown => return Ok(Some(name)),
             _ = tick.tick() => {
                 terminal.draw(|f| render(f, app))?;
             }
@@ -1108,7 +1128,7 @@ async fn run_loop_attach(
             }
         }
     }
-    Ok(())
+    Ok(None)
 }
 
 /// Parse AgentClass from the extra_headers JSON blob stored in the DB.
@@ -1153,10 +1173,16 @@ pub async fn monitor(
         let conn = tokio_rusqlite::Connection::open(&db_path).await?;
         app.status_line = format!("Attached to db: {}", db_path.display());
 
+        // Handlers first, so a signal during startup is caught too.
+        let signal = crate::server::shutdown_signal()?;
         let mut terminal = setup_terminal()?;
-        let result = run_loop_attach(&mut terminal, conn, &mut app).await;
+        let result =
+            run_loop_attach(&mut terminal, conn, &mut app, EventStream::new(), signal).await;
         restore_terminal(&mut terminal)?;
-        result
+        if let Ok(Some(name)) = &result {
+            eprintln!("Received {name}; exiting.");
+        }
+        result.map(|_| ())
     } else {
         // Integrated mode: start server + TUI together
         let output_dir = project_path.join("output");
@@ -1258,15 +1284,20 @@ pub async fn monitor(
 
         app.status_line = format!("Serving on {}", actual_addr);
 
-        // Setup terminal and run TUI
+        // Handlers before the TUI starts, so SIGTERM / SIGHUP (kill, ssh
+        // disconnect) take the same drain path as `q` instead of killing us.
+        let signal = crate::server::shutdown_signal()?;
         let mut terminal = setup_terminal()?;
-        let result = run_loop(&mut terminal, tui_rx, &mut app).await;
+        let result = run_loop(&mut terminal, tui_rx, &mut app, EventStream::new(), signal).await;
         restore_terminal(&mut terminal)?;
 
         // Stop the server, then let each stage drain its queue in order (the
         // router held the senders), bounded like `serve`'s shutdown.
         let _ = shutdown_tx.send(());
-        eprintln!("Shutting down -- flushing writes...");
+        match &result {
+            Ok(Some(name)) => eprintln!("Shutting down ({name}) -- flushing writes..."),
+            _ => eprintln!("Shutting down -- flushing writes..."),
+        }
         let drain = async {
             server_handle.await.ok();
             broker_handle.await.ok();
@@ -1286,7 +1317,7 @@ pub async fn monitor(
         if let Some(line) = drops.summary() {
             eprintln!("{line}");
         }
-        result
+        result.map(|_| ())
     }
 }
 
@@ -1442,6 +1473,69 @@ mod tests {
         assert_eq!(visible[0].fingerprint.source_ip.to_string(), "1.2.3.4");
         assert_eq!(visible[1].fingerprint.source_ip.to_string(), "2.3.4.5");
         assert_eq!(visible[2].fingerprint.source_ip.to_string(), "3.4.5.6");
+    }
+
+    /// A key stream that never yields (crossterm's EventStream needs a tty).
+    fn no_keys() -> futures::stream::Pending<std::io::Result<Event>> {
+        futures::stream::pending()
+    }
+
+    /// Review 5.7.2 #2: an OS signal ends the integrated-mode loop (so the
+    /// caller restores the terminal and drains), reporting which signal.
+    #[tokio::test]
+    async fn run_loop_exits_on_shutdown_signal() {
+        let mut terminal = Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
+        let (_tx, rx) = broadcast::channel::<AppEvent>(4); // kept open
+        let mut app = AppState::new();
+        let ended = tokio::time::timeout(
+            Duration::from_secs(5),
+            run_loop(&mut terminal, rx, &mut app, no_keys(), async { "SIGTERM" }),
+        )
+        .await
+        .expect("loop must exit on the signal");
+        assert_eq!(ended.unwrap(), Some("SIGTERM"));
+    }
+
+    /// Without a signal the loop keeps running (until the event stream closes).
+    #[tokio::test]
+    async fn run_loop_ends_without_signal_when_events_close() {
+        let mut terminal = Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
+        let (tx, rx) = broadcast::channel::<AppEvent>(4);
+        drop(tx);
+        let mut app = AppState::new();
+        let ended = tokio::time::timeout(
+            Duration::from_secs(5),
+            run_loop(
+                &mut terminal,
+                rx,
+                &mut app,
+                no_keys(),
+                std::future::pending(),
+            ),
+        )
+        .await
+        .expect("closed event stream ends the loop");
+        assert_eq!(ended.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn attach_loop_exits_on_shutdown_signal() {
+        let mut terminal = Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
+        let conn = tokio_rusqlite::Connection::open_in_memory().await.unwrap();
+        conn.call(|c| crate::store::run_migrations(c).map_err(tokio_rusqlite::Error::from))
+            .await
+            .unwrap();
+        let mut app = AppState::new();
+        let ended = tokio::time::timeout(
+            Duration::from_secs(5),
+            run_loop_attach(&mut terminal, conn, &mut app, no_keys(), async {
+                tokio::time::sleep(Duration::from_millis(300)).await;
+                "SIGHUP"
+            }),
+        )
+        .await
+        .expect("attach loop must exit on the signal");
+        assert_eq!(ended.unwrap(), Some("SIGHUP"));
     }
 
     #[test]

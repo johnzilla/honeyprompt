@@ -671,7 +671,11 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
     // Print startup info (D-09)
     // Install signal handlers and bind before announcing "ready", and print
     // the address actually bound (meaningful with port 0).
-    let shutdown = shutdown_signal()?;
+    let signal = shutdown_signal()?;
+    let shutdown = async move {
+        let name = signal.await;
+        eprintln!("\nShutting down ({name}) -- flushing writes...");
+    };
     let listener = tokio::net::TcpListener::bind(&config.bind_address).await?;
     println!("honeyprompt serve");
     println!("  bind:   {}", config.bind_address);
@@ -734,18 +738,19 @@ pub const SHUTDOWN_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 /// The handlers are installed when this is *called*, not when the returned
 /// future is first polled, so a signal that arrives right after "ready" (or
 /// during startup) is still caught instead of hitting the default action.
-fn shutdown_signal() -> anyhow::Result<impl std::future::Future<Output = ()>> {
+/// The future resolves to the signal's name; callers print the notice (the
+/// monitor does so only after restoring the terminal).
+pub fn shutdown_signal() -> anyhow::Result<impl std::future::Future<Output = &'static str>> {
     use tokio::signal::unix::{signal, SignalKind};
     let mut int = signal(SignalKind::interrupt())?;
     let mut term = signal(SignalKind::terminate())?;
     let mut hup = signal(SignalKind::hangup())?;
     Ok(async move {
-        let name = tokio::select! {
+        tokio::select! {
             _ = int.recv() => "SIGINT",
             _ = term.recv() => "SIGTERM",
             _ = hup.recv() => "SIGHUP",
-        };
-        eprintln!("\nShutting down ({name}) -- flushing writes...");
+        }
     })
 }
 
