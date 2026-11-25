@@ -31,13 +31,19 @@ Backlog and parked ideas live in `TODOS.md`. Releases are tagged `vX.Y.Z`; there
 
 ## Architecture (`src/`)
 
-- `cli/`, `main.rs`: Commands enum (Init, Generate, Serve, Monitor, Report, Setup, TestAgent). `serve` takes `--domain`/`--bind`/`--tiers` for zero-config mode
+- `cli/`, `main.rs`: Commands enum (Init, Generate, Serve, Monitor, Report, Setup, TestAgent, WebhookTest, Seed, Experiment). `serve` takes `--domain`/`--bind`/`--tiers` for zero-config mode
+- `config/`: `honeyprompt.toml` load/defaults, `config_with_overrides`, `--domain` / `callback_base_url` validation
 - `setup/`: interactive wizard, writes `honeyprompt.toml`
-- `generator/`: loads payload catalog, assigns nonces, renders index.html, robots.txt, ai.txt, security.txt
-- `server/`: static honeypot + callbacks `/cb/v1/{nonce}` (T1–T3), `/cb/v4/{nonce}/{b64_list}`, `/cb/v5/{nonce}/{proof}`, and `/stats` JSON with CORS
-- `broker/`: enriches raw callbacks with fingerprint/classification, fans out to DB writer and stdout logger
+- `catalog/`: loads the embedded payload catalog (`assets/catalog/tier1-6.toml`)
+- `generator/`: assigns nonces, renders index.html, robots.txt, ai.txt, security.txt; `generate` refuses tier 6
+- `nonce.rs`: nonce minting/validation and the T5 seed; `client_ip.rs`: trusted-proxy client IP
+- `server/`: static honeypot + callbacks `/cb/v1/{nonce}` (T1–T3), `/cb/v4/{nonce}/{b64_list}`, `/cb/v5/{nonce}/{proof}`, `/cb/v6/{nonce}/{value}` (test-agent only), seeded canaries `/r/{nonce}`, `/stats` JSON with CORS (cached 5 s); page-fetch middleware; `DropCounters`
+- `broker/`: enriches raw callbacks, DB writer (then broadcasts persisted events), stdout logger, page-view and seed-hit writers
 - `fingerprint/`, `crawler_catalog/`: request fingerprinting and known-crawler classification
-- `store/`: SQLite schema + migrations, replay detection, session grouping, per-tier queries
+- `store/`: SQLite schema + migrations, replay detection, hits/page views/seeds, session grouping, per-tier queries
+- `webhook/`: signed alert delivery (RustCrypto `hmac`, reqwest + rustls/ring)
+- `seed/`: `honeyprompt seed add/list`, the uniform `/r/` warning page
 - `monitor/`: Ratatui TUI, integrated-server or DB-attach mode
 - `report/`: Markdown disclosure report
-- `test_agent/`: ephemeral tempdir generate→serve→score pipeline with per-tier scorecard and CI exit codes
+- `test_agent/`: ephemeral generate→serve→score pipeline, `--agent-cmd`/`--trials`/`--results`/`--public-url`, per-tier scorecard and CI exit codes
+- `experiment/`: `experiment summarize` (Markdown table, Wilson intervals)

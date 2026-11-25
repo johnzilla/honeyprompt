@@ -21,8 +21,7 @@ fn init_and_generate() -> tempfile::TempDir {
     let path = dir.path();
 
     std::fs::create_dir_all(path.join("output")).expect("output dir must create");
-    std::fs::create_dir_all(path.join(".honeyprompt").join("overrides"))
-        .expect("overrides dir must create");
+    std::fs::create_dir_all(path.join(".honeyprompt")).expect(".honeyprompt dir must create");
     let config_path = path.join("honeyprompt.toml");
     config::write_default_config(&config_path).expect("write_default_config must succeed");
     let db_path = path.join(".honeyprompt").join("events.db");
@@ -251,7 +250,7 @@ async fn test_stats_empty_db_returns_json() {
     let dir = tempdir().expect("tempdir must create");
     let path = dir.path();
     std::fs::create_dir_all(path.join("output")).expect("output dir must create");
-    std::fs::create_dir_all(path.join(".honeyprompt").join("overrides")).expect("overrides dir");
+    std::fs::create_dir_all(path.join(".honeyprompt")).expect(".honeyprompt dir");
     let config_path = path.join("honeyprompt.toml");
     config::write_default_config(&config_path).expect("write config");
     let db_path = path.join(".honeyprompt").join("events.db");

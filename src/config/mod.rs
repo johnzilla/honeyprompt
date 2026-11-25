@@ -63,7 +63,12 @@ pub fn load_config(path: &Path) -> Result<Config> {
         ),
         Err(e) => anyhow::bail!("cannot read {}: {e}", path.display()),
     };
-    let config: Config = toml::from_str(&contents)?;
+    let mut config: Config = toml::from_str(&contents)?;
+    config.callback_base_url = validate_base_url(
+        &config.callback_base_url,
+        &format!("callback_base_url in {}", path.display()),
+        true,
+    )?;
     Ok(config)
 }
 
@@ -73,6 +78,54 @@ pub fn write_default_config(path: &Path) -> Result<()> {
     let toml_string = toml::to_string_pretty(&config)?;
     std::fs::write(path, toml_string)?;
     Ok(())
+}
+
+/// Validate a base URL and return it without a trailing slash.
+///
+/// http(s), a host, optional port, no credentials, query or fragment, and only
+/// `[A-Za-z0-9:/.\-\[\]]` (plus `_ ~ %` in a path) — so it is safe to embed in
+/// generated HTML and in shell commands. `allow_path` permits a path prefix
+/// (a config's `callback_base_url` behind a proxy); flags take host[:port] only.
+/// `what` names the setting in error messages.
+pub fn validate_base_url(raw: &str, what: &str, allow_path: bool) -> Result<String> {
+    let trimmed = raw.trim().trim_end_matches('/');
+    let url = reqwest::Url::parse(trimmed)
+        .map_err(|e| anyhow::anyhow!("{what} {raw:?} is not a URL: {e}"))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        anyhow::bail!("{what} must be http:// or https://");
+    }
+    let path_ok = url.path() == "/" || (allow_path && !url.path().is_empty());
+    if url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || !path_ok
+    {
+        anyhow::bail!(
+            "{what} must be just scheme://host[:port]{}, e.g. https://agents.example.com (got {raw:?})",
+            if allow_path { "[/path]" } else { "" }
+        );
+    }
+    let extra: &[char] = if allow_path { &['_', '~', '%'] } else { &[] };
+    let ok = trimmed.chars().all(|c| {
+        c.is_ascii_alphanumeric()
+            || matches!(c, ':' | '/' | '.' | '-' | '[' | ']')
+            || extra.contains(&c)
+    });
+    if !ok {
+        anyhow::bail!("{what} {raw:?} contains unsupported characters");
+    }
+    Ok(trimmed.to_string())
+}
+
+/// clap value parser for `--domain`: a bare host with optional port.
+pub fn parse_domain(s: &str) -> std::result::Result<String, String> {
+    validate_base_url(&format!("https://{s}"), "--domain", false)
+        .map(|_| s.trim().to_string())
+        .map_err(|_| {
+            format!("{s:?} is not a host name: use host or host:port, e.g. honeypot.example.com")
+        })
 }
 
 /// Apply CLI flag overrides to a base config.
@@ -111,6 +164,59 @@ pub fn config_with_overrides(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn domain_and_base_url_validation() {
+        for ok in [
+            "honeyprompt.sh",
+            "localhost",
+            "127.0.0.1:8443",
+            "a-b.example.com",
+        ] {
+            assert_eq!(parse_domain(ok).unwrap(), ok);
+        }
+        for bad in [
+            "x/evil",
+            "x?y",
+            "x#y",
+            "user@x",
+            "x\"><script>",
+            "https://x.example",
+            "",
+            "x y",
+        ] {
+            assert!(parse_domain(bad).is_err(), "{bad}");
+        }
+        assert_eq!(
+            validate_base_url("https://x.example/hp/", "u", true).unwrap(),
+            "https://x.example/hp"
+        );
+        assert!(validate_base_url("https://x.example/hp", "u", false).is_err());
+        assert!(validate_base_url("https://x.example/a\"b", "u", true).is_err());
+        assert!(validate_base_url("javascript:alert(1)", "u", true).is_err());
+    }
+
+    #[test]
+    fn load_config_rejects_a_malformed_callback_base_url() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("honeyprompt.toml");
+        let cfg = Config {
+            callback_base_url: "https://x.example/?q=<b>".into(),
+            ..Config::default()
+        };
+        std::fs::write(&p, toml::to_string_pretty(&cfg).unwrap()).unwrap();
+        let err = load_config(&p).unwrap_err().to_string();
+        assert!(err.contains("callback_base_url"), "{err}");
+        let good = Config {
+            callback_base_url: "https://x.example/".into(),
+            ..Config::default()
+        };
+        std::fs::write(&p, toml::to_string_pretty(&good).unwrap()).unwrap();
+        assert_eq!(
+            load_config(&p).unwrap().callback_base_url,
+            "https://x.example"
+        );
+    }
 
     // ---- config_with_overrides precedence tests (SERVE-02, SERVE-03) ----
 

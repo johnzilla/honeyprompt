@@ -233,3 +233,21 @@ fn serve_without_config_or_domain_refuses_to_start() {
         "{err}"
     );
 }
+
+/// `--domain` accepts only a host or host:port.
+#[test]
+fn malformed_domain_is_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    for bad in ["x/evil", "evil.example?a=b", "\"><script>"] {
+        let out = Command::new(env!("CARGO_BIN_EXE_honeyprompt"))
+            .arg("serve")
+            .arg(dir.path())
+            .args(["--domain", bad])
+            .output()
+            .unwrap();
+        assert_eq!(out.status.code(), Some(2), "clap usage error for {bad}");
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(err.contains("not a host name"), "{bad}: {err}");
+        assert!(!dir.path().join("honeyprompt.toml").exists());
+    }
+}

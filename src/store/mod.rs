@@ -214,11 +214,62 @@ pub fn record_page_view(
     user_agent: &str,
     path: &str,
 ) -> rusqlite::Result<()> {
-    conn.execute(
-        "INSERT INTO page_views (received_at, remote_addr, user_agent, path)
-         VALUES (?1, ?2, ?3, ?4)",
-        params![received_at, remote_addr, user_agent, path],
+    record_page_view_capped(
+        conn,
+        received_at,
+        remote_addr,
+        user_agent,
+        path,
+        MAX_PAGE_VIEWS,
+    )
+}
+
+/// Repeat fetches from one IP within this many seconds update its latest row
+/// instead of adding one, so hammering the page can't grow the table.
+pub const PAGE_VIEW_COOLDOWN_SECS: i64 = 60;
+
+/// Hard cap on stored page fetches (oldest pruned). A flood from many IPs can
+/// still push out real fetches, so later hits from those IPs may be labelled
+/// out-of-band; the cap only bounds disk use.
+pub const MAX_PAGE_VIEWS: i64 = 100_000;
+
+fn record_page_view_capped(
+    conn: &Connection,
+    received_at: i64,
+    remote_addr: &str,
+    user_agent: &str,
+    path: &str,
+    cap: i64,
+) -> rusqlite::Result<()> {
+    // Keep "last fetch from this IP" exact (hit timing reads it) while adding
+    // at most one row per IP per cooldown window.
+    let updated = conn.execute(
+        "UPDATE page_views SET received_at = ?1, user_agent = ?2, path = ?3
+         WHERE id = (
+             SELECT id FROM page_views
+             WHERE remote_addr = ?4 AND received_at >= ?5 AND received_at <= ?1
+             ORDER BY received_at DESC LIMIT 1
+         )",
+        params![
+            received_at,
+            user_agent,
+            path,
+            remote_addr,
+            received_at - PAGE_VIEW_COOLDOWN_SECS
+        ],
     )?;
+    if updated == 0 {
+        conn.execute(
+            "INSERT INTO page_views (received_at, remote_addr, user_agent, path)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![received_at, remote_addr, user_agent, path],
+        )?;
+        // AUTOINCREMENT ids only grow, so this keeps at most `cap` newest rows.
+        conn.execute(
+            "DELETE FROM page_views WHERE id <= (SELECT MAX(id) FROM page_views) - ?1",
+            params![cap],
+        )?;
+    }
     conn.execute(
         "DELETE FROM page_views WHERE received_at < ?1",
         params![received_at - PAGE_VIEW_RETENTION_SECS],
@@ -1001,11 +1052,9 @@ pub fn insert_nonce(
     Ok(())
 }
 
-/// Return the current UTC time as an ISO-8601 string without pulling in a time crate.
-/// Uses the OS epoch via std and formats manually.
+/// Current time as Unix epoch seconds, formatted as a decimal string (the
+/// `events.first_seen_at` / `last_seen_at` text columns store it this way).
 fn chrono_now() -> String {
-    // We only need a stable, sortable string for stored timestamps.
-    // Using std epoch seconds avoids adding a time crate dependency in Phase 1.
     use std::time::{SystemTime, UNIX_EPOCH};
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1017,6 +1066,56 @@ fn chrono_now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn page_view_repeats_within_cooldown_update_one_row() {
+        let conn = in_memory_conn();
+        let now = 1_800_000_000;
+        for i in 0..5 {
+            record_page_view(&conn, now + i * 10, "9.9.9.9", "Hammer/1.0", "/").unwrap();
+        }
+        let (rows, last): (i64, i64) = conn
+            .query_row(
+                "SELECT COUNT(*), MAX(received_at) FROM page_views",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(rows, 1, "one row per IP per cooldown window");
+        assert_eq!(last, now + 40, "latest fetch time is kept exact");
+        // After the cooldown, a new row; another IP always gets its own.
+        record_page_view(
+            &conn,
+            now + 40 + PAGE_VIEW_COOLDOWN_SECS + 1,
+            "9.9.9.9",
+            "H",
+            "/",
+        )
+        .unwrap();
+        record_page_view(&conn, now + 41, "8.8.8.8", "Other", "/").unwrap();
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM page_views", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 3);
+    }
+
+    #[test]
+    fn page_views_are_capped_oldest_first() {
+        let conn = in_memory_conn();
+        let now = 1_800_000_000;
+        for i in 0..12 {
+            record_page_view_capped(&conn, now + i, &format!("10.0.0.{i}"), "UA", "/", 5).unwrap();
+        }
+        let (rows, oldest): (i64, i64) = conn
+            .query_row(
+                "SELECT COUNT(*), MIN(received_at) FROM page_views",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(rows, 5);
+        assert_eq!(oldest, now + 7, "the newest 5 survive");
+    }
 
     fn in_memory_conn() -> Connection {
         let conn = Connection::open_in_memory().expect("in-memory DB must open");

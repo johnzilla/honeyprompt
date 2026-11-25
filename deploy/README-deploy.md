@@ -29,7 +29,7 @@ Caddy auto-provisions a Let's Encrypt certificate on first request.
 
 ## Redeploy
 
-Images are built by GitHub Actions (`.github/workflows/docker.yml`) on GitHub's x86_64 runner — never locally. Pushing a `v*` tag builds and pushes `ghcr.io/johnzilla/honeyprompt:latest` and `:<version>`. To rebuild an existing tag: Actions → Docker Image → Run workflow → enter the tag.
+Images are built by GitHub Actions (`.github/workflows/docker.yml`) on GitHub's native x86_64 and arm64 runners — never locally. Pushing a `v*` tag builds both, pushes them as `:<version>-amd64` / `:<version>-arm64`, and merges them into multi-arch `ghcr.io/johnzilla/honeyprompt:latest` and `:<version>`, so arm64 droplets and hosts pull the right image automatically. To rebuild an existing tag: Actions → Docker Image → Run workflow → enter the tag.
 
 Once the workflow is green, pull on the droplet:
 

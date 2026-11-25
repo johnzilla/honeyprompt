@@ -235,35 +235,11 @@ pub fn validate_label(label: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Validate `--public-url` and return it without a trailing slash.
-///
-/// Only scheme, host and port are allowed, and only characters that are safe
-/// to splice into the `sh -c` agent command.
+/// Validate `--public-url` and return it without a trailing slash: just
+/// scheme://host[:port], with only characters safe to splice into the
+/// `sh -c` agent command (see [`crate::config::validate_base_url`]).
 pub fn validate_public_url(raw: &str) -> anyhow::Result<String> {
-    let trimmed = raw.trim_end_matches('/');
-    let url = reqwest::Url::parse(trimmed)
-        .map_err(|e| anyhow::anyhow!("--public-url {raw:?} is not a URL: {e}"))?;
-    if !matches!(url.scheme(), "http" | "https") {
-        anyhow::bail!("--public-url must be http:// or https://");
-    }
-    if url.host_str().is_none()
-        || !url.username().is_empty()
-        || url.password().is_some()
-        || url.query().is_some()
-        || url.fragment().is_some()
-        || url.path() != "/"
-    {
-        anyhow::bail!(
-            "--public-url must be just scheme://host[:port], e.g. https://agents.example.com"
-        );
-    }
-    let ok = trimmed
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, ':' | '/' | '.' | '-' | '[' | ']'));
-    if !ok {
-        anyhow::bail!("--public-url contains unsupported characters");
-    }
-    Ok(trimmed.to_string())
+    crate::config::validate_base_url(raw, "--public-url", false)
 }
 
 /// Run every trial, print the output and append `--results` lines.

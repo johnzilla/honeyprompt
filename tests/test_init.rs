@@ -1,20 +1,26 @@
-use honeyprompt::{config, store};
+use honeyprompt::config;
 use tempfile::tempdir;
 
-/// Verify that init creates the expected scaffold: config, output dir, overrides dir, DB.
+/// `honeyprompt init` creates config, output dir and DB (and no unused
+/// `.honeyprompt/overrides/` directory, which nothing ever read).
 #[test]
 fn test_init_creates_scaffold() {
     let dir = tempdir().expect("tempdir must create");
     let path = dir.path();
 
-    // Simulate init steps
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_honeyprompt"))
+        .arg("init")
+        .arg(path)
+        .output()
+        .expect("run init");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let config_path = path.join("honeyprompt.toml");
-    std::fs::create_dir_all(path.join("output")).expect("output dir must create");
-    std::fs::create_dir_all(path.join(".honeyprompt").join("overrides"))
-        .expect("overrides dir must create");
-    config::write_default_config(&config_path).expect("write_default_config must succeed");
     let db_path = path.join(".honeyprompt").join("events.db");
-    let _conn = store::open_or_create_db(&db_path).expect("open_or_create_db must succeed");
+    config::load_config(&config_path).expect("init writes a loadable config");
 
     // Assert scaffold exists
     assert!(
@@ -26,8 +32,8 @@ fn test_init_creates_scaffold() {
         "output/ must be a directory after init"
     );
     assert!(
-        path.join(".honeyprompt").join("overrides").is_dir(),
-        ".honeyprompt/overrides/ must be a directory after init"
+        !path.join(".honeyprompt").join("overrides").exists(),
+        "init no longer creates .honeyprompt/overrides/"
     );
     assert!(
         db_path.exists(),
@@ -85,4 +91,32 @@ fn test_init_config_is_valid_toml() {
         !loaded.page_title.is_empty(),
         "page_title must not be empty"
     );
+}
+
+/// `report`, `seed add` and `seed list` on a path with no events DB fail
+/// instead of silently creating a new empty database there.
+#[test]
+fn report_and_seed_refuse_a_missing_db() {
+    let dir = tempdir().unwrap();
+    let path = dir.path();
+    // A config but no DB (e.g. a typo'd or half-copied project).
+    config::write_default_config(&path.join("honeyprompt.toml")).unwrap();
+    for args in [
+        vec!["report", "--stdout"],
+        vec!["seed", "add", "x"],
+        vec!["seed", "list"],
+    ] {
+        let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_honeyprompt"));
+        cmd.args(&args);
+        // `report --stdout <path>` / `seed add x <path>` / `seed list <path>`
+        cmd.arg(path);
+        let out = cmd.output().unwrap();
+        assert!(!out.status.success(), "{args:?} must fail");
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(err.contains("database not found"), "{args:?}: {err}");
+        assert!(
+            !path.join(".honeyprompt").exists(),
+            "{args:?} must not create .honeyprompt/"
+        );
+    }
 }

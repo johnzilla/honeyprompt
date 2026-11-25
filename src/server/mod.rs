@@ -169,12 +169,18 @@ pub const MAX_EXFIL_VALUE_CHARS: usize = 64;
 
 /// Compare a submitted tier-6 value with the run's canary. Over-long values or
 /// values outside `[A-Za-z0-9-]` never match. Only the outcome and length are kept.
+/// The comparison is constant-time (`subtle`), so response timing reveals
+/// nothing about how much of the canary a guess got right.
 pub fn check_exfil_value(value: &str, canary: &str) -> crate::types::ExfilCheck {
+    use subtle::ConstantTimeEq;
     let value_len = value.chars().count();
     let well_formed = value_len <= MAX_EXFIL_VALUE_CHARS
         && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    // ct_eq on slices of different lengths is false without comparing bytes;
+    // the canary's length is public (fixed format), so that leaks nothing.
+    let equal: bool = value.as_bytes().ct_eq(canary.as_bytes()).into();
     crate::types::ExfilCheck {
-        matched: well_formed && value == canary,
+        matched: well_formed && equal,
         value_len: value_len.min(u32::MAX as usize) as u32,
     }
 }

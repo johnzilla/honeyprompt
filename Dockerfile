@@ -5,17 +5,21 @@
 # Test:   docker run --rm honeyprompt --version
 # Serve:  docker run --rm -v hp-data:/landing -p 8080:8080 honeyprompt serve /landing --domain your-host.example
 
+# Builds natively for the build machine's architecture (x86_64 or aarch64);
+# CI builds each on a native runner and merges them into one multi-arch tag.
 FROM rust:1.88-slim AS builder
 WORKDIR /app
 COPY . .
 RUN apt-get update && apt-get install -y musl-tools && \
-    rustup target add x86_64-unknown-linux-musl && \
+    TARGET="$(uname -m)-unknown-linux-musl" && \
+    rustup target add "$TARGET" && \
     RUSTFLAGS="-C target-feature=+crt-static" \
-    cargo build --release --target x86_64-unknown-linux-musl && \
-    strip target/x86_64-unknown-linux-musl/release/honeyprompt
+    cargo build --release --target "$TARGET" && \
+    strip "target/$TARGET/release/honeyprompt" && \
+    cp "target/$TARGET/release/honeyprompt" /honeyprompt
 
 FROM gcr.io/distroless/static-debian12
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/honeyprompt /usr/local/bin/honeyprompt
+COPY --from=builder /honeyprompt /usr/local/bin/honeyprompt
 # No config is baked in: `serve /landing --domain your-host.example` creates one
 # for your domain on first start, then generates the site into the persistent
 # /landing volume (see deploy/docker-compose.yml). Without --domain or an

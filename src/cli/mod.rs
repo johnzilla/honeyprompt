@@ -108,9 +108,10 @@ pub struct ServeArgs {
     /// Output events as JSON lines instead of structured text
     #[arg(long)]
     pub json: bool,
-    /// Domain for zero-config serve: sets callback_base_url=https://{domain},
-    /// bind=0.0.0.0:8080, enables all tiers. Generates in tempdir if no --path.
-    #[arg(long)]
+    /// Domain for zero-config serve (host or host:port): sets
+    /// callback_base_url=https://{domain}. A new project gets the defaults
+    /// (bind 0.0.0.0:8080, tiers 1-5). Generates in a tempdir if no path.
+    #[arg(long, value_parser = crate::config::parse_domain)]
     pub domain: Option<String>,
     /// Override bind address (e.g., 0.0.0.0:9090)
     #[arg(long)]

@@ -62,6 +62,47 @@ impl SortField {
     }
 }
 
+/// Exact running counts for the header, independent of the capped list.
+#[derive(Debug, Default)]
+pub struct EventTotals {
+    pub detections: usize,
+    pub replays: usize,
+    /// Non-replay events per tier 1-5.
+    pub tiers: [usize; 5],
+    /// Unique non-replay sessions, as 64-bit hashes (bounded memory).
+    pub sessions: HashSet<u64>,
+    pub sessions_capped: bool,
+}
+
+impl EventTotals {
+    fn add(&mut self, e: &AppEvent) {
+        if e.is_replay {
+            self.replays += 1;
+            return;
+        }
+        self.detections += 1;
+        if (1..=5).contains(&e.tier) {
+            self.tiers[(e.tier - 1) as usize] += 1;
+        }
+        let key = session_key(&e.session_id);
+        if self.sessions.len() < MAX_TRACKED_SESSIONS {
+            self.sessions.insert(key);
+        } else if !self.sessions.contains(&key) {
+            self.sessions_capped = true;
+        }
+    }
+}
+
+/// Session ids are 16 hex chars (64 bits); fall back to a std hash otherwise.
+fn session_key(id: &str) -> u64 {
+    u64::from_str_radix(id, 16).unwrap_or_else(|_| {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        id.hash(&mut h);
+        h.finish()
+    })
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum UiMode {
     Normal,
@@ -69,8 +110,20 @@ pub enum UiMode {
     Help,
 }
 
+/// Events kept in the TUI list; older ones scroll out (the DB keeps them all).
+pub const MAX_EVENTS: usize = 10_000;
+/// Unique sessions tracked for the header count; beyond this it shows "N+".
+pub const MAX_TRACKED_SESSIONS: usize = 100_000;
+
 pub struct AppState {
-    pub events: Vec<AppEvent>,
+    /// Newest [`MAX_EVENTS`] events.
+    pub events: std::collections::VecDeque<AppEvent>,
+    /// Running totals over every event seen, not just the ones still listed.
+    pub totals: EventTotals,
+    /// Integrated mode: the server's dropped-event counters (shown when > 0).
+    pub drops: Option<Arc<crate::server::DropCounters>>,
+    /// Events the display missed because it fell behind (they are in the DB).
+    pub display_lagged: u64,
     pub filter: TierFilter,
     pub sort: SortField,
     pub show_replays: bool,
@@ -88,7 +141,10 @@ impl AppState {
         let mut table_state = ratatui::widgets::TableState::default();
         table_state.select(Some(0));
         AppState {
-            events: Vec::new(),
+            events: std::collections::VecDeque::new(),
+            totals: EventTotals::default(),
+            drops: None,
+            display_lagged: 0,
             filter: TierFilter::All,
             sort: SortField::Time,
             show_replays: false,
@@ -103,7 +159,11 @@ impl AppState {
     }
 
     pub fn push_event(&mut self, event: AppEvent) {
-        self.events.push(event);
+        self.totals.add(&event);
+        self.events.push_back(event);
+        if self.events.len() > MAX_EVENTS {
+            self.events.pop_front();
+        }
         if !self.at_bottom {
             self.new_events_count += 1;
         } else {
@@ -162,32 +222,43 @@ impl AppState {
     }
 
     pub fn detection_count(&self) -> usize {
-        self.events.iter().filter(|e| !e.is_replay).count()
+        self.totals.detections
     }
 
     pub fn session_count(&self) -> usize {
-        let unique: HashSet<&str> = self
-            .events
-            .iter()
-            .filter(|e| !e.is_replay)
-            .map(|e| e.session_id.as_str())
-            .collect();
-        unique.len()
+        self.totals.sessions.len()
+    }
+
+    /// Session count for the header: "100000+" once tracking is capped.
+    pub fn session_label(&self) -> String {
+        if self.totals.sessions_capped {
+            format!("{}+", self.totals.sessions.len())
+        } else {
+            self.totals.sessions.len().to_string()
+        }
     }
 
     pub fn tier_counts(&self) -> [usize; 5] {
-        let non_replays: Vec<&AppEvent> = self.events.iter().filter(|e| !e.is_replay).collect();
-        [
-            non_replays.iter().filter(|e| e.tier == 1).count(),
-            non_replays.iter().filter(|e| e.tier == 2).count(),
-            non_replays.iter().filter(|e| e.tier == 3).count(),
-            non_replays.iter().filter(|e| e.tier == 4).count(),
-            non_replays.iter().filter(|e| e.tier == 5).count(),
-        ]
+        self.totals.tiers
     }
 
     pub fn replay_count(&self) -> usize {
-        self.events.iter().filter(|e| e.is_replay).count()
+        self.totals.replays
+    }
+
+    /// Status-bar note about lost events, if any.
+    pub fn loss_note(&self) -> Option<String> {
+        let mut parts = Vec::new();
+        if let Some(line) = self.drops.as_ref().and_then(|d| d.summary()) {
+            parts.push(line);
+        }
+        if self.display_lagged > 0 {
+            parts.push(format!(
+                "Display skipped {} event(s) (they are in the DB).",
+                self.display_lagged
+            ));
+        }
+        (!parts.is_empty()).then(|| parts.join(" "))
     }
 
     pub fn cycle_filter(&mut self) {
@@ -407,7 +478,17 @@ fn render_event_table(frame: &mut Frame, area: Rect, app: &mut AppState) {
 
     let table = Table::new(rows, widths)
         .header(header)
-        .block(Block::default().title("Events").borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title(
+                    if app.totals.detections + app.totals.replays > app.events.len() {
+                        format!("Events (newest {})", app.events.len())
+                    } else {
+                        "Events".to_string()
+                    },
+                )
+                .borders(Borders::ALL),
+        )
         .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(table, area, &mut app.table_state);
@@ -544,7 +625,7 @@ fn render(frame: &mut Frame, app: &mut AppState) {
             Style::default().add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            app.session_count().to_string(),
+            app.session_label(),
             Style::default()
                 .add_modifier(Modifier::BOLD)
                 .fg(Color::Cyan),
@@ -563,7 +644,10 @@ fn render(frame: &mut Frame, app: &mut AppState) {
         Span::styled(replay_indicator, Style::default().fg(Color::Gray)),
     ];
 
-    let status_line = app.status_line.clone();
+    let status_line = match app.loss_note() {
+        Some(note) => format!("{}  {}", app.status_line, note),
+        None => app.status_line.clone(),
+    };
     let stats_text = vec![
         Line::from(stats_spans),
         Line::from(vec![Span::raw(status_line)]),
@@ -900,8 +984,10 @@ async fn run_loop(
             result = event_rx.recv() => {
                 match result {
                     Ok(ev) => app.push_event(ev),
-                    Err(broadcast::error::RecvError::Lagged(_n)) => {
-                        // Silently drop — acceptable for demo tool
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        // Only the display fell behind; the DB writer is not
+                        // a broadcast subscriber, so nothing was lost there.
+                        app.display_lagged += n;
                     }
                     Err(broadcast::error::RecvError::Closed) => break,
                 }
@@ -1096,30 +1182,33 @@ pub async fn monitor(
         // Spawn pipeline tasks (no stdout_logger_task — TUI replaces it)
         let session_salt =
             crate::fingerprint::load_or_create_salt(&project_path.join(".honeyprompt"))?;
-        tokio::spawn(crate::broker::broker_task(callback_rx, db_tx, session_salt));
+        let broker_handle =
+            tokio::spawn(crate::broker::broker_task(callback_rx, db_tx, session_salt));
         let alerts = crate::webhook::Webhook::from_config_and_env(config)?
             .map(crate::webhook::spawn)
             .transpose()?;
         let (seed_hit_tx, seed_hit_rx) = mpsc::channel::<crate::server::SeedHit>(256);
-        tokio::spawn(crate::broker::seed_hit_writer_task(
+        let seed_handle = tokio::spawn(crate::broker::seed_hit_writer_task(
             seed_hit_rx,
             conn.clone(),
             alerts.clone(),
             crate::broker::SeedLog::Quiet,
         ));
-        tokio::spawn(crate::broker::db_writer_task(
+        let db_handle = tokio::spawn(crate::broker::db_writer_task(
             db_rx,
             conn.clone(),
             alerts,
             event_tx,
         ));
         let (page_view_tx, page_view_rx) = mpsc::channel::<crate::server::PageView>(256);
-        tokio::spawn(crate::broker::page_view_writer_task(
+        let page_view_handle = tokio::spawn(crate::broker::page_view_writer_task(
             page_view_rx,
             conn.clone(),
         ));
 
         // Build server AppState and router
+        let drops = Arc::new(crate::server::DropCounters::quiet());
+        app.drops = Some(drops.clone());
         let server_state = Arc::new(crate::server::AppState {
             conn: conn.clone(),
             callback_tx,
@@ -1129,8 +1218,9 @@ pub async fn monitor(
             page_view_tx: Some(page_view_tx),
             exfil_canary: None,
             seed_hit_tx: Some(seed_hit_tx),
-            // Quiet: a warning on stderr would corrupt the TUI.
-            drops: Arc::new(crate::server::DropCounters::quiet()),
+            // Quiet: a warning on stderr would corrupt the TUI; the TUI's
+            // status line shows the totals instead.
+            drops: drops.clone(),
             stats_cache: Default::default(),
         });
         let app_router = crate::server::build_router(server_state, output_dir);
@@ -1152,7 +1242,7 @@ pub async fn monitor(
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
         // Spawn axum server with graceful shutdown
-        tokio::spawn(async move {
+        let server_handle = tokio::spawn(async move {
             if let Err(e) = axum::serve(
                 listener,
                 app_router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
@@ -1172,7 +1262,30 @@ pub async fn monitor(
         let mut terminal = setup_terminal()?;
         let result = run_loop(&mut terminal, tui_rx, &mut app).await;
         restore_terminal(&mut terminal)?;
+
+        // Stop the server, then let each stage drain its queue in order (the
+        // router held the senders), bounded like `serve`'s shutdown.
         let _ = shutdown_tx.send(());
+        eprintln!("Shutting down -- flushing writes...");
+        let drain = async {
+            server_handle.await.ok();
+            broker_handle.await.ok();
+            db_handle.await.ok();
+            page_view_handle.await.ok();
+            seed_handle.await.ok();
+        };
+        if tokio::time::timeout(crate::server::SHUTDOWN_DRAIN_TIMEOUT, drain)
+            .await
+            .is_err()
+        {
+            eprintln!(
+                "warning: writers still busy after {}s; unwritten events were lost",
+                crate::server::SHUTDOWN_DRAIN_TIMEOUT.as_secs()
+            );
+        }
+        if let Some(line) = drops.summary() {
+            eprintln!("{line}");
+        }
         result
     }
 }
@@ -1329,6 +1442,67 @@ mod tests {
         assert_eq!(visible[0].fingerprint.source_ip.to_string(), "1.2.3.4");
         assert_eq!(visible[1].fingerprint.source_ip.to_string(), "2.3.4.5");
         assert_eq!(visible[2].fingerprint.source_ip.to_string(), "3.4.5.6");
+    }
+
+    #[test]
+    fn event_list_is_capped_but_totals_stay_exact() {
+        let mut state = AppState::new();
+        let n = MAX_EVENTS + 250;
+        for i in 0..n {
+            let tier = (i % 5) as u8 + 1;
+            let sess = format!("{:016x}", i % 300);
+            state.push_event(make_test_event(
+                tier,
+                i % 10 == 0,
+                "1.2.3.4",
+                &sess,
+                i as u64,
+            ));
+        }
+        assert_eq!(state.events.len(), MAX_EVENTS, "oldest events scroll out");
+        assert_eq!(
+            state.events.front().unwrap().received_at,
+            250,
+            "the newest are kept"
+        );
+        let replays = n.div_ceil(10);
+        assert_eq!(state.replay_count(), replays);
+        assert_eq!(state.detection_count(), n - replays);
+        assert_eq!(state.tier_counts().iter().sum::<usize>(), n - replays);
+        // Sessions count non-replay events only; sessions 0, 10, 20, ... only
+        // ever replay here, so 270 of the 300 count.
+        assert_eq!(state.session_count(), 270);
+        assert_eq!(state.session_label(), "270");
+    }
+
+    #[test]
+    fn session_tracking_is_bounded() {
+        let mut t = EventTotals::default();
+        for i in 0..(MAX_TRACKED_SESSIONS + 5) {
+            let mut e = make_test_event(1, false, "1.2.3.4", &format!("{i:016x}"), 0);
+            e.is_replay = false;
+            t.add(&e);
+        }
+        assert_eq!(t.sessions.len(), MAX_TRACKED_SESSIONS);
+        assert!(t.sessions_capped);
+        let mut state = AppState::new();
+        state.totals = t;
+        assert_eq!(state.session_label(), format!("{MAX_TRACKED_SESSIONS}+"));
+    }
+
+    #[test]
+    fn loss_note_reports_drops_and_display_lag() {
+        let mut state = AppState::new();
+        assert!(state.loss_note().is_none());
+        let drops = Arc::new(crate::server::DropCounters::quiet());
+        drops.record(crate::server::DropKind::Callback);
+        state.drops = Some(drops);
+        state.display_lagged = 3;
+        let note = state.loss_note().unwrap();
+        assert!(
+            note.contains("1 callback(s)") && note.contains("skipped 3"),
+            "{note}"
+        );
     }
 
     #[test]

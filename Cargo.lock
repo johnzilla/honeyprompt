@@ -868,7 +868,7 @@ dependencies = [
 
 [[package]]
 name = "honeyprompt"
-version = "5.7.0"
+version = "5.7.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -892,6 +892,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "subtle",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",

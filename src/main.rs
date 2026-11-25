@@ -5,6 +5,19 @@ use honeyprompt::{
     config, experiment, generator, monitor, report, seed, server, setup, store, test_agent, webhook,
 };
 
+/// Open a project's events DB, refusing to create one: a wrong path should be
+/// an error, not a silent new empty database.
+fn open_existing_db(project: &std::path::Path) -> Result<rusqlite::Connection> {
+    let db_path = project.join(".honeyprompt").join("events.db");
+    if !db_path.exists() {
+        bail!(
+            "database not found at {} — check the path, or run `honeyprompt init` / `serve` there first",
+            db_path.display()
+        );
+    }
+    store::open_or_create_db(&db_path)
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
@@ -20,8 +33,7 @@ fn main() -> Result<()> {
             // Create output/ directory
             std::fs::create_dir_all(path.join("output"))?;
 
-            // Create .honeyprompt/overrides/ directory
-            std::fs::create_dir_all(path.join(".honeyprompt").join("overrides"))?;
+            std::fs::create_dir_all(path.join(".honeyprompt"))?;
 
             // Write default config
             config::write_default_config(&config_path)?;
@@ -176,8 +188,7 @@ fn main() -> Result<()> {
         }
         Commands::Report(args) => {
             let path = &args.path;
-            let db_path = path.join(".honeyprompt").join("events.db");
-            let conn = store::open_or_create_db(&db_path)?;
+            let conn = open_existing_db(path)?;
             let markdown = report::generate_report(&conn)?;
             if args.stdout {
                 print!("{}", markdown);
@@ -209,8 +220,7 @@ fn main() -> Result<()> {
         Commands::Seed(args) => match args.command {
             SeedCommand::Add(a) => {
                 let cfg = config::load_config(&a.path.join("honeyprompt.toml"))?;
-                let conn =
-                    store::open_or_create_db(&a.path.join(".honeyprompt").join("events.db"))?;
+                let conn = open_existing_db(&a.path)?;
                 let added = seed::add(&conn, &cfg, &a.label, a.note.as_deref(), a.format)?;
                 eprintln!("Created seed {:?} -> {}", a.label, added.url);
                 if seed::is_local_base(&cfg.callback_base_url) {
@@ -224,8 +234,7 @@ fn main() -> Result<()> {
             }
             SeedCommand::List(a) => {
                 let cfg = config::load_config(&a.path.join("honeyprompt.toml"))?;
-                let conn =
-                    store::open_or_create_db(&a.path.join(".honeyprompt").join("events.db"))?;
+                let conn = open_existing_db(&a.path)?;
                 print!(
                     "{}",
                     seed::render_list(&store::list_seeds(&conn)?, &cfg.callback_base_url)
