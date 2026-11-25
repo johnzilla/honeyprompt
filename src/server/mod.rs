@@ -669,21 +669,25 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
     let app = build_router(Arc::new(app_state), output_dir);
 
     // Print startup info (D-09)
+    // Install signal handlers and bind before announcing "ready", and print
+    // the address actually bound (meaningful with port 0).
+    let shutdown = shutdown_signal()?;
+    let listener = tokio::net::TcpListener::bind(&config.bind_address).await?;
     println!("honeyprompt serve");
     println!("  bind:   {}", config.bind_address);
+    println!("  listen: {}", listener.local_addr()?);
     println!("  trusted proxies: {}", trusted_display);
     println!("  webhook: {}", webhook_display);
     println!("  nonces: {}", nonce_count);
     println!("  db:     {}", db_path.display());
     println!("  ready");
 
-    // Bind and serve with graceful shutdown (D-11, Pitfall 1: must use with_connect_info)
-    let listener = tokio::net::TcpListener::bind(&config.bind_address).await?;
+    // Serve with graceful shutdown (D-11, Pitfall 1: must use with_connect_info)
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
-    .with_graceful_shutdown(shutdown_signal())
+    .with_graceful_shutdown(shutdown)
     .await?;
 
     // The router (and with it every sender) is gone now, so each stage drains
@@ -726,19 +730,23 @@ pub const SHUTDOWN_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 /// SIGTERM matters in the container image: the binary is PID 1 there, and the
 /// kernel drops signals PID 1 has no handler for, so without this `docker stop`
 /// waited 10 s and then SIGKILLed, losing buffered events.
-async fn shutdown_signal() {
+///
+/// The handlers are installed when this is *called*, not when the returned
+/// future is first polled, so a signal that arrives right after "ready" (or
+/// during startup) is still caught instead of hitting the default action.
+fn shutdown_signal() -> anyhow::Result<impl std::future::Future<Output = ()>> {
     use tokio::signal::unix::{signal, SignalKind};
-    let mut term = signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
-    let mut hup = signal(SignalKind::hangup()).expect("failed to install SIGHUP handler");
-    let name = tokio::select! {
-        r = tokio::signal::ctrl_c() => {
-            r.expect("failed to install Ctrl+C handler");
-            "SIGINT"
-        }
-        _ = term.recv() => "SIGTERM",
-        _ = hup.recv() => "SIGHUP",
-    };
-    eprintln!("\nShutting down ({name}) -- flushing writes...");
+    let mut int = signal(SignalKind::interrupt())?;
+    let mut term = signal(SignalKind::terminate())?;
+    let mut hup = signal(SignalKind::hangup())?;
+    Ok(async move {
+        let name = tokio::select! {
+            _ = int.recv() => "SIGINT",
+            _ = term.recv() => "SIGTERM",
+            _ = hup.recv() => "SIGHUP",
+        };
+        eprintln!("\nShutting down ({name}) -- flushing writes...");
+    })
 }
 
 /// Return current Unix epoch in whole seconds.

@@ -8,14 +8,6 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
-}
-
 /// Minimal HTTP/1.0 GET; returns the body.
 fn http_get(addr: &str, path: &str) -> String {
     let mut s = std::net::TcpStream::connect(addr).expect("connect");
@@ -37,81 +29,78 @@ struct Run {
     stderr: String,
 }
 
-/// Start `serve <dir> --bind 127.0.0.1:<port> <extra>`, wait until it accepts
-/// connections, call `during(addr)`, send `sig`, and collect the output.
-/// Retries on a fresh port if another test took it.
+/// Start `serve <dir> --bind 127.0.0.1:0 <extra>`, wait for the `listen:`
+/// line with the port it actually bound, call `during(addr)`, send `sig`, and
+/// collect the output. Binding port 0 inside `serve` avoids the race where a
+/// port picked by the test is taken by a parallel test before `serve` binds it
+/// (the test then talked to another test's server).
 fn serve_run(dir: &Path, extra: &[&str], sig: libc::c_int, during: impl Fn(&str)) -> Run {
-    for _ in 0..5 {
-        let port = free_port();
-        let bind = format!("127.0.0.1:{port}");
-        let mut child = Command::new(env!("CARGO_BIN_EXE_honeyprompt"))
-            .arg("serve")
-            .arg(dir)
-            .args(extra)
-            .args(["--bind", &bind])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("spawn serve");
+    use std::io::BufRead;
+    let mut child = Command::new(env!("CARGO_BIN_EXE_honeyprompt"))
+        .arg("serve")
+        .arg(dir)
+        .args(extra)
+        .args(["--bind", "127.0.0.1:0"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn serve");
 
-        let start = Instant::now();
-        let mut up = false;
-        while start.elapsed() < Duration::from_secs(15) {
-            if std::net::TcpStream::connect(&bind).is_ok() {
-                up = true;
-                break;
+    // Read stdout on a thread: report the listen address, keep every line.
+    let stdout = child.stdout.take().unwrap();
+    let (addr_tx, addr_rx) = std::sync::mpsc::channel::<String>();
+    let reader = std::thread::spawn(move || {
+        let mut all = String::new();
+        for line in std::io::BufReader::new(stdout).lines() {
+            let line = line.unwrap_or_default();
+            if let Some(a) = line.trim().strip_prefix("listen:") {
+                let _ = addr_tx.send(a.trim().to_string());
             }
-            if child.try_wait().unwrap().is_some() {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(50));
+            all.push_str(&line);
+            all.push('\n');
         }
-        if !up {
+        all
+    });
+
+    let addr = match addr_rx.recv_timeout(Duration::from_secs(15)) {
+        Ok(a) => a,
+        Err(_) => {
             let _ = child.kill();
             let out = child.wait_with_output().unwrap();
-            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            if stderr.contains("Address already in use") {
-                continue;
-            }
-            panic!("serve never came up: {stderr}");
+            panic!(
+                "serve never reported its listen address: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
         }
+    };
 
-        during(&bind);
+    during(&addr);
 
-        // SAFETY: sending a signal to our own child process.
-        assert_eq!(unsafe { libc::kill(child.id() as libc::pid_t, sig) }, 0);
-        let deadline = Instant::now() + Duration::from_secs(10);
-        let status = loop {
-            if let Some(s) = child.try_wait().unwrap() {
-                break s;
-            }
-            if Instant::now() > deadline {
-                let _ = child.kill();
-                panic!("serve did not exit within 10 s of signal {sig}");
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        };
-        let mut stdout = String::new();
-        let mut stderr = String::new();
-        child
-            .stdout
-            .take()
-            .unwrap()
-            .read_to_string(&mut stdout)
-            .unwrap();
-        child
-            .stderr
-            .take()
-            .unwrap()
-            .read_to_string(&mut stderr)
-            .unwrap();
-        return Run {
-            ok: status.success(),
-            stdout,
-            stderr,
-        };
+    // SAFETY: sending a signal to our own child process.
+    assert_eq!(unsafe { libc::kill(child.id() as libc::pid_t, sig) }, 0);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let status = loop {
+        if let Some(s) = child.try_wait().unwrap() {
+            break s;
+        }
+        if Instant::now() > deadline {
+            let _ = child.kill();
+            panic!("serve did not exit within 10 s of signal {sig}");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    let mut stderr = String::new();
+    child
+        .stderr
+        .take()
+        .unwrap()
+        .read_to_string(&mut stderr)
+        .unwrap();
+    Run {
+        ok: status.success(),
+        stdout: reader.join().unwrap(),
+        stderr,
     }
-    panic!("no free port after 5 tries");
 }
 
 #[test]

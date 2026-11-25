@@ -868,7 +868,7 @@ dependencies = [
 
 [[package]]
 name = "honeyprompt"
-version = "5.7.1"
+version = "5.7.2"
 dependencies = [
  "anyhow",
  "axum",

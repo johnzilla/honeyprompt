@@ -392,7 +392,7 @@ See [experiments/PROTOCOL.md](experiments/PROTOCOL.md) for the validation experi
 
 ## Status
 
-Current release: **v5.7.1** — five proof tiers on served pages, tier 6 context exfiltration in `test-agent --exfil`, repeatable agent experiments (`test-agent --agent-cmd --trials --results`, `experiment summarize`), seeded canaries (`honeyprompt seed`), `serve`, `monitor`, `report`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
+Current release: **v5.7.2** — five proof tiers on served pages, tier 6 context exfiltration in `test-agent --exfil`, repeatable agent experiments (`test-agent --agent-cmd --trials --results`, `experiment summarize`), seeded canaries (`honeyprompt seed`), `serve`, `monitor`, `report`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
 
 ## Ethics and Safety
 
