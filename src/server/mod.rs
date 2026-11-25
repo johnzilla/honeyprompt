@@ -578,12 +578,25 @@ pub async fn serve(config: &Config, project_path: &Path, json_mode: bool) -> any
     Ok(())
 }
 
-/// Wait for Ctrl+C and print a shutdown notice to stderr.
+/// Wait for SIGINT (Ctrl+C), SIGTERM (`docker stop`, `systemctl stop`) or
+/// SIGHUP (terminal closed), then print a shutdown notice to stderr.
+///
+/// SIGTERM matters in the container image: the binary is PID 1 there, and the
+/// kernel drops signals PID 1 has no handler for, so without this `docker stop`
+/// waited 10 s and then SIGKILLed, losing buffered events.
 async fn shutdown_signal() {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("failed to install Ctrl+C handler");
-    eprintln!("\nShutting down -- flushing writes...");
+    use tokio::signal::unix::{signal, SignalKind};
+    let mut term = signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+    let mut hup = signal(SignalKind::hangup()).expect("failed to install SIGHUP handler");
+    let name = tokio::select! {
+        r = tokio::signal::ctrl_c() => {
+            r.expect("failed to install Ctrl+C handler");
+            "SIGINT"
+        }
+        _ = term.recv() => "SIGTERM",
+        _ = hup.recv() => "SIGHUP",
+    };
+    eprintln!("\nShutting down ({name}) -- flushing writes...");
 }
 
 /// Return current Unix epoch in whole seconds.

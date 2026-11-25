@@ -471,7 +471,7 @@ pub fn detections_by_tier(conn: &Connection) -> rusqlite::Result<[u32; 5]> {
 pub fn count_detections(conn: &Connection) -> rusqlite::Result<u32> {
     let count: u32 = conn.query_row(
         "SELECT COUNT(DISTINCT session_id || '-' || tier) FROM events
-         WHERE extra_headers NOT LIKE '%\"classification\":\"KnownCrawler\"%'",
+         WHERE extra_headers NOT LIKE '%\"classification\":\"KnownCrawler%'",
         [],
         |row| row.get(0),
     )?;
@@ -1192,7 +1192,7 @@ mod tests {
             "sess_crawler",
             "10.0.0.1",
             "Googlebot/2.1",
-            r#"{"classification":"KnownCrawler","headers":{}}"#,
+            r#"{"classification":"KnownCrawler:Google","headers":{}}"#,
             None,
             None,
             None,
@@ -1381,7 +1381,7 @@ mod tests {
             "sess_crawler",
             "10.0.0.3",
             "Googlebot/2.1",
-            r#"{"classification":"KnownCrawler","headers":{}}"#,
+            r#"{"classification":"KnownCrawler:Google","headers":{}}"#,
             None,
             None,
             None,
@@ -1415,7 +1415,7 @@ mod tests {
             "sess_crawler_t4",
             "10.0.0.5",
             "Googlebot/2.1",
-            r#"{"classification":"KnownCrawler","headers":{}}"#,
+            r#"{"classification":"KnownCrawler:Google","headers":{}}"#,
             None,
             None,
             None,

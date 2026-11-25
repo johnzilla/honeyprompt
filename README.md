@@ -147,7 +147,7 @@ systemctl daemon-reload
 systemctl enable --now honeyprompt
 ```
 
-See `deploy/templates/honeyprompt.service` for the full unit file with `KillSignal=SIGINT` set correctly.
+See `deploy/templates/honeyprompt.service` for the full unit file. `serve` shuts down gracefully on SIGTERM, SIGINT or SIGHUP, so `systemctl stop` and `docker stop` both flush buffered events.
 
 ### 4. Verify
 
@@ -390,7 +390,7 @@ See [experiments/PROTOCOL.md](experiments/PROTOCOL.md) for the validation experi
 
 ## Status
 
-Current release: **v5.6.0** — five proof tiers on served pages, tier 6 context exfiltration in `test-agent --exfil`, repeatable agent experiments (`test-agent --agent-cmd --trials --results`, `experiment summarize`), seeded canaries (`honeyprompt seed`), `serve`, `monitor`, `report`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
+Current release: **v5.6.1** — five proof tiers on served pages, tier 6 context exfiltration in `test-agent --exfil`, repeatable agent experiments (`test-agent --agent-cmd --trials --results`, `experiment summarize`), seeded canaries (`honeyprompt seed`), `serve`, `monitor`, `report`, webhook alerts, setup wizard, and deploy templates. See [Releases](https://github.com/johnzilla/honeyprompt/releases) for the changelog and [TODOS.md](https://github.com/johnzilla/honeyprompt/blob/main/TODOS.md) for what's next.
 
 ## Ethics and Safety
 

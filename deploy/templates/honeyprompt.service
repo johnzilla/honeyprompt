@@ -37,10 +37,8 @@ RestartSec=5
 StartLimitIntervalSec=600
 StartLimitBurst=5
 
-# Graceful shutdown: the server listens for SIGINT (Ctrl+C), not SIGTERM.
-# Without KillSignal=SIGINT, `systemctl stop` sends SIGTERM which bypasses
-# the graceful shutdown path and may lose in-flight events from the mpsc channel.
-KillSignal=SIGINT
+# Graceful shutdown: `systemctl stop` sends SIGTERM, which flushes buffered
+# events and prints the shutdown summary (SIGINT and SIGHUP do the same).
 TimeoutStopSec=10
 
 # Sandbox hardening

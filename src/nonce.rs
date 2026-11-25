@@ -13,10 +13,8 @@ pub fn generate_nonce() -> String {
 /// Using `.ok()` (not `.unwrap()`) at the handler boundary prevents panics on any
 /// malformed nonce that somehow reaches this helper — RESEARCH.md Risk 1 mitigation.
 pub fn derive_seed(nonce: &str) -> Option<u32> {
-    if nonce.len() < 8 {
-        return None;
-    }
-    u32::from_str_radix(&nonce[0..8], 16).ok()
+    // `get` instead of slicing: never panics on a non-char boundary.
+    u32::from_str_radix(nonce.get(0..8)?, 16).ok()
 }
 
 /// Validate a nonce has the canonical format: 16 lowercase hex characters.

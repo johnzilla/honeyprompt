@@ -244,13 +244,17 @@ fn format_time(secs: u64) -> String {
     format!("{:02}:{:02}:{:02}", h, m, s)
 }
 
+/// Truncate to at most `max` characters (not bytes: user agents are
+/// attacker-controlled and may be multibyte UTF-8), ending in "..." when cut.
 fn truncate_str(s: &str, max: usize) -> String {
-    if s.len() <= max {
+    if s.chars().count() <= max {
         s.to_string()
     } else if max <= 3 {
-        s[..max].to_string()
+        s.chars().take(max).collect()
     } else {
-        format!("{}...", &s[..max - 3])
+        let mut out: String = s.chars().take(max - 3).collect();
+        out.push_str("...");
+        out
     }
 }
 
@@ -1424,6 +1428,21 @@ mod tests {
     #[test]
     fn test_truncate_str_long() {
         assert_eq!(truncate_str("hello world", 8), "hello...");
+    }
+
+    #[test]
+    fn test_truncate_str_multibyte_never_panics() {
+        // Regression: byte slicing panicked on a 40-byte all-"Å" user agent.
+        let ua = "Å".repeat(20);
+        assert_eq!(truncate_str(&ua, 30), ua, "20 chars fit in 30");
+        let long = "Å".repeat(40);
+        let cut = truncate_str(&long, 30);
+        assert_eq!(cut.chars().count(), 30);
+        assert!(cut.ends_with("..."));
+        assert_eq!(truncate_str("aÅÅÅÅ", 2), "aÅ");
+        for max in 0..12 {
+            truncate_str("a😀Åb😀😀Å", max);
+        }
     }
 
     #[test]
